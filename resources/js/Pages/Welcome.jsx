@@ -5,12 +5,13 @@ import {
     ShieldCheck, Users, BarChart3, MapPin, 
     Phone, Mail, Printer, Globe, LogIn
 } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
 export default function Welcome({ auth }) {
     const [isSticky, setIsSticky] = useState(false);
     const [activeLang, setActiveLang] = useState('FR');
+    const [offsetY, setOffsetY] = useState(0);
 
-    // Dictionnaire de traduction FR / AR
     const translations = {
         FR: {
             nav_about: "À propos",
@@ -28,6 +29,9 @@ export default function Welcome({ auth }) {
             stat_exp: "Experts Référencés",
             stat_rap: "Rapports Générés",
             stat_taux: "Taux de Conformité",
+            chart_title: "Évolution des évaluations par type d'établissement",
+            public_etab: "Établissements Publics",
+            prive_etab: "Établissements Privés",
             about_badge: "La Mission de l'ANEAQ",
             about_title: "Un pilier stratégique pour la Recherche Scientifique",
             about_desc: "La Division de l'Évaluation des Établissements (DEE) est investie d'une mission régalienne : accompagner les institutions publiques et privées vers les meilleurs standards internationaux à travers une démarche rigoureuse.",
@@ -66,6 +70,9 @@ export default function Welcome({ auth }) {
             stat_exp: "الخبراء المعتمدون",
             stat_rap: "التقارير المنجزة",
             stat_taux: "نسبة المطابقة",
+            chart_title: "تطور التقييمات حسب نوع المؤسسة",
+            public_etab: "مؤسسات عامة",
+            prive_etab: "مؤسسات خاصة",
             about_badge: "مهمة الوكالة",
             about_title: "ركيزة استراتيجية للبحث العلمي",
             about_desc: "تتولى قسم تقييم المؤسسات مهمة سيادية: مرافقة المؤسسات العامة والخاصة نحو أفضل المعايير الدولية من خلال نهج صارم.",
@@ -93,10 +100,22 @@ export default function Welcome({ auth }) {
     const t = translations[activeLang];
 
     useEffect(() => {
-        const handleScroll = () => setIsSticky(window.scrollY > 50);
+        const handleScroll = () => {
+            setIsSticky(window.scrollY > 50);
+            setOffsetY(window.scrollY * 0.4); // Vitesse du Parallaxe
+        };
         window.addEventListener('scroll', handleScroll);
         return () => window.removeEventListener('scroll', handleScroll);
     }, []);
+
+    // 📊 DONNÉES EXACTES DU DIAGRAMME (Public vs Privé)
+    const chartData = [
+        { year: '2021', [t.public_etab]: 10, [t.prive_etab]: 3 },
+        { year: '2022', [t.public_etab]: 9,  [t.prive_etab]: 3 },
+        { year: '2023', [t.public_etab]: 0,  [t.prive_etab]: 0 },
+        { year: '2024', [t.public_etab]: 21, [t.prive_etab]: 25 },
+        { year: '2025', [t.public_etab]: 50, [t.prive_etab]: 0 },
+    ];
 
     const universities = [
         { name: "Université Mohammed V – Rabat", link: "http://www.um5.ac.ma/um5/" },
@@ -119,26 +138,36 @@ export default function Welcome({ auth }) {
 
             {/* --- NAVBAR --- */}
             <nav className={`fixed w-full z-50 transition-all duration-500 ${
-                isSticky ? 'bg-white shadow-xl py-3' : 'bg-blue-950 py-5 text-white'
+                isSticky ? 'bg-white shadow-xl py-3' : 'bg-transparent py-5 text-white'
             }`}>
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-between items-center">
                     
-                    {/* Logos Ministère & ANEAQ */}
-                    <Link href="/" className="flex items-center gap-4 group">
-                        <img src="/images/logo-ministere.png" alt="Ministère" className="h-12 hidden sm:block bg-white rounded p-1" onError={(e) => e.target.style.display='none'} />
-                        <div className="h-10 w-px bg-slate-300 hidden sm:block opacity-30"></div>
-                        <img src="/images/logo-aneaq.png" alt="ANEAQ" className="h-12 bg-white rounded p-1" onError={(e) => {e.target.onerror = null; e.target.outerHTML = '<div class="bg-blue-600 p-2 rounded-xl"><ShieldCheck class="text-white w-6 h-6" /></div>'}} />
-                        <span className={`text-2xl font-black tracking-tighter ${isSticky ? 'text-blue-950' : 'text-white'}`}>
-                            ANEAQ
-                        </span>
+                    {/* 🎓 LOGOS MINISTÈRE & ANEAQ PARFAITEMENT ALIGNÉS */}
+                    <Link href="/" className="flex items-center gap-3 md:gap-5 group relative z-50">
+                        {/* Logo Ministère */}
+                        <img 
+                            src="/images/logo-ministere.png" 
+                            alt="Ministère" 
+                            className="h-10 sm:h-14 object-contain bg-white rounded-lg p-1.5 shadow-lg hover:scale-105 transition-transform" 
+                            onError={(e) => e.target.style.display='none'} 
+                        />
+                        {/* Séparateur vertical */}
+                        <div className={`h-8 sm:h-12 w-px ${isSticky ? 'bg-slate-300' : 'bg-white/40'} hidden sm:block`}></div>
+                        {/* Logo ANEAQ */}
+                        <img 
+                            src="/images/logo-aneaq.png" 
+                            alt="ANEAQ" 
+                            className="h-10 sm:h-14 object-contain bg-white rounded-lg p-1.5 shadow-lg hover:scale-105 transition-transform" 
+                            onError={(e) => {e.target.onerror = null; e.target.outerHTML = '<div class="bg-blue-600 p-2 rounded-xl"><ShieldCheck class="text-white w-6 h-6" /></div>'}} 
+                        />
                     </Link>
                     
                     {/* Menu Central */}
                     <div className="hidden lg:flex items-center gap-8 text-sm font-semibold">
-                        <a href="#about" className="hover:text-blue-500 transition">{t.nav_about}</a>
+                        <a href="#about" className={`transition ${isSticky ? 'hover:text-blue-600 text-slate-700' : 'hover:text-blue-200 text-white drop-shadow-md'}`}>{t.nav_about}</a>
                         
                         <div className="relative group cursor-pointer py-2">
-                            <span className="flex items-center gap-1 hover:text-blue-500 transition">
+                            <span className={`flex items-center gap-1 transition ${isSticky ? 'hover:text-blue-600 text-slate-700' : 'hover:text-blue-200 text-white drop-shadow-md'}`}>
                                 {t.nav_universities} <ChevronDown size={16} />
                             </span>
                             <div className={`absolute hidden group-hover:block bg-white text-slate-800 shadow-2xl rounded-2xl p-3 w-80 top-full ${activeLang === 'AR' ? '-right-10' : '-left-10'} border border-slate-100`}>
@@ -153,14 +182,16 @@ export default function Welcome({ auth }) {
                             </div>
                         </div>
                         
-                        <a href="#download" className="hover:text-blue-500 transition">{t.nav_guides}</a>
+                        <a href="#download" className={`transition ${isSticky ? 'hover:text-blue-600 text-slate-700' : 'hover:text-blue-200 text-white drop-shadow-md'}`}>{t.nav_guides}</a>
                     </div>
 
                     {/* Actions de droite */}
                     <div className="flex items-center gap-4">
                         <button 
                             onClick={() => setActiveLang(activeLang === 'FR' ? 'AR' : 'FR')}
-                            className="flex items-center gap-2 text-xs font-bold px-4 py-2 rounded-full border border-current hover:bg-blue-600 hover:border-blue-600 hover:text-white transition shadow-sm"
+                            className={`flex items-center gap-2 text-xs font-bold px-4 py-2 rounded-full border transition shadow-sm ${
+                                isSticky ? 'border-slate-300 text-slate-700 hover:bg-blue-600 hover:text-white hover:border-blue-600' : 'border-white text-white hover:bg-white hover:text-blue-950 drop-shadow-md'
+                            }`}
                         >
                             <Globe size={16} /> {activeLang === 'FR' ? 'العربية' : 'Français'}
                         </button>
@@ -180,48 +211,125 @@ export default function Welcome({ auth }) {
                 </div>
             </nav>
 
-            {/* --- HERO SECTION --- */}
-            <section className="relative pt-48 pb-32 bg-blue-950 text-white overflow-hidden">
-                <div className="max-w-7xl mx-auto px-4 text-center relative z-10">
-                    <span className="inline-block px-5 py-2 bg-blue-800/50 text-blue-200 rounded-full text-xs font-bold uppercase tracking-widest mb-8 border border-blue-700">
+            {/* --- HERO SECTION AVEC L'IMAGE DE FOND --- */}
+            <section className="relative pt-48 pb-40 overflow-hidden min-h-[85vh] flex items-center bg-blue-950">
+                
+                {/* 🖼️ IMAGE DE FOND QUI DESCEND AVEC LE CURSEUR */}
+                <div 
+                    className="absolute inset-0 z-0 bg-cover bg-center bg-no-repeat opacity-60 mix-blend-overlay"
+                    style={{ 
+                        backgroundImage: "url('/images/hero-bg.jpg')", // Chemin correct vers ton image
+                        transform: `translateY(${offsetY}px)`, // Effet de descente
+                        willChange: 'transform' 
+                    }}
+                ></div>
+
+                {/* Calque de protection bleu pour que le texte reste lisible */}
+                <div className="absolute inset-0 bg-gradient-to-b from-blue-950/80 via-blue-950/50 to-blue-950/90 z-0"></div>
+
+                <div className="max-w-7xl mx-auto px-4 text-center relative z-10 w-full">
+                    <span className="inline-block px-5 py-2 bg-white/10 text-white rounded-full text-xs font-bold uppercase tracking-widest mb-8 border border-white/20 backdrop-blur-sm shadow-xl">
                         {t.hero_badge}
                     </span>
-                    <h1 className="text-5xl md:text-7xl font-extrabold mb-8 leading-[1.1] tracking-tight">
+                    <h1 className="text-5xl md:text-7xl font-extrabold mb-8 leading-[1.1] tracking-tight text-white drop-shadow-2xl">
                         {t.hero_title1} <br/> 
-                        <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-300 to-indigo-200">
+                        <span className="text-blue-300">
                             {t.hero_title2}
                         </span>
                     </h1>
-                    <p className="text-lg md:text-xl text-blue-100/80 max-w-3xl mx-auto mb-12 leading-relaxed">
+                    <p className="text-lg md:text-xl text-blue-50 max-w-3xl mx-auto mb-12 leading-relaxed drop-shadow-md">
                         {t.hero_desc}
                     </p>
                     <div className="flex flex-col sm:flex-row justify-center gap-4">
-                        <a href="#download" className="bg-white text-blue-950 hover:bg-blue-50 px-8 py-4 rounded-2xl font-bold transition-all shadow-xl flex items-center justify-center gap-3">
+                        <a href="#download" className="bg-white text-blue-950 hover:bg-blue-50 px-8 py-4 rounded-2xl font-bold transition-all shadow-xl flex items-center justify-center gap-3 hover:scale-105">
                             {t.hero_btn1} <FileText size={20} />
                         </a>
-                        <a href="#about" className="bg-blue-700 hover:bg-blue-600 text-white px-8 py-4 rounded-2xl font-bold transition-all shadow-lg flex items-center justify-center gap-3 border border-blue-600">
+                        <a href="#about" className="bg-blue-600/80 hover:bg-blue-600 text-white backdrop-blur-md px-8 py-4 rounded-2xl font-bold transition-all shadow-lg flex items-center justify-center gap-3 border border-white/20 hover:scale-105">
                             {t.hero_btn2}
                         </a>
                     </div>
                 </div>
             </section>
 
-            {/* --- STATS SECTION --- */}
-            <section className="py-12 -mt-16 relative z-20">
-                <div className="max-w-6xl mx-auto px-4">
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                        {[
-                            { label: t.stat_etab, val: "159", icon: <ShieldCheck size={28} /> },
-                            { label: t.stat_exp, val: "120+", icon: <Users size={28} /> },
-                            { label: t.stat_rap, val: "450+", icon: <FileText size={28} /> },
-                            { label: t.stat_taux, val: "88%", icon: <BarChart3 size={28} /> }
-                        ].map((s, i) => (
-                            <div key={i} className="bg-white p-8 rounded-3xl shadow-2xl shadow-blue-900/5 border border-slate-100 text-center hover:-translate-y-2 transition-transform duration-300">
-                                <div className="w-14 h-14 mx-auto bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mb-4">{s.icon}</div>
-                                <div className="text-4xl font-black text-blue-950 mb-2">{s.val}</div>
-                                <div className="text-slate-500 text-xs font-bold uppercase tracking-wide">{s.label}</div>
+            {/* --- SECTION STATS + NOUVEAU GRAPHIQUE (PUB/PRV) --- */}
+            <section className="py-20 bg-slate-50 relative z-20">
+                <div className="max-w-7xl mx-auto px-4">
+                    <div className="grid lg:grid-cols-3 gap-10">
+                        
+                        {/* 📈 COMPTEURS CORRIGÉS SELON TES DIRECTIVES */}
+                        <div className="lg:col-span-1 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-6">
+                            {[
+                                { label: t.stat_etab, val: "100", icon: <ShieldCheck size={28} />, color: "text-blue-600", bg: "bg-blue-50" },
+                                { label: t.stat_exp, val: "242+", icon: <Users size={28} />, color: "text-indigo-600", bg: "bg-indigo-50" },
+                                { label: t.stat_rap, val: "450+", icon: <FileText size={28} />, color: "text-emerald-600", bg: "bg-emerald-50" },
+                                { label: t.stat_taux, val: "88%", icon: <BarChart3 size={28} />, color: "text-sky-600", bg: "bg-sky-50" }
+                            ].map((s, i) => (
+                                <div key={i} className="bg-white p-6 rounded-[2rem] shadow-lg shadow-slate-200/50 border border-slate-100 flex items-center gap-6 hover:scale-105 transition-transform duration-300">
+                                    <div className={`w-16 h-16 rounded-2xl flex items-center justify-center shrink-0 ${s.bg} ${s.color}`}>
+                                        {s.icon}
+                                    </div>
+                                    <div>
+                                        <div className="text-3xl font-black text-slate-800 mb-1">{s.val}</div>
+                                        <div className="text-slate-500 text-xs font-bold uppercase tracking-wide">{s.label}</div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* 📊 GRAPHIQUE PUBLIC VS PRIVÉ (2021 à 2025) */}
+                        <div className="lg:col-span-2 bg-white p-8 rounded-[2rem] shadow-lg shadow-slate-200/50 border border-slate-100 flex flex-col">
+                            <h3 className="text-xl font-bold text-blue-950 mb-2 flex items-center gap-3">
+                                <BarChart3 className="text-blue-600" /> {t.chart_title}
+                            </h3>
+                            <p className="text-sm text-slate-400 mb-8 px-8">Répartition annuelle des missions d'évaluation</p>
+                            
+                            <div className="flex-grow w-full min-h-[350px]">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <BarChart
+                                        data={chartData}
+                                        margin={{ top: 10, right: 10, left: 0, bottom: 20 }}
+                                        barGap={8}
+                                    >
+                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                                        <XAxis 
+                                            dataKey="year" 
+                                            axisLine={false} 
+                                            tickLine={false} 
+                                            tick={{ fill: '#475569', fontSize: 13, fontWeight: 600 }}
+                                            dy={15}
+                                        />
+                                        <YAxis 
+                                            axisLine={false} 
+                                            tickLine={false} 
+                                            tick={{ fill: '#94a3b8', fontSize: 12 }}
+                                        />
+                                        <Tooltip 
+                                            cursor={{ fill: '#f8fafc' }}
+                                            contentStyle={{ borderRadius: '1rem', border: 'none', boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1)', fontWeight: 'bold' }}
+                                        />
+                                        <Legend 
+                                            verticalAlign="top" 
+                                            height={36} 
+                                            iconType="circle"
+                                            wrapperStyle={{ paddingBottom: '20px', fontSize: '14px', fontWeight: '500', color: '#475569' }}
+                                        />
+                                        <Bar 
+                                            dataKey={t.public_etab} 
+                                            fill="#2563eb" // Bleu (Public)
+                                            radius={[6, 6, 0, 0]}
+                                            animationDuration={1500} 
+                                        />
+                                        <Bar 
+                                            dataKey={t.prive_etab} 
+                                            fill="#10b981" // Vert (Privé)
+                                            radius={[6, 6, 0, 0]}
+                                            animationDuration={1500} 
+                                        />
+                                    </BarChart>
+                                </ResponsiveContainer>
                             </div>
-                        ))}
+                        </div>
+
                     </div>
                 </div>
             </section>
@@ -230,8 +338,7 @@ export default function Welcome({ auth }) {
             <section id="about" className="py-24 md:py-32 bg-white">
                 <div className="max-w-7xl mx-auto px-4 grid md:grid-cols-2 gap-16 md:gap-24 items-center">
                     <div className="relative order-2 md:order-1">
-                        <div className="aspect-[4/3] bg-gradient-to-br from-slate-100 to-slate-200 rounded-[3rem] overflow-hidden shadow-inner flex items-center justify-center border-8 border-white shadow-2xl">
-                            {/* Optionnel : image de fond ici */}
+                        <div className="aspect-[4/3] bg-gradient-to-br from-slate-100 to-slate-200 rounded-[3rem] overflow-hidden shadow-inner flex items-center justify-center border-8 border-white shadow-2xl relative">
                              <ShieldCheck size={140} className="text-slate-300 drop-shadow-sm" />
                         </div>
                     </div>
@@ -316,7 +423,6 @@ export default function Welcome({ auth }) {
                             </ul>
                         </div>
 
-                        {/* Coordonnées Fixées */}
                         <div className="lg:col-span-2">
                             <h4 className="font-bold mb-6 text-lg text-white">{t.footer_contact}</h4>
                             <div className="grid sm:grid-cols-2 gap-8">
