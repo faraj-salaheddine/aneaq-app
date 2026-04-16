@@ -1,12 +1,12 @@
 import { useEffect } from 'react';
 import { Head, Link, useForm } from '@inertiajs/react';
-import { ShieldCheck } from 'lucide-react'; // Assure-toi d'avoir installé lucide-react
+import { ArrowLeft } from 'lucide-react'; // Icône pour le retour à l'accueil
 
 export default function Login({ status, canResetPassword }) {
     const { data, setData, post, processing, errors, reset } = useForm({
         email: '',
         password: '',
-        remember: false,
+        remember: false, // Gestion du "Se souvenir de moi"
     });
 
     useEffect(() => {
@@ -17,37 +17,49 @@ export default function Login({ status, canResetPassword }) {
 
     const submit = (e) => {
         e.preventDefault();
-        // Ici, tu pourras ajouter la logique de validation du CAPTCHA plus tard
         post(route('login'));
     };
 
     return (
-        <div className="min-h-screen bg-slate-50 flex flex-col justify-center items-center p-4 font-sans">
+        <div className="min-h-screen bg-slate-50 flex flex-col justify-center items-center p-4 font-sans relative">
             <Head title="Connexion - ANEAQ" />
 
-            {/* En-tête avec Logo et Titre */}
+            {/* Bouton Retour à l'accueil */}
+            <div className="absolute top-6 left-6">
+                <Link 
+                    href="/" 
+                    className="flex items-center gap-2 text-sm font-semibold text-slate-500 hover:text-blue-700 transition-colors"
+                >
+                    <ArrowLeft size={16} /> Retour à l'accueil
+                </Link>
+            </div>
+
+            {/* En-tête avec Vrai Logo et Titre */}
             <div className="text-center mb-8">
                 <div className="flex justify-center mb-4">
-                    {/* Remplace ceci par ta balise img avec le vrai logo si tu l'as */}
-                    <div className="bg-blue-900 p-3 rounded-xl shadow-lg">
-                        <ShieldCheck className="text-white w-10 h-10" />
-                    </div>
+                    <img 
+                        src="/images/logo-aneaq.png" 
+                        alt="Logo ANEAQ" 
+                        className="h-20 bg-white p-2 rounded-2xl shadow-md"
+                        onError={(e) => e.target.style.display='none'} // Sécurité si l'image manque
+                    />
                 </div>
                 <h1 className="text-3xl font-black text-blue-950 tracking-tight">ANEAQ</h1>
                 <p className="text-slate-500 mt-2 font-medium">
-                    Système de Gestion de l'Évaluation Institutionnelle
+                    Portail de l'Évaluation Institutionnelle
                 </p>
             </div>
 
             {/* Carte de Connexion */}
-            <div className="w-full max-w-md bg-white rounded-2xl shadow-xl border border-slate-100 p-8">
+            <div className="w-full max-w-md bg-white rounded-3xl shadow-xl shadow-slate-200/50 border border-slate-100 p-8 md:p-10">
                 <h2 className="text-2xl font-bold text-slate-800 mb-6 text-center">
                     SE CONNECTER
                 </h2>
 
-                {status && <div className="mb-4 font-medium text-sm text-green-600">{status}</div>}
+                {/* Message de statut (ex: mot de passe réinitialisé avec succès) */}
+                {status && <div className="mb-6 font-medium text-sm text-green-600 bg-green-50 p-3 rounded-lg text-center">{status}</div>}
 
-                <form onSubmit={submit} className="space-y-5">
+                <form onSubmit={submit} className="space-y-6">
                     {/* Champ Email */}
                     <div>
                         <label htmlFor="email" className="block text-sm font-bold text-slate-700 mb-2">
@@ -58,13 +70,13 @@ export default function Login({ status, canResetPassword }) {
                             type="email"
                             name="email"
                             value={data.email}
-                            className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring focus:ring-blue-200 transition-all bg-slate-50 focus:bg-white"
+                            className={`w-full px-4 py-3 rounded-xl border ${errors.email ? 'border-red-500 focus:ring-red-200' : 'border-slate-200 focus:border-blue-500 focus:ring-blue-200'} focus:ring transition-all bg-slate-50 focus:bg-white`}
                             placeholder="nom@exemple.com"
                             autoComplete="username"
                             isFocused={true}
                             onChange={(e) => setData('email', e.target.value)}
                         />
-                        {errors.email && <p className="text-red-500 text-xs mt-2">{errors.email}</p>}
+                        {errors.email && <p className="text-red-500 text-xs font-semibold mt-2">{errors.email}</p>}
                     </div>
 
                     {/* Champ Mot de passe */}
@@ -76,7 +88,7 @@ export default function Login({ status, canResetPassword }) {
                             {canResetPassword && (
                                 <Link
                                     href={route('password.request')}
-                                    className="text-sm font-semibold text-blue-600 hover:text-blue-800 transition-colors"
+                                    className="text-xs font-semibold text-blue-600 hover:text-blue-800 transition-colors"
                                 >
                                     Mot de passe oublié ?
                                 </Link>
@@ -87,23 +99,35 @@ export default function Login({ status, canResetPassword }) {
                             type="password"
                             name="password"
                             value={data.password}
-                            className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring focus:ring-blue-200 transition-all bg-slate-50 focus:bg-white"
+                            className={`w-full px-4 py-3 rounded-xl border ${errors.password ? 'border-red-500 focus:ring-red-200' : 'border-slate-200 focus:border-blue-500 focus:ring-blue-200'} focus:ring transition-all bg-slate-50 focus:bg-white`}
                             placeholder="••••••••"
                             autoComplete="current-password"
                             onChange={(e) => setData('password', e.target.value)}
                         />
-                        {errors.password && <p className="text-red-500 text-xs mt-2">{errors.password}</p>}
+                        {errors.password && <p className="text-red-500 text-xs font-semibold mt-2">{errors.password}</p>}
                     </div>
 
-                    {/* Zone CAPTCHA (Simulée pour le design) */}
-                    <div className="flex justify-center py-2">
-                        <div className="border border-slate-200 bg-slate-50 rounded-lg p-3 flex items-center gap-4 shadow-sm w-full max-w-[300px]">
+                    {/* Se souvenir de moi + CAPTCHA Visuel */}
+                    <div className="flex flex-col gap-4">
+                        {/* Checkbox "Se souvenir de moi" (Fonctionnel pour Laravel) */}
+                        <label className="flex items-center cursor-pointer">
+                            <input
+                                type="checkbox"
+                                name="remember"
+                                checked={data.remember}
+                                onChange={(e) => setData('remember', e.target.checked)}
+                                className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                            />
+                            <span className="ml-2 text-sm font-medium text-slate-600">Se souvenir de moi</span>
+                        </label>
+
+                        {/* Zone CAPTCHA (Simulée pour le design, comme tu l'as demandé) */}
+                        <div className="border border-slate-200 bg-slate-50 rounded-xl p-3 flex items-center gap-4 shadow-sm w-full">
                             <input type="checkbox" className="w-6 h-6 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer" />
                             <span className="text-sm font-medium text-slate-700 flex-grow">Je ne suis pas un robot</span>
                             <div className="flex flex-col items-center">
-                                {/* Icône simulant le logo reCAPTCHA */}
-                                <img src="https://www.gstatic.com/recaptcha/api2/logo_48.png" alt="reCAPTCHA" className="w-8" />
-                                <span className="text-[10px] text-slate-400 mt-1">reCAPTCHA</span>
+                                <img src="https://www.gstatic.com/recaptcha/api2/logo_48.png" alt="reCAPTCHA" className="w-7" />
+                                <span className="text-[9px] text-slate-400 mt-1 font-semibold">reCAPTCHA</span>
                             </div>
                         </div>
                     </div>
@@ -112,16 +136,20 @@ export default function Login({ status, canResetPassword }) {
                     <button
                         type="submit"
                         disabled={processing}
-                        className={`w-full bg-blue-600 text-white font-bold py-3.5 rounded-xl shadow-lg shadow-blue-600/30 hover:bg-blue-700 hover:shadow-blue-700/40 transition-all transform active:scale-[0.98] ${processing && 'opacity-75 cursor-not-allowed'}`}
+                        className={`w-full bg-blue-600 text-white font-bold py-3.5 rounded-xl shadow-lg shadow-blue-600/30 hover:bg-blue-700 hover:shadow-blue-700/40 transition-all transform active:scale-[0.98] flex justify-center items-center gap-2 ${processing && 'opacity-75 cursor-not-allowed'}`}
                     >
-                        Se connecter
+                        {processing ? (
+                            <span className="animate-pulse">Connexion en cours...</span>
+                        ) : (
+                            "Se connecter"
+                        )}
                     </button>
                 </form>
             </div>
 
             {/* Footer */}
             <div className="mt-12 text-center text-xs font-semibold text-slate-400 uppercase tracking-widest">
-                © {new Date().getFullYear()} ANEAQ - Division de l'Évaluation des Établissements (DEE)
+                © {new Date().getFullYear()} ANEAQ - Division de l'Évaluation des Établissements
             </div>
         </div>
     );
