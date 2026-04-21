@@ -1,15 +1,12 @@
 <?php
-
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class Expert extends Model
 {
-    use HasFactory;
-
     protected $fillable = [
+        'user_id',
         'nom',
         'prenom',
         'date_naissance',
@@ -28,5 +25,28 @@ class Expert extends Model
         'grade',
         'responsabilite',
         'etablissement_et_annee_responsabilite',
+        // New fields
+        'cin_number',
+        'contract_start',
+        'contract_end',
+        'contract_renewals',
+        'car_horsepower',
     ];
+
+    // ── Relationships ──
+
+    public function user()
+    {
+        return $this->belongsTo(User::class);
+    }
+
+    public function documents()
+    {
+        return $this->hasMany(ExpertDocument::class);
+    }
+
+    public function documentOfType(string $type)
+    {
+        return $this->documents()->where('type', $type)->latest()->first();
+    }
 }

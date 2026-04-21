@@ -14,12 +14,24 @@ class DatabaseSeeder extends Seeder
      * Seed the application's database.
      */
     public function run(): void
-    {
-        // User::factory(10)->create();
+{
+    // Appel des seeders pour les données de base
+    $this->call([
+        UniversitySeeder::class,
+        EtablissementSeeder::class,
+        ExpertSeeder::class,
+    ]);
 
-        User::factory()->create([
-            'name' => 'Test User',
-            'email' => 'test@example.com',
-        ]);
-    }
+    
+    // Création de l'utilisateur Système d'Information avec son rôle unique
+// Cet utilisateur a accès à une interface dédiée non accessible aux autres profils
+User::firstOrCreate(
+    ['email' => 'si@aneaq.ma'],
+    [
+        'name' => "Système d'Information",
+        'password' => bcrypt('admin'),
+        'role' => 'si',
+    ]
+);
+}
 }
