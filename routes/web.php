@@ -29,23 +29,29 @@ Route::middleware(['auth'])->prefix('si')->name('si.')->group(function () {
     // Vue d'ensemble
     Route::get('/dashboard', [SIDashboardController::class, 'index'])->name('dashboard');
 
-    // Utilisateurs DEE
-    Route::get('/utilisateurs-dee',           [UtilisateursDEEController::class, 'index'])->name('utilisateurs-dee.index');
-    Route::post('/utilisateurs-dee',          [UtilisateursDEEController::class, 'store'])->name('utilisateurs-dee.store');
-    Route::put('/utilisateurs-dee/{user}',    [UtilisateursDEEController::class, 'update'])->name('utilisateurs-dee.update');
-    Route::delete('/utilisateurs-dee/{user}', [UtilisateursDEEController::class, 'destroy'])->name('utilisateurs-dee.destroy');
+Route::get('/utilisateurs-dee',                    [UtilisateursDEEController::class, 'index'])->name('utilisateurs-dee.index');
+Route::get('/utilisateurs-dee/create',             [UtilisateursDEEController::class, 'create'])->name('utilisateurs-dee.create');
+Route::post('/utilisateurs-dee',                   [UtilisateursDEEController::class, 'store'])->name('utilisateurs-dee.store');
+Route::get('/utilisateurs-dee/{utilisateurDee}/edit',  [UtilisateursDEEController::class, 'edit'])->name('utilisateurs-dee.edit');
+Route::put('/utilisateurs-dee/{utilisateurDee}',       [UtilisateursDEEController::class, 'update'])->name('utilisateurs-dee.update');
+Route::delete('/utilisateurs-dee/{utilisateurDee}',    [UtilisateursDEEController::class, 'destroy'])->name('utilisateurs-dee.destroy');
 
     // Experts
     Route::get('/experts',                                          [ExpertController::class, 'index'])->name('experts.index');
     Route::get('/experts/create',                                   [ExpertController::class, 'create'])->name('experts.create');
+    Route::get('/experts/export', [ExpertController::class, 'export'])->name('experts.export');
     Route::post('/experts',                                         [ExpertController::class, 'store'])->name('experts.store');
+    Route::get('/experts/{expert}', [ExpertController::class, 'show'])->name('experts.show');
     Route::get('/experts/{expert}/edit',                            [ExpertController::class, 'edit'])->name('experts.edit');
     Route::put('/experts/{expert}',                                 [ExpertController::class, 'update'])->name('experts.update');
     Route::delete('/experts/{expert}',                              [ExpertController::class, 'destroy'])->name('experts.destroy');
+    Route::get('/experts/{expert}/documents/{document}/preview', [ExpertController::class, 'previewDocument'])->name('experts.documents.preview');
     Route::get('/experts/{expert}/documents/{document}/download',   [ExpertController::class, 'downloadDocument'])->name('experts.documents.download');
 
-    // Établissements (read-only)
-    Route::get('/etablissements', [EtablissementController::class, 'index'])->name('etablissements.index');
+// Établissements
+Route::get('/etablissements',        [EtablissementController::class, 'index'])->name('etablissements.index');
+Route::get('/etablissements/create', [EtablissementController::class, 'create'])->name('etablissements.create');
+Route::post('/etablissements',       [EtablissementController::class, 'store'])->name('etablissements.store');
 
     // Universités (read-only)
     Route::get('/universites', [UniversiteController::class, 'index'])->name('universites.index');

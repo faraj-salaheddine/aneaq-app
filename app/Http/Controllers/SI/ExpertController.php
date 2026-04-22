@@ -6,11 +6,13 @@ use App\Models\Expert;
 use App\Models\ExpertDocument;
 use App\Models\User;
 use App\Mail\ExpertAccountCreated;
+use App\Mail\ExpertAccountUpdated;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
+use App\Exports\ExpertsExport;
 
 class ExpertController extends Controller
 {
@@ -20,6 +22,10 @@ class ExpertController extends Controller
             'experts' => Expert::all(),
         ]);
     }
+    public function export()
+{
+    return (new ExpertsExport())->download();
+}
 
     public function create()
     {
@@ -29,33 +35,23 @@ class ExpertController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            // Required
             'nom'      => 'required|string|max:255',
             'prenom'   => 'required|string|max:255',
             'email'    => 'required|email|unique:users,email|unique:experts,email',
             'password' => 'required|min:8',
-
-            // Optional personal
             'telephone'  => 'nullable|string|max:20',
             'specialite' => 'nullable|string|max:255',
             'ville'      => 'nullable|string|max:255',
             'cin_number' => 'nullable|string|max:20',
-
-            // Optional contract
             'contract_start'    => 'nullable|date',
             'contract_end'      => 'nullable|date|after:contract_start',
             'contract_renewals' => 'nullable|integer|min:0',
-
-            // Optional car
             'car_horsepower' => 'nullable|integer|min:0|max:9999',
-
-            // File uploads
             'cin_file'         => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120',
             'contract_file'    => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120',
             'carte_grise_file' => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120',
         ]);
 
-        // 1. Create user account in users table
         $user = User::create([
             'name'     => $request->nom . ' ' . $request->prenom,
             'email'    => $request->email,
@@ -63,7 +59,6 @@ class ExpertController extends Controller
             'role'     => 'expert',
         ]);
 
-        // 2. Create expert linked to user
         $expert = Expert::create([
             'user_id'           => $user->id,
             'nom'               => $request->nom,
@@ -79,7 +74,6 @@ class ExpertController extends Controller
             'car_horsepower'    => $request->car_horsepower,
         ]);
 
-        // 3. Store documents securely
         foreach ([
             'cin_file'         => 'cin',
             'contract_file'    => 'contract',
@@ -100,11 +94,27 @@ class ExpertController extends Controller
             }
         }
 
-        // Send welcome email with credentials
         Mail::to($expert->email)->send(new ExpertAccountCreated($expert, $request->password));
 
         return redirect()->route('si.experts.index');
     }
+
+    public function show(Expert $expert)
+{
+    return Inertia::render('SI/Experts/Show', [
+        'expert'    => $expert,
+        'documents' => $expert->documents()->get()->groupBy('type'),
+    ]);
+}
+
+public function previewDocument(Expert $expert, ExpertDocument $document)
+{
+    abort_if($document->expert_id !== $expert->id, 403);
+    $path = Storage::disk('private')->path($document->file_path);
+    return response()->file($path, [
+        'Content-Type' => $document->mime_type,
+    ]);
+}
 
     public function edit(Expert $expert)
     {
@@ -117,33 +127,23 @@ class ExpertController extends Controller
     public function update(Request $request, Expert $expert)
     {
         $request->validate([
-            // Required
             'nom'    => 'required|string|max:255',
             'prenom' => 'required|string|max:255',
             'email'  => 'required|email|unique:experts,email,' . $expert->id,
-
-            // Optional personal
             'password'   => 'nullable|min:8',
             'telephone'  => 'nullable|string|max:20',
             'specialite' => 'nullable|string|max:255',
             'ville'      => 'nullable|string|max:255',
             'cin_number' => 'nullable|string|max:20',
-
-            // Optional contract
             'contract_start'    => 'nullable|date',
             'contract_end'      => 'nullable|date|after:contract_start',
             'contract_renewals' => 'nullable|integer|min:0',
-
-            // Optional car
             'car_horsepower' => 'nullable|integer|min:0|max:9999',
-
-            // File uploads
             'cin_file'         => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120',
             'contract_file'    => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120',
             'carte_grise_file' => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120',
         ]);
 
-        // Update expert
         $expert->update([
             'nom'               => $request->nom,
             'prenom'            => $request->prenom,
@@ -158,7 +158,6 @@ class ExpertController extends Controller
             'car_horsepower'    => $request->car_horsepower,
         ]);
 
-        // Update linked user account if password changed
         if ($request->filled('password') && $expert->user) {
             $expert->user->update([
                 'name'     => $request->nom . ' ' . $request->prenom,
@@ -172,7 +171,6 @@ class ExpertController extends Controller
             ]);
         }
 
-        // Replace files if new ones uploaded
         foreach ([
             'cin_file'         => 'cin',
             'contract_file'    => 'contract',
@@ -199,17 +197,19 @@ class ExpertController extends Controller
             }
         }
 
+        // Send update email
+        $password = $request->filled('password') ? $request->password : null;
+        Mail::to($expert->email)->send(new ExpertAccountUpdated($expert, $password));
+
         return redirect()->route('si.experts.index');
     }
 
     public function destroy(Expert $expert)
     {
-        // Delete files from storage
         foreach ($expert->documents as $doc) {
             Storage::disk('private')->delete($doc->file_path);
         }
 
-        // Delete linked user account
         if ($expert->user) {
             $expert->user->delete();
         }
