@@ -210,7 +210,7 @@ export default function Index({ dee = [] }) {
                                         <div style={{ fontSize: 14, fontWeight: 700, color: "#0f172a" }}>
                                             {user.nom} <span style={{ fontWeight: 500, color: "#64748b" }}>{user.prenom}</span>
                                         </div>
-                                        <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 1 }}>ID #{user.id}</div>
+                                        
                                     </div>
                                 </div>
 
