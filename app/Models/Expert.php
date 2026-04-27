@@ -1,7 +1,11 @@
 <?php
+
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Expert extends Model
 {
@@ -25,7 +29,6 @@ class Expert extends Model
         'grade',
         'responsabilite',
         'etablissement_et_annee_responsabilite',
-        // New fields
         'cin_number',
         'rib',
         'contract_start',
@@ -34,14 +37,22 @@ class Expert extends Model
         'car_horsepower',
     ];
 
-    // ── Relationships ──
+    protected $casts = [
+        'contract_start'    => 'date',
+        'contract_end'      => 'date',
+        'contract_renewals' => 'integer',
+    ];
 
-    public function user()
+    // ══════════════════════════════════════════════════════════
+    // RELATIONS EXISTANTES
+    // ══════════════════════════════════════════════════════════
+
+    public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
     }
 
-    public function documents()
+    public function documents(): HasMany
     {
         return $this->hasMany(ExpertDocument::class);
     }
@@ -49,5 +60,100 @@ class Expert extends Model
     public function documentOfType(string $type)
     {
         return $this->documents()->where('type', $type)->latest()->first();
+    }
+
+    // ══════════════════════════════════════════════════════════
+    // NOUVELLES RELATIONS — ESPACE EXPERT
+    // ══════════════════════════════════════════════════════════
+
+    /**
+     * Tous les dossiers liés à cet expert (toutes participations).
+     */
+    public function dossiers(): BelongsToMany
+    {
+        return $this->belongsToMany(Dossier::class, 'expert_dossier')
+                    ->withPivot([
+                        'statut_participation',
+                        'date_invitation',
+                        'date_reponse',
+                        'motif_refus',
+                        'role_comite',
+                        'affecte_par',
+                    ])
+                    ->withTimestamps();
+    }
+
+    /**
+     * Dossiers avec participation confirmée uniquement.
+     */
+    public function dossiersConfirmes(): BelongsToMany
+    {
+        return $this->dossiers()
+                    ->wherePivot('statut_participation', 'confirme');
+    }
+
+    /**
+     * Invitations en attente de réponse.
+     */
+    public function invitationsEnAttente(): BelongsToMany
+    {
+        return $this->dossiers()
+                    ->wherePivot('statut_participation', 'invite');
+    }
+
+    /**
+     * Évaluations quantitatives saisies par cet expert.
+     */
+    public function evaluations(): HasMany
+    {
+        return $this->hasMany(EvaluationQuantitative::class);
+    }
+
+    /**
+     * Rapports finaux déposés par cet expert.
+     */
+    public function rapports(): HasMany
+    {
+        return $this->hasMany(RapportExpert::class);
+    }
+
+    /**
+     * Recommandations saisies par cet expert.
+     */
+    public function recommandations(): HasMany
+    {
+        return $this->hasMany(MatriceRecommandation::class);
+    }
+
+    // ══════════════════════════════════════════════════════════
+    // ACCESSEURS
+    // ══════════════════════════════════════════════════════════
+
+    /**
+     * Nom complet : "Prénom NOM"
+     */
+    public function getNomCompletAttribute(): string
+    {
+        return $this->prenom . ' ' . $this->nom;
+    }
+
+    /**
+     * Initiales pour l'avatar : "NL" pour Najoua Labjar
+     */
+    public function getInitialesAttribute(): string
+    {
+        return strtoupper(
+            substr($this->prenom ?? '', 0, 1) .
+            substr($this->nom ?? '', 0, 1)
+        );
+    }
+
+    /**
+     * Vérifie si le contrat est encore valide aujourd'hui.
+     */
+    public function getContratActifAttribute(): bool
+    {
+        if (!$this->contract_end) return false;
+        return $this->contract_end->isFuture();
     }
 }
