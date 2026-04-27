@@ -12,6 +12,7 @@ const TYPE_META = {
     cin:         { label: "Carte d'identité nationale", color: BLUE,   bg: "#EBF4FF", icon: <><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></> },
     contract:    { label: "Contrat",                    color: GREEN,  bg: "#ECFDF5", icon: <><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></> },
     carte_grise: { label: "Carte grise",                color: ORANGE, bg: "#FFFBEB", icon: <><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h4l3 5v3h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></> },
+    rib:         { label: "RIB Bancaire",               color: BLUE,   bg: "#EBF4FF", icon: <><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></> },
 };
 
 const InfoRow = ({ label, value, mono }) => (
@@ -185,6 +186,27 @@ export default function Show({ expert, documents = {} }) {
                                 {!expert.date_naissance && !expert.ville && !expert.cin_number && (
                                     <p style={{ fontSize: 13, color: "#94a3b8", fontStyle: "italic", margin: 0, padding: "8px 0" }}>Aucune information personnelle renseignée</p>
                                 )}
+
+                                {expert.rib && (
+    <div style={{ marginTop: 12, padding: "12px 16px", borderRadius: 10, background: `${BLUE}06`, border: `1px solid ${BLUE}15` }}>
+        <p style={{ fontSize: 10, fontWeight: 700, color: "#94a3b8", letterSpacing: "0.08em", textTransform: "uppercase", margin: "0 0 6px" }}>RIB Bancaire</p>
+        <p style={{ fontSize: 14, fontWeight: 700, color: BLUE, margin: 0, fontFamily: "'DM Mono', monospace", letterSpacing: "0.08em", wordBreak: "break-all" }}>
+            {expert.rib}
+        </p>
+        <button
+            onClick={() => navigator.clipboard.writeText(expert.rib)}
+            style={{ marginTop: 6, display: "flex", alignItems: "center", gap: 5, background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: 11, fontWeight: 600, padding: 0 }}
+            onMouseEnter={e => e.currentTarget.style.color = BLUE}
+            onMouseLeave={e => e.currentTarget.style.color = "#94a3b8"}
+        >
+            <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+            </svg>
+            Copier le RIB
+        </button>
+    </div>
+)}
                             </Section>
                         </div>
                     </div>
@@ -236,52 +258,50 @@ export default function Show({ expert, documents = {} }) {
                                 ) : (
                                     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                                         {Object.entries(documents).map(([type, docs]) => {
-                                            const doc  = docs[0];
-                                            const meta = TYPE_META[type] || { label: type, color: BLUE, bg: "#EBF4FF", icon: null };
-                                            return (
-                                                <div key={type} className="doc-card"
-    style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px", borderRadius: 12, border: `1px solid ${meta.color}15`, background: meta.bg }}
->
-    <div style={{ width: 40, height: 40, borderRadius: 10, background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, boxShadow: "0 1px 4px rgba(0,0,0,0.08)" }}>
-        <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke={meta.color} strokeWidth="2">{meta.icon}</svg>
-    </div>
-    <div style={{ flex: 1, minWidth: 0 }}>
-        <p style={{ fontSize: 13, fontWeight: 700, color: "#0f172a", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{meta.label}</p>
-        <p style={{ fontSize: 11, color: "#94a3b8", margin: "2px 0 0", fontWeight: 500 }}>
-            {doc.original_name} · {formatSize(doc.file_size)}
-        </p>
-    </div>
-    <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
-        {/* Preview button */}
-        <button
-        onClick={() => window.open(`/si/experts/${expert.id}/documents/${doc.id}/preview`, '_blank')}            style={{ display: "flex", alignItems: "center", gap: 5, padding: "6px 11px", borderRadius: 8, border: `1px solid ${meta.color}25`, background: "#fff", cursor: "pointer", fontSize: 11, fontWeight: 600, color: meta.color, transition: "all 0.15s" }}
-            onMouseEnter={e => { e.currentTarget.style.background = `${meta.color}10`; }}
-            onMouseLeave={e => { e.currentTarget.style.background = "#fff"; }}
+    const meta = TYPE_META[type] || { label: type, color: BLUE, bg: "#EBF4FF", icon: null };
+    return docs.map(doc => (
+        <div key={doc.id} className="doc-card"
+            style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px", borderRadius: 12, border: `1px solid ${meta.color}15`, background: meta.bg }}
         >
-            <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
-            </svg>
-            Aperçu
-        </button>
-        {/* Download button */}
-        <a
-            href={`/si/experts/${expert.id}/documents/${doc.id}/download`}
-            download={doc.original_name}
-            style={{ display: "flex", alignItems: "center", gap: 5, padding: "6px 11px", borderRadius: 8, border: `1px solid ${meta.color}25`, background: `${meta.color}10`, cursor: "pointer", fontSize: 11, fontWeight: 600, color: meta.color, textDecoration: "none", transition: "all 0.15s" }}
-            onMouseEnter={e => { e.currentTarget.style.background = meta.color; e.currentTarget.style.color = "#fff"; }}
-            onMouseLeave={e => { e.currentTarget.style.background = `${meta.color}10`; e.currentTarget.style.color = meta.color; }}
-        >
-            <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                <polyline points="7 10 12 15 17 10"/>
-                <line x1="12" y1="15" x2="12" y2="3"/>
-            </svg>
-            Télécharger
-        </a>
-    </div>
-</div>
-                                            );
-                                        })}
+            <div style={{ width: 40, height: 40, borderRadius: 10, background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, boxShadow: "0 1px 4px rgba(0,0,0,0.08)" }}>
+                <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke={meta.color} strokeWidth="2">{meta.icon}</svg>
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ fontSize: 13, fontWeight: 700, color: "#0f172a", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{meta.label}</p>
+                <p style={{ fontSize: 11, color: "#94a3b8", margin: "2px 0 0", fontWeight: 500 }}>
+                    {doc.original_name} · {formatSize(doc.file_size)}
+                </p>
+            </div>
+            <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                <button
+                    onClick={() => window.open(`/si/experts/${expert.id}/documents/${doc.id}/preview`, '_blank')}
+                    style={{ display: "flex", alignItems: "center", gap: 5, padding: "6px 11px", borderRadius: 8, border: `1px solid ${meta.color}25`, background: "#fff", cursor: "pointer", fontSize: 11, fontWeight: 600, color: meta.color, transition: "all 0.15s" }}
+                    onMouseEnter={e => e.currentTarget.style.background = `${meta.color}10`}
+                    onMouseLeave={e => e.currentTarget.style.background = "#fff"}
+                >
+                    <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+                    </svg>
+                    Aperçu
+                </button>
+                <a
+                    href={`/si/experts/${expert.id}/documents/${doc.id}/download`}
+                    download={doc.original_name}
+                    style={{ display: "flex", alignItems: "center", gap: 5, padding: "6px 11px", borderRadius: 8, border: `1px solid ${meta.color}25`, background: `${meta.color}10`, cursor: "pointer", fontSize: 11, fontWeight: 600, color: meta.color, textDecoration: "none", transition: "all 0.15s" }}
+                    onMouseEnter={e => { e.currentTarget.style.background = meta.color; e.currentTarget.style.color = "#fff"; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = `${meta.color}10`; e.currentTarget.style.color = meta.color; }}
+                >
+                    <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                        <polyline points="7 10 12 15 17 10"/>
+                        <line x1="12" y1="15" x2="12" y2="3"/>
+                    </svg>
+                    Télécharger
+                </a>
+            </div>
+        </div>
+    ));
+})}
                                     </div>
                                 )}
                             </Section>

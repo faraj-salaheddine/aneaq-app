@@ -47,6 +47,7 @@ Route::delete('/utilisateurs-dee/{utilisateurDee}',    [UtilisateursDEEControlle
     Route::delete('/experts/{expert}',                              [ExpertController::class, 'destroy'])->name('experts.destroy');
     Route::get('/experts/{expert}/documents/{document}/preview', [ExpertController::class, 'previewDocument'])->name('experts.documents.preview');
     Route::get('/experts/{expert}/documents/{document}/download',   [ExpertController::class, 'downloadDocument'])->name('experts.documents.download');
+    Route::delete('/experts/{expert}/documents/{document}', [ExpertController::class, 'deleteDocument'])->name('experts.documents.destroy');
 
 // Établissements
 Route::get('/etablissements',        [EtablissementController::class, 'index'])->name('etablissements.index');

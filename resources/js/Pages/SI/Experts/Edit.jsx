@@ -4,77 +4,102 @@ import { useState, useRef } from "react";
 import { Head, router } from "@inertiajs/react";
 import DashboardLayout from "@/Layouts/SI/DashboardLayout";
 
-const BLUE  = "#0C447C";
-const GREEN = "#1D9E75";
+const BLUE   = "#0C447C";
+const GREEN  = "#1D9E75";
+const ORANGE = "#EF9F27";
 
 const generatePassword = () => {
     const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*";
     return Array.from({ length: 16 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
 };
 
-const FileUpload = ({ label, name, accept, file, existing, onChange, hint }) => {
+const DocumentManager = ({ label, type, existing, file, onChange, color = BLUE }) => {
     const ref = useRef();
     return (
         <div>
             <label style={{ fontSize: 13, fontWeight: 600, color: "#374151", display: "block", marginBottom: 8 }}>{label}</label>
 
-            {/* Existing file indicator */}
-            {existing && !file && (
-                <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", background: `${BLUE}08`, border: `1px solid ${BLUE}20`, borderRadius: 8, marginBottom: 8 }}>
-                    <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke={BLUE} strokeWidth="2">
-                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                        <polyline points="14 2 14 8 20 8"/>
-                    </svg>
-                    <span style={{ fontSize: 12, color: BLUE, fontWeight: 500, flex: 1 }}>Fichier existant : {existing}</span>
+            {/* Existing documents */}
+            {existing && existing.length > 0 && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 10 }}>
+                    {existing.map(doc => (
+                        <div key={doc.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", background: `${color}06`, border: `1px solid ${color}20`, borderRadius: 9 }}>
+                            <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                                <polyline points="14 2 14 8 20 8"/>
+                            </svg>
+                            <span style={{ fontSize: 12, color: "#374151", fontWeight: 500, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                {doc.original_name}
+                            </span>
+                            <span style={{ fontSize: 11, color: "#94a3b8", fontFamily: "'DM Mono', monospace" }}>
+                                {(doc.file_size / 1024).toFixed(0)} KB
+                            </span>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    if (!confirm(`Supprimer "${doc.original_name}" ?`)) return;
+                                    router.delete(`/si/experts/${doc.expert_id}/documents/${doc.id}`, {
+                                        preserveScroll: true,
+                                    });
+                                }}
+                                style={{ background: "#fef2f2", border: "none", borderRadius: 6, padding: "4px 7px", cursor: "pointer", color: "#ef4444", flexShrink: 0, display: "flex", alignItems: "center" }}
+                            >
+                                <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                                    <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/>
+                                    <path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
+                                </svg>
+                            </button>
+                        </div>
+                    ))}
                 </div>
             )}
 
+            {/* Add new document */}
             <div
                 onClick={() => ref.current.click()}
                 style={{
                     border: `2px dashed ${file ? GREEN : "#e2e8f0"}`,
-                    borderRadius: 12, padding: "1.25rem",
+                    borderRadius: 10, padding: "1rem",
                     background: file ? `${GREEN}06` : "#fafbfc",
                     cursor: "pointer", transition: "all 0.2s",
-                    display: "flex", alignItems: "center", gap: 12,
+                    display: "flex", alignItems: "center", gap: 10,
                 }}
                 onMouseEnter={e => { if (!file) e.currentTarget.style.borderColor = "#94a3b8"; }}
                 onMouseLeave={e => { if (!file) e.currentTarget.style.borderColor = "#e2e8f0"; }}
             >
-                <div style={{ width: 40, height: 40, borderRadius: 10, background: file ? `${GREEN}15` : "#f1f5f9", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <div style={{ width: 34, height: 34, borderRadius: 8, background: file ? `${GREEN}15` : "#f1f5f9", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                     {file ? (
-                        <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke={GREEN} strokeWidth="2"><polyline points="20 6 9 17 4 12"/></svg>
+                        <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke={GREEN} strokeWidth="2"><polyline points="20 6 9 17 4 12"/></svg>
                     ) : (
-                        <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2">
-                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                            <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+                        <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2">
+                            <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
                         </svg>
                     )}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                     {file ? (
                         <>
-                            <p style={{ fontSize: 13, fontWeight: 600, color: GREEN, margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{file.name}</p>
+                            <p style={{ fontSize: 12, fontWeight: 600, color: GREEN, margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{file.name}</p>
                             <p style={{ fontSize: 11, color: "#9ca3af", margin: "2px 0 0" }}>{(file.size / 1024).toFixed(1)} KB · Cliquer pour changer</p>
                         </>
                     ) : (
                         <>
-                            <p style={{ fontSize: 13, fontWeight: 600, color: "#374151", margin: 0 }}>{existing ? "Remplacer le fichier" : "Cliquer pour uploader"}</p>
-                            <p style={{ fontSize: 11, color: "#9ca3af", margin: "2px 0 0" }}>{hint || "JPG, PNG ou PDF — max 5 MB"}</p>
+                            <p style={{ fontSize: 12, fontWeight: 600, color: "#374151", margin: 0 }}>Ajouter un nouveau document</p>
+                            <p style={{ fontSize: 11, color: "#9ca3af", margin: "2px 0 0" }}>JPG, PNG ou PDF — max 5 MB</p>
                         </>
                     )}
                 </div>
                 {file && (
                     <button type="button" onClick={e => { e.stopPropagation(); onChange(null); }}
-                        style={{ background: "#fef2f2", border: "none", borderRadius: 7, padding: "5px 8px", cursor: "pointer", color: "#ef4444", flexShrink: 0 }}
+                        style={{ background: "#fef2f2", border: "none", borderRadius: 6, padding: "4px 7px", cursor: "pointer", color: "#ef4444", flexShrink: 0 }}
                     >
-                        <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                        <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                             <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
                         </svg>
                     </button>
                 )}
             </div>
-            <input ref={ref} type="file" accept={accept} style={{ display: "none" }} onChange={e => onChange(e.target.files[0] || null)} />
+            <input ref={ref} type="file" accept="image/*,.pdf" style={{ display: "none" }} onChange={e => onChange(e.target.files[0] || null)} />
         </div>
     );
 };
@@ -120,10 +145,11 @@ const SectionHeader = ({ icon, title, subtitle, color = BLUE }) => (
 
 export default function Edit({ expert, documents = {} }) {
     const existingDocs = {
-        cin:         documents.cin?.[0]?.original_name || null,
-        contract:    documents.contract?.[0]?.original_name || null,
-        carte_grise: documents.carte_grise?.[0]?.original_name || null,
-    };
+    cin:         documents.cin         || [],
+    contract:    documents.contract    || [],
+    carte_grise: documents.carte_grise || [],
+    rib:         documents.rib         || [],
+};
 
     const [form, setForm] = useState({
         nom:                expert.nom               || "",
@@ -135,14 +161,13 @@ export default function Edit({ expert, documents = {} }) {
         ville:              expert.ville             || "",
         pays:               expert.pays              || "",
         cin_number:         expert.cin_number        || "",
+        rib:                expert.rib               || "",
         contract_start:     expert.contract_start    || "",
         contract_end:       expert.contract_end      || "",
         contract_renewals:  expert.contract_renewals ?? "",
         car_horsepower:     expert.car_horsepower    || "",
-        // Expert profile fields
         date_naissance:     expert.date_naissance    || "",
         diplomes_obtenus:   expert.diplomes_obtenus  || "",
-        specialite:         expert.specialite        || "",
         annee:              expert.annee             || "",
         fonction_actuelle:  expert.fonction_actuelle || "",
         universite_ou_departement_ministeriel: expert.universite_ou_departement_ministeriel || "",
@@ -154,7 +179,7 @@ export default function Edit({ expert, documents = {} }) {
         etablissement_et_annee_responsabilite: expert.etablissement_et_annee_responsabilite || "",
     });
 
-    const [files, setFiles]               = useState({ cin_file: null, contract_file: null, carte_grise_file: null });
+    const [files, setFiles]               = useState({ cin_file: null, rib_file: null, contract_file: null, carte_grise_file: null });
     const [errors, setErrors]             = useState({});
     const [processing, setProcessing]     = useState(false);
     const [showPassword, setShowPassword] = useState(false);
@@ -168,13 +193,21 @@ export default function Edit({ expert, documents = {} }) {
         setShowPassword(true);
     };
 
+    const handleRIB = (val) => {
+        const clean = val.replace(/\D/g, "").slice(0, 24);
+        set("rib", clean);
+    };
+
+    const ribLength   = form.rib.length;
+    const ribComplete = ribLength === 24;
+    const ribHasInput = ribLength > 0;
+
     const handleSubmit = () => {
         setProcessing(true);
         const data = new FormData();
         data.append("_method", "PUT");
         Object.entries(form).forEach(([k, v]) => { if (v !== "") data.append(k, v); });
         Object.entries(files).forEach(([k, v]) => { if (v) data.append(k, v); });
-
         router.post(`/si/experts/${expert.id}`, data, {
             forceFormData: true,
             onSuccess: () => setProcessing(false),
@@ -191,6 +224,7 @@ export default function Edit({ expert, documents = {} }) {
                 .field-input:focus { border-color: ${BLUE} !important; box-shadow: 0 0 0 3px rgba(12,68,124,0.1) !important; }
                 .section-card { transition: box-shadow 0.2s; }
                 .section-card:hover { box-shadow: 0 4px 20px rgba(0,0,0,0.07) !important; }
+                @keyframes spin { to { transform: rotate(360deg); } }
             `}</style>
 
             <div className="edit-root" style={{ padding: "2.5rem 3rem", minHeight: "100vh", background: "linear-gradient(160deg, #f8fafc 0%, #f1f5f9 100%)" }}>
@@ -209,7 +243,6 @@ export default function Edit({ expert, documents = {} }) {
                         <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" strokeWidth="2"><polyline points="9 18 15 12 9 6"/></svg>
                         <span style={{ fontSize: 12, color: BLUE, fontWeight: 600 }}>Modifier</span>
                     </div>
-
                     <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
                         <div style={{ width: 48, height: 48, borderRadius: 14, background: `linear-gradient(135deg, ${BLUE}, #1a5fa8)`, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 6px 16px rgba(12,68,124,0.3)` }}>
                             <svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2">
@@ -235,11 +268,9 @@ export default function Edit({ expert, documents = {} }) {
 
                         {/* Section 1 — Identité */}
                         <div className="section-card" style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 18, padding: "2rem", boxShadow: "0 1px 6px rgba(0,0,0,0.05)" }}>
-                            <SectionHeader
-                                color={GREEN}
+                            <SectionHeader color={GREEN}
                                 icon={<><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></>}
-                                title="Identité de l'expert"
-                                subtitle="Informations personnelles"
+                                title="Identité de l'expert" subtitle="Informations personnelles"
                             />
                             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
                                 <Field label="Nom" required error={errors.nom}>
@@ -274,11 +305,9 @@ export default function Edit({ expert, documents = {} }) {
 
                         {/* Section 2 — Profil académique */}
                         <div className="section-card" style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 18, padding: "2rem", boxShadow: "0 1px 6px rgba(0,0,0,0.05)" }}>
-                            <SectionHeader
-                                color="#7e22ce"
+                            <SectionHeader color="#7e22ce"
                                 icon={<><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></>}
-                                title="Profil académique"
-                                subtitle="Informations professionnelles et académiques"
+                                title="Profil académique" subtitle="Informations professionnelles et académiques"
                             />
                             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
                                 <Field label="Spécialité" optional error={errors.specialite}>
@@ -335,29 +364,100 @@ export default function Edit({ expert, documents = {} }) {
                             </div>
                         </div>
 
-                        {/* Section 3 — CIN */}
+                        {/* Section 3 — CIN + RIB */}
                         <div className="section-card" style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 18, padding: "2rem", boxShadow: "0 1px 6px rgba(0,0,0,0.05)" }}>
-                            <SectionHeader
-                                color={BLUE}
+                            <SectionHeader color={BLUE}
                                 icon={<><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></>}
-                                title="Carte d'identité nationale"
-                                subtitle="Optionnel — CIN de l'expert"
+                                title="Identité & Informations bancaires" subtitle="Optionnel — CIN et RIB de l'expert"
                             />
                             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
                                 <Field label="Numéro CIN" optional error={errors.cin_number}>
                                     <input className="field-input" style={{ ...inputStyle(errors.cin_number), fontFamily: "'DM Mono', monospace", letterSpacing: "0.05em" }} type="text" placeholder="AB123456" value={form.cin_number} onChange={e => set("cin_number", e.target.value)} />
                                 </Field>
-                                <FileUpload label="Photo / Scan CIN" name="cin_file" accept="image/*,.pdf" file={files.cin_file} existing={existingDocs.cin} onChange={v => setFile("cin_file", v)} />
+                                <DocumentManager label="Photo / Scan CIN" type="cin" existing={existingDocs.cin} file={files.cin_file} onChange={v => setFile("cin_file", v)} color={BLUE} />
                             </div>
+
+                            {/* RIB field */}
+                            <div style={{ marginTop: 16 }}>
+                                <Field label="RIB Bancaire" optional error={errors.rib}>
+                                    <div style={{ position: "relative" }}>
+                                        <div style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}>
+                                            <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke={ribComplete ? GREEN : "#94a3b8"} strokeWidth="2">
+                                                <rect x="1" y="4" width="22" height="16" rx="2" ry="2"/>
+                                                <line x1="1" y1="10" x2="23" y2="10"/>
+                                            </svg>
+                                        </div>
+                                        <input
+                                            className="field-input"
+                                            style={{
+                                                ...inputStyle(errors.rib || (ribHasInput && !ribComplete)),
+                                                paddingLeft: 36,
+                                                paddingRight: 64,
+                                                fontFamily: "'DM Mono', monospace",
+                                                letterSpacing: "0.08em",
+                                                border: ribComplete
+                                                    ? `1.5px solid ${GREEN}`
+                                                    : ribHasInput && !ribComplete
+                                                    ? `1.5px solid ${ORANGE}`
+                                                    : "1px solid #e2e8f0",
+                                                background: ribComplete ? `${GREEN}04` : "#fafbfc",
+                                            }}
+                                            type="text"
+                                            placeholder="007780000012345678901234"
+                                            maxLength={24}
+                                            value={form.rib}
+                                            onChange={e => handleRIB(e.target.value)}
+                                        />
+                                        <div style={{
+                                            position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)",
+                                            display: "flex", alignItems: "center", gap: 4,
+                                            padding: "3px 8px", borderRadius: 99,
+                                            background: ribComplete ? `${GREEN}15` : ribHasInput ? `${ORANGE}15` : "#f1f5f9",
+                                            transition: "all 0.2s",
+                                        }}>
+                                            {ribComplete && (
+                                                <svg width={10} height={10} viewBox="0 0 24 24" fill="none" stroke={GREEN} strokeWidth="3">
+                                                    <polyline points="20 6 9 17 4 12"/>
+                                                </svg>
+                                            )}
+                                            <span style={{ fontSize: 11, fontWeight: 700, fontFamily: "'DM Mono', monospace", color: ribComplete ? GREEN : ribHasInput ? ORANGE : "#94a3b8" }}>
+                                                {ribLength}/24
+                                            </span>
+                                        </div>
+                                        
+                                    </div>
+
+                                    {ribHasInput && (
+                                        <div style={{ marginTop: 6, height: 3, borderRadius: 99, background: "#f1f5f9", overflow: "hidden" }}>
+                                            <div style={{ height: "100%", borderRadius: 99, width: `${(ribLength / 24) * 100}%`, background: ribComplete ? GREEN : ORANGE, transition: "width 0.2s ease, background 0.2s" }} />
+                                        </div>
+                                    )}
+
+                                    {ribHasInput && !ribComplete && (
+                                        <span style={{ fontSize: 11, color: ORANGE, marginTop: 4, display: "flex", alignItems: "center", gap: 4 }}>
+                                            <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                                            {24 - ribLength} chiffre{24 - ribLength > 1 ? "s" : ""} manquant{24 - ribLength > 1 ? "s" : ""}
+                                        </span>
+                                    )}
+                                    {ribComplete && (
+                                        <span style={{ fontSize: 11, color: GREEN, marginTop: 4, display: "flex", alignItems: "center", gap: 4 }}>
+                                            <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                                            RIB valide — 24 chiffres
+                                        </span>
+                                    )}
+                                </Field>
+                            </div>
+
+                            <div style={{ marginTop: 16 }}>
+    <DocumentManager label="Document RIB bancaire" type="rib" existing={existingDocs.rib} file={files.rib_file} onChange={v => setFile("rib_file", v)} color={BLUE} />
+</div>
                         </div>
 
                         {/* Section 4 — Contrat */}
                         <div className="section-card" style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 18, padding: "2rem", boxShadow: "0 1px 6px rgba(0,0,0,0.05)" }}>
-                            <SectionHeader
-                                color="#7e22ce"
+                            <SectionHeader color="#7e22ce"
                                 icon={<><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></>}
-                                title="Informations contractuelles"
-                                subtitle="Optionnel — Détails du contrat"
+                                title="Informations contractuelles" subtitle="Optionnel — Détails du contrat"
                             />
                             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16, marginBottom: 16 }}>
                                 <Field label="Date de début" optional error={errors.contract_start}>
@@ -370,16 +470,14 @@ export default function Edit({ expert, documents = {} }) {
                                     <input className="field-input" style={{ ...inputStyle(errors.contract_renewals), fontFamily: "'DM Mono', monospace" }} type="number" min="0" placeholder="0" value={form.contract_renewals} onChange={e => set("contract_renewals", e.target.value)} />
                                 </Field>
                             </div>
-                            <FileUpload label="Document du contrat" name="contract_file" accept="image/*,.pdf" file={files.contract_file} existing={existingDocs.contract} onChange={v => setFile("contract_file", v)} hint="Scan ou photo du contrat signé" />
+                            <DocumentManager label="Document du contrat" type="contract" existing={existingDocs.contract} file={files.contract_file} onChange={v => setFile("contract_file", v)} color="#7e22ce" />
                         </div>
 
                         {/* Section 5 — Voiture */}
                         <div className="section-card" style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 18, padding: "2rem", boxShadow: "0 1px 6px rgba(0,0,0,0.05)" }}>
-                            <SectionHeader
-                                color="#c2410c"
+                            <SectionHeader color="#c2410c"
                                 icon={<><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h4l3 5v3h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></>}
-                                title="Carte grise du véhicule"
-                                subtitle="Optionnel — Informations du véhicule"
+                                title="Carte grise du véhicule" subtitle="Optionnel — Informations du véhicule"
                             />
                             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
                                 <Field label="Puissance fiscale (CV)" optional error={errors.car_horsepower}>
@@ -388,7 +486,7 @@ export default function Edit({ expert, documents = {} }) {
                                         <span style={{ position: "absolute", right: 14, top: "50%", transform: "translateY(-50%)", fontSize: 11, color: "#94a3b8", fontWeight: 700 }}>CV</span>
                                     </div>
                                 </Field>
-                                <FileUpload label="Carte grise" name="carte_grise_file" accept="image/*,.pdf" file={files.carte_grise_file} existing={existingDocs.carte_grise} onChange={v => setFile("carte_grise_file", v)} hint="Photo ou scan de la carte grise" />
+                                <DocumentManager label="Carte grise" type="carte_grise" existing={existingDocs.carte_grise} file={files.carte_grise_file} onChange={v => setFile("carte_grise_file", v)} color="#c2410c" />
                             </div>
                         </div>
                     </div>
@@ -398,13 +496,10 @@ export default function Edit({ expert, documents = {} }) {
 
                         {/* Password card */}
                         <div className="section-card" style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 18, padding: "1.75rem", boxShadow: "0 1px 6px rgba(0,0,0,0.05)" }}>
-                            <SectionHeader
-                                color={BLUE}
+                            <SectionHeader color={BLUE}
                                 icon={<><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></>}
-                                title="Mot de passe"
-                                subtitle="Laisser vide pour ne pas modifier"
+                                title="Mot de passe" subtitle="Laisser vide pour ne pas modifier"
                             />
-
                             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
                                 <label style={{ fontSize: 13, fontWeight: 600, color: "#374151" }}>Nouveau mot de passe</label>
                                 <button type="button" onClick={handleGenerate}
@@ -419,18 +514,27 @@ export default function Edit({ expert, documents = {} }) {
                                     Générer (16 car.)
                                 </button>
                             </div>
-
                             <div style={{ position: "relative" }}>
                                 <input
-                                    className="field-input"
-                                    type={showPassword ? "text" : "password"}
+                                    type="text"
                                     placeholder="••••••••"
                                     value={form.password}
                                     onChange={e => set("password", e.target.value)}
-                                    style={{ ...inputStyle(errors.password), paddingRight: 40, fontFamily: showPassword ? "'DM Mono', monospace" : "inherit" }}
+                                    onFocus={e => { e.target.style.borderColor = BLUE; e.target.style.boxShadow = "0 0 0 3px rgba(12,68,124,0.1)"; }}
+                                    onBlur={e => { e.target.style.borderColor = "#e2e8f0"; e.target.style.boxShadow = "none"; }}
+                                    style={{
+                                        width: "100%", boxSizing: "border-box",
+                                        padding: "10px 14px", paddingRight: 40,
+                                        border: "1px solid #e2e8f0", borderRadius: 10,
+                                        fontSize: 14, color: "#0f172a", background: "#fafbfc", outline: "none",
+                                        fontFamily: "'DM Mono', monospace",
+                                        letterSpacing: showPassword ? "0.05em" : "0.2em",
+                                        WebkitTextSecurity: showPassword ? "none" : "disc",
+                                        textSecurity: showPassword ? "none" : "disc",
+                                    }}
                                 />
                                 <button type="button" onClick={() => setShowPassword(s => !s)}
-                                    style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "#94a3b8", padding: 2 }}
+                                    style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: showPassword ? BLUE : "#94a3b8", padding: 2 }}
                                 >
                                     <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                         {showPassword
@@ -440,17 +544,12 @@ export default function Edit({ expert, documents = {} }) {
                                     </svg>
                                 </button>
                             </div>
-
                             {showPassword && form.password && (
                                 <div style={{ marginTop: 8, padding: "8px 12px", borderRadius: 8, background: `${BLUE}08`, border: `1px solid ${BLUE}20`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                                    <span style={{ fontSize: 12, fontFamily: "'DM Mono', monospace", color: BLUE, fontWeight: 600, letterSpacing: "0.05em", wordBreak: "break-all" }}>
-                                        {form.password}
-                                    </span>
+                                    <span style={{ fontSize: 12, fontFamily: "'DM Mono', monospace", color: BLUE, fontWeight: 600, letterSpacing: "0.05em", wordBreak: "break-all" }}>{form.password}</span>
                                     <button type="button" onClick={() => navigator.clipboard.writeText(form.password)}
                                         style={{ background: "none", border: "none", cursor: "pointer", color: BLUE, fontSize: 11, fontWeight: 700, padding: "0 0 0 8px", whiteSpace: "nowrap" }}
-                                    >
-                                        Copier
-                                    </button>
+                                    >Copier</button>
                                 </div>
                             )}
                             {errors.password && <span style={{ fontSize: 11, color: "#ef4444", marginTop: 5, display: "block" }}>{errors.password}</span>}
@@ -466,18 +565,19 @@ export default function Edit({ expert, documents = {} }) {
                                 { label: "Spécialité",      value: form.specialite || null },
                                 { label: "Établissement",   value: form.etablissement || null },
                                 { label: "CIN",             value: form.cin_number || null },
+                                { label: "RIB",             value: ribComplete ? form.rib : null },
                                 { label: "Contrat",         value: form.contract_start ? `${form.contract_start} → ${form.contract_end || "?"}` : null },
                                 { label: "Renouvellements", value: form.contract_renewals !== "" ? `${form.contract_renewals}x` : null },
                                 { label: "Puissance",       value: form.car_horsepower ? `${form.car_horsepower} CV` : null },
                             ].map(({ label, value }) => value && (
                                 <div key={label} style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8, gap: 8 }}>
                                     <span style={{ fontSize: 12, color: "#94a3b8", fontWeight: 500, flexShrink: 0 }}>{label}</span>
-                                    <span style={{ fontSize: 12, color: "#374151", fontWeight: 600, textAlign: "right", wordBreak: "break-all" }}>{value}</span>
+                                    <span style={{ fontSize: 12, color: "#374151", fontWeight: 600, textAlign: "right", wordBreak: "break-all", fontFamily: label === "RIB" ? "'DM Mono', monospace" : "inherit" }}>{value}</span>
                                 </div>
                             ))}
                             {[
-                                { label: "CIN",         key: "cin_file" },
-                                { label: "Contrat",     key: "contract_file" },
+                                { label: "CIN", key: "cin_file" },
+                                { label: "Contrat", key: "contract_file" },
                                 { label: "Carte grise", key: "carte_grise_file" },
                             ].map(({ label, key }) => files[key] && (
                                 <div key={key} style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
@@ -489,9 +589,7 @@ export default function Edit({ expert, documents = {} }) {
 
                         {/* Action buttons */}
                         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                            <button
-                                onClick={handleSubmit}
-                                disabled={processing}
+                            <button onClick={handleSubmit} disabled={processing}
                                 style={{ width: "100%", padding: "13px", borderRadius: 12, border: "none", background: processing ? "#6b9fd4" : `linear-gradient(135deg, ${BLUE}, #1a5fa8)`, color: "#fff", fontSize: 15, fontWeight: 700, cursor: processing ? "not-allowed" : "pointer", boxShadow: processing ? "none" : `0 4px 14px rgba(12,68,124,0.4)`, transition: "all 0.2s", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
                             >
                                 {processing ? (
@@ -508,8 +606,7 @@ export default function Edit({ expert, documents = {} }) {
                                     </>
                                 )}
                             </button>
-                            <button
-                                onClick={() => router.visit("/si/experts")}
+                            <button onClick={() => router.visit("/si/experts")}
                                 style={{ width: "100%", padding: "12px", borderRadius: 12, border: "1px solid #e2e8f0", background: "#fff", color: "#475569", fontSize: 14, fontWeight: 600, cursor: "pointer", transition: "all 0.15s" }}
                                 onMouseEnter={e => e.currentTarget.style.background = "#f8fafc"}
                                 onMouseLeave={e => e.currentTarget.style.background = "#fff"}
@@ -520,8 +617,6 @@ export default function Edit({ expert, documents = {} }) {
                     </div>
                 </div>
             </div>
-
-            <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
         </>
     );
 }

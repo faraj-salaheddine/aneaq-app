@@ -1,4 +1,4 @@
-// resources/js/Pages/SI/Etablissements.jsx
+// resources/js/Pages/SI/Etablissements/Index.jsx
 
 import { useState, useMemo } from "react";
 import { Head, router } from "@inertiajs/react";
@@ -25,12 +25,12 @@ const initials = str => str
     ? str.split(" ").filter(Boolean).slice(0, 2).map(w => w[0]).join("").toUpperCase()
     : "?";
 
-export default function Etablissements({ etablissements = [] }) {
-    const [search, setSearch]       = useState("");
-    const [villeFilter, setVille]   = useState("");
-    const [univFilter, setUniv]     = useState("");
+export default function Index({ etablissements = [] }) {
+    const [search, setSearch]     = useState("");
+    const [acronymeFilter, setAcronyme] = useState("");
+    const [villeFilter, setVille] = useState("");
+    const [univFilter, setUniv]   = useState("");
 
-    // Build unique filter options from data
     const villes = useMemo(() =>
         [...new Set(etablissements.map(e => e.ville).filter(Boolean))].sort(),
         [etablissements]
@@ -42,20 +42,18 @@ export default function Etablissements({ etablissements = [] }) {
     );
 
     const filtered = etablissements.filter(e => {
-        const s = search.toLowerCase();
-        const matchSearch = !s ||
-            (e.etablissement || "").toLowerCase().includes(s) ||
-            (e.universite    || "").toLowerCase().includes(s) ||
-            (e.ville         || "").toLowerCase().includes(s);
-        const matchVille = !villeFilter || e.ville === villeFilter;
-        const matchUniv  = !univFilter  || e.universite === univFilter;
-        return matchSearch && matchVille && matchUniv;
-    });
+    const s = search.toLowerCase();
+    const a = acronymeFilter.toLowerCase();
+    const matchSearch   = !s || (e.etablissement || "").toLowerCase().includes(s);
+    const matchAcronyme = !a || (e.acronyme      || "").toLowerCase().includes(a);
+    const matchVille    = !villeFilter || e.ville === villeFilter;
+    const matchUniv     = !univFilter  || e.universite === univFilter;
+    return matchSearch && matchAcronyme && matchVille && matchUniv;
+});
 
-    const resetAll = () => { setSearch(""); setVille(""); setUniv(""); };
-    const activeFilters = [search, villeFilter, univFilter].filter(Boolean).length;
+    const resetAll = () => { setSearch(""); setAcronyme(""); setVille(""); setUniv(""); };
+    const activeFilters = [search, acronymeFilter, villeFilter, univFilter].filter(Boolean).length;
 
-    // Group by university for summary
     const byUniv = useMemo(() => {
         const map = {};
         filtered.forEach(e => {
@@ -79,46 +77,46 @@ export default function Etablissements({ etablissements = [] }) {
 
             <div className="etab-root" style={{ padding: "2.5rem 3rem", minHeight: "100vh", background: "linear-gradient(160deg, #f8fafc 0%, #f1f5f9 100%)" }}>
 
-{/* ── Header ── */}
-<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "2.5rem" }}>
-    <div>
-        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
-            <span style={{ fontSize: 12, color: "#94a3b8", fontWeight: 500 }}>Système d'Information</span>
-            <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" strokeWidth="2"><polyline points="9 18 15 12 9 6"/></svg>
-            <span style={{ fontSize: 12, color: ORANGE, fontWeight: 600 }}>Établissements</span>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-            <div style={{ width: 48, height: 48, borderRadius: 14, background: `linear-gradient(135deg, ${ORANGE}, #d4880f)`, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 6px 16px rgba(239,159,39,0.3)` }}>
-                <svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2">
-                    <rect x="3" y="3" width="18" height="18" rx="2"/>
-                    <path d="M9 22V12h6v10"/>
-                    <path d="M9 7h1"/><path d="M14 7h1"/>
-                    <path d="M9 11h1"/><path d="M14 11h1"/>
-                </svg>
-            </div>
-            <div>
-                <h1 style={{ fontSize: 26, fontWeight: 700, margin: 0, color: "#0f172a", letterSpacing: "-0.02em" }}>
-                    Établissements
-                </h1>
-                <p style={{ fontSize: 13, color: "#94a3b8", margin: "3px 0 0", fontWeight: 500 }}>
-                    <span style={{ color: ORANGE, fontWeight: 700 }}>{filtered.length}</span> résultat{filtered.length !== 1 ? "s" : ""} · {etablissements.length} établissements au total
-                </p>
-            </div>
-        </div>
-    </div>
+                {/* ── Header ── */}
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "2.5rem" }}>
+                    <div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
+                            <span style={{ fontSize: 12, color: "#94a3b8", fontWeight: 500 }}>Système d'Information</span>
+                            <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" strokeWidth="2"><polyline points="9 18 15 12 9 6"/></svg>
+                            <span style={{ fontSize: 12, color: ORANGE, fontWeight: 600 }}>Établissements</span>
+                        </div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                            <div style={{ width: 48, height: 48, borderRadius: 14, background: `linear-gradient(135deg, ${ORANGE}, #d4880f)`, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 6px 16px rgba(239,159,39,0.3)` }}>
+                                <svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2">
+                                    <rect x="3" y="3" width="18" height="18" rx="2"/>
+                                    <path d="M9 22V12h6v10"/>
+                                    <path d="M9 7h1"/><path d="M14 7h1"/>
+                                    <path d="M9 11h1"/><path d="M14 11h1"/>
+                                </svg>
+                            </div>
+                            <div>
+                                <h1 style={{ fontSize: 26, fontWeight: 700, margin: 0, color: "#0f172a", letterSpacing: "-0.02em" }}>
+                                    Établissements
+                                </h1>
+                                <p style={{ fontSize: 13, color: "#94a3b8", margin: "3px 0 0", fontWeight: 500 }}>
+                                    <span style={{ color: ORANGE, fontWeight: 700 }}>{filtered.length}</span> résultat{filtered.length !== 1 ? "s" : ""} · {etablissements.length} établissements au total
+                                </p>
+                            </div>
+                        </div>
+                    </div>
 
-    <button
-    onClick={() => router.visit("/si/etablissements/create")}
-    style={{ display: "flex", alignItems: "center", gap: 9, padding: "12px 24px", borderRadius: 12, border: "none", background: `linear-gradient(135deg, ${ORANGE}, #d4880f)`, color: "#fff", fontSize: 14, fontWeight: 600, cursor: "pointer", boxShadow: `0 4px 14px rgba(239,159,39,0.35)`, transition: "all 0.2s", whiteSpace: "nowrap" }}
-    onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.boxShadow = `0 8px 20px rgba(239,159,39,0.4)`; }}
-    onMouseLeave={e => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = `0 4px 14px rgba(239,159,39,0.35)`; }}
->
-    <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-        <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-    </svg>
-    Ajouter un établissement
-</button>
-</div>
+                    <button
+                        onClick={() => router.visit("/si/etablissements/create")}
+                        style={{ display: "flex", alignItems: "center", gap: 9, padding: "12px 24px", borderRadius: 12, border: "none", background: `linear-gradient(135deg, ${ORANGE}, #d4880f)`, color: "#fff", fontSize: 14, fontWeight: 600, cursor: "pointer", boxShadow: `0 4px 14px rgba(239,159,39,0.35)`, transition: "all 0.2s", whiteSpace: "nowrap" }}
+                        onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.boxShadow = `0 8px 20px rgba(239,159,39,0.4)`; }}
+                        onMouseLeave={e => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = `0 4px 14px rgba(239,159,39,0.35)`; }}
+                    >
+                        <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                            <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+                        </svg>
+                        Ajouter un établissement
+                    </button>
+                </div>
 
                 {/* ── Stats + Top universities ── */}
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr) 2fr", gap: 12, marginBottom: "2rem" }}>
@@ -163,71 +161,72 @@ export default function Etablissements({ etablissements = [] }) {
                 <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 18, boxShadow: "0 2px 12px rgba(0,0,0,0.06)", overflow: "hidden" }}>
 
                     {/* Toolbar */}
-                    <div style={{ padding: "1.25rem 1.5rem", borderBottom: "1px solid #f1f5f9", display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", background: "#fafbfc" }}>
+<div style={{ padding: "1.25rem 1.5rem", borderBottom: "1px solid #f1f5f9", display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", background: "#fafbfc" }}>
 
-                        {/* Search */}
-                        <div style={{ position: "relative", flex: 1, minWidth: 220 }}>
-                            <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "#94a3b8", pointerEvents: "none" }}>
-                                <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                            </span>
-                            <input
-                                className="filter-input"
-                                type="text" placeholder="Rechercher un établissement..."
-                                value={search} onChange={e => setSearch(e.target.value)}
-                                style={{ paddingLeft: 34, paddingRight: 12, paddingTop: 9, paddingBottom: 9, width: "100%", border: "1px solid #e2e8f0", borderRadius: 9, fontSize: 13, color: "#0f172a", background: "#fff", transition: "border-color 0.15s" }}
-                            />
-                        </div>
+    {/* Etablissement search */}
+    <div style={{ position: "relative", flex: 1, minWidth: 200 }}>
+        <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "#94a3b8", pointerEvents: "none" }}>
+            <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        </span>
+        <input className="filter-input" type="text" placeholder="Rechercher un établissement..."
+            value={search} onChange={e => setSearch(e.target.value)}
+            style={{ paddingLeft: 34, paddingRight: 12, paddingTop: 9, paddingBottom: 9, width: "100%", border: search ? `1.5px solid ${ORANGE}` : "1px solid #e2e8f0", borderRadius: 9, fontSize: 13, color: "#0f172a", background: "#fff", transition: "border-color 0.15s" }}
+        />
+    </div>
 
-                        {/* Ville filter */}
-                        <div style={{ position: "relative" }}>
-                            <span style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "#94a3b8", pointerEvents: "none" }}>
-                                <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>
-                                </svg>
-                            </span>
-                            <select
-                                className="filter-input"
-                                value={villeFilter} onChange={e => setVille(e.target.value)}
-                                style={{ paddingLeft: 30, paddingRight: 28, paddingTop: 9, paddingBottom: 9, border: villeFilter ? `1.5px solid ${BLUE}` : "1px solid #e2e8f0", borderRadius: 9, fontSize: 13, color: villeFilter ? "#0f172a" : "#94a3b8", background: "#fff", cursor: "pointer", appearance: "none", minWidth: 150, transition: "border-color 0.15s" }}
-                            >
-                                <option value="">Toutes les villes</option>
-                                {villes.map(v => <option key={v} value={v}>{v}</option>)}
-                            </select>
-                            <span style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", color: "#94a3b8", pointerEvents: "none" }}>
-                                <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9"/></svg>
-                            </span>
-                        </div>
+    {/* Acronyme search */}
+    <div style={{ position: "relative", minWidth: 160 }}>
+        <span style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "#94a3b8", pointerEvents: "none", fontSize: 10, fontWeight: 800, fontFamily: "'DM Mono', monospace", letterSpacing: "0.05em" }}>
+            ACR
+        </span>
+        <input className="filter-input" type="text" placeholder="Acronyme..."
+            value={acronymeFilter} onChange={e => setAcronyme(e.target.value)}
+            style={{ paddingLeft: 38, paddingRight: 12, paddingTop: 9, paddingBottom: 9, width: "100%", border: acronymeFilter ? `1.5px solid ${ORANGE}` : "1px solid #e2e8f0", borderRadius: 9, fontSize: 13, color: "#0f172a", background: "#fff", fontFamily: "'DM Mono', monospace", transition: "border-color 0.15s" }}
+        />
+    </div>
 
-                        {/* Université filter */}
-                        <div style={{ position: "relative" }}>
-                            <span style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "#94a3b8", pointerEvents: "none" }}>
-                                <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                    <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
-                                </svg>
-                            </span>
-                            <select
-                                className="filter-input"
-                                value={univFilter} onChange={e => setUniv(e.target.value)}
-                                style={{ paddingLeft: 30, paddingRight: 28, paddingTop: 9, paddingBottom: 9, border: univFilter ? `1.5px solid ${GREEN}` : "1px solid #e2e8f0", borderRadius: 9, fontSize: 13, color: univFilter ? "#0f172a" : "#94a3b8", background: "#fff", cursor: "pointer", appearance: "none", minWidth: 200, transition: "border-color 0.15s" }}
-                            >
-                                <option value="">Toutes les universités</option>
-                                {universites.map(u => <option key={u} value={u}>{u}</option>)}
-                            </select>
-                            <span style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", color: "#94a3b8", pointerEvents: "none" }}>
-                                <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9"/></svg>
-                            </span>
-                        </div>
+    {/* Ville filter */}
+    <div style={{ position: "relative" }}>
+        <span style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "#94a3b8", pointerEvents: "none" }}>
+            <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+        </span>
+        <select className="filter-input" value={villeFilter} onChange={e => setVille(e.target.value)}
+            style={{ paddingLeft: 30, paddingRight: 28, paddingTop: 9, paddingBottom: 9, border: villeFilter ? `1.5px solid ${BLUE}` : "1px solid #e2e8f0", borderRadius: 9, fontSize: 13, color: villeFilter ? "#0f172a" : "#94a3b8", background: "#fff", cursor: "pointer", appearance: "none", minWidth: 150, transition: "border-color 0.15s" }}
+        >
+            <option value="">Toutes les villes</option>
+            {villes.map(v => <option key={v} value={v}>{v}</option>)}
+        </select>
+        <span style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", color: "#94a3b8", pointerEvents: "none" }}>
+            <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9"/></svg>
+        </span>
+    </div>
 
-                        {/* Reset */}
-                        {activeFilters > 0 && (
-                            <button onClick={resetAll}
-                                style={{ display: "flex", alignItems: "center", gap: 5, padding: "8px 12px", borderRadius: 9, border: "1px solid #fecaca", background: "#fff5f5", color: "#ef4444", fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}
-                            >
-                                <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                                Effacer ({activeFilters})
-                            </button>
-                        )}
-                    </div>
+    {/* Université filter */}
+    <div style={{ position: "relative" }}>
+        <span style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "#94a3b8", pointerEvents: "none" }}>
+            <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+        </span>
+        <select className="filter-input" value={univFilter} onChange={e => setUniv(e.target.value)}
+            style={{ paddingLeft: 30, paddingRight: 28, paddingTop: 9, paddingBottom: 9, border: univFilter ? `1.5px solid ${GREEN}` : "1px solid #e2e8f0", borderRadius: 9, fontSize: 13, color: univFilter ? "#0f172a" : "#94a3b8", background: "#fff", cursor: "pointer", appearance: "none", minWidth: 200, transition: "border-color 0.15s" }}
+        >
+            <option value="">Toutes les universités</option>
+            {universites.map(u => <option key={u} value={u}>{u}</option>)}
+        </select>
+        <span style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", color: "#94a3b8", pointerEvents: "none" }}>
+            <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9"/></svg>
+        </span>
+    </div>
+
+    {/* Reset */}
+    {activeFilters > 0 && (
+        <button onClick={resetAll}
+            style={{ display: "flex", alignItems: "center", gap: 5, padding: "8px 12px", borderRadius: 9, border: "1px solid #fecaca", background: "#fff5f5", color: "#ef4444", fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}
+        >
+            <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            Effacer ({activeFilters})
+        </button>
+    )}
+</div>
 
                     {/* Active filter chips */}
                     {(villeFilter || univFilter) && (
@@ -253,9 +252,9 @@ export default function Etablissements({ etablissements = [] }) {
                         </div>
                     )}
 
-                    {/* Table header */}
-                    <div style={{ display: "grid", gridTemplateColumns: "2fr 2fr 1fr", padding: "10px 24px", background: "#f8fafc", borderBottom: "2px solid #f1f5f9" }}>
-                        {["Établissement", "Université", "Ville"].map(col => (
+                    {/* Table header — Établissement | Acronyme | Université | Ville */}
+                    <div style={{ display: "grid", gridTemplateColumns: "2fr 100px 2fr 1fr", padding: "10px 24px", background: "#f8fafc", borderBottom: "2px solid #f1f5f9" }}>
+                        {["Établissement", "Acronyme", "Université", "Ville"].map(col => (
                             <span key={col} style={{ fontSize: 10, fontWeight: 700, color: "#94a3b8", letterSpacing: "0.09em", textTransform: "uppercase" }}>
                                 {col}
                             </span>
@@ -266,13 +265,11 @@ export default function Etablissements({ etablissements = [] }) {
                     {filtered.map((etab, i) => {
                         const cityColor = getCityColor(etab.ville);
                         return (
-                            <div
-                                key={etab.id}
-                                className="etab-row"
-                                style={{ display: "grid", gridTemplateColumns: "2fr 2fr 1fr", padding: "14px 24px", borderBottom: i < filtered.length - 1 ? "1px solid #f8fafc" : "none", alignItems: "center", transition: "background 0.1s", animationDelay: `${Math.min(i * 0.02, 0.3)}s` }}
+                            <div key={etab.id} className="etab-row"
+                                style={{ display: "grid", gridTemplateColumns: "2fr 100px 2fr 1fr", padding: "14px 24px", borderBottom: i < filtered.length - 1 ? "1px solid #f8fafc" : "none", alignItems: "center", transition: "background 0.1s", animationDelay: `${Math.min(i * 0.02, 0.3)}s` }}
                             >
-                                {/* Etablissement */}
-                                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                                {/* Établissement */}
+                                <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
                                     <div style={{ width: 38, height: 38, borderRadius: 10, background: `${ORANGE}15`, color: ORANGE, fontWeight: 800, fontSize: 12, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, border: `1.5px solid ${ORANGE}25`, letterSpacing: "0.02em" }}>
                                         {initials(etab.etablissement)}
                                     </div>
@@ -281,6 +278,17 @@ export default function Etablissements({ etablissements = [] }) {
                                             {etab.etablissement}
                                         </div>
                                     </div>
+                                </div>
+
+                                {/* Acronyme */}
+                                <div>
+                                    {etab.acronyme ? (
+                                        <span style={{ display: "inline-flex", alignItems: "center", fontSize: 11, fontWeight: 800, padding: "4px 8px", borderRadius: 7, background: `${ORANGE}15`, color: ORANGE, letterSpacing: "0.05em", fontFamily: "'DM Mono', monospace", border: `1px solid ${ORANGE}25` }}>
+                                            {etab.acronyme}
+                                        </span>
+                                    ) : (
+                                        <span style={{ fontSize: 12, color: "#cbd5e1" }}>—</span>
+                                    )}
                                 </div>
 
                                 {/* Université */}
@@ -313,9 +321,7 @@ export default function Etablissements({ etablissements = [] }) {
                                 </svg>
                             </div>
                             <p style={{ fontSize: 16, fontWeight: 700, color: "#374151", margin: "0 0 6px" }}>Aucun établissement trouvé</p>
-                            <p style={{ fontSize: 13, color: "#9ca3af", margin: "0 0 1.5rem" }}>
-                                Essayez d'autres critères de recherche
-                            </p>
+                            <p style={{ fontSize: 13, color: "#9ca3af", margin: "0 0 1.5rem" }}>Essayez d'autres critères de recherche</p>
                             <button onClick={resetAll}
                                 style={{ padding: "9px 22px", borderRadius: 9, border: "none", background: ORANGE, color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer", boxShadow: `0 4px 12px rgba(239,159,39,0.3)` }}
                             >
@@ -344,4 +350,4 @@ export default function Etablissements({ etablissements = [] }) {
     );
 }
 
-Etablissements.layout = page => <DashboardLayout>{page}</DashboardLayout>;
+Index.layout = page => <DashboardLayout>{page}</DashboardLayout>;

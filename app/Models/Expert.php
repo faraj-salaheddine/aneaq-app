@@ -27,6 +27,7 @@ class Expert extends Model
         'etablissement_et_annee_responsabilite',
         // New fields
         'cin_number',
+        'rib',
         'contract_start',
         'contract_end',
         'contract_renewals',

@@ -454,7 +454,7 @@ export default function Welcome({ auth }) {
                 <div
                     className="absolute inset-0 z-0 bg-cover bg-center bg-no-repeat"
                     style={{
-                        backgroundImage: "url('/images/hero-bg.jpeg')",
+                        backgroundImage: "url('/images/Aneaq-espace3.png')",
                         transform: `translateY(${offsetY}px)`, // Décalage parallax calculé au scroll
                         willChange: 'transform'                 // Optimisation GPU pour l'animation
                     }}
