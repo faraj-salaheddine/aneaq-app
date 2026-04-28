@@ -13,6 +13,7 @@ use App\Http\Controllers\Expert\RapportExpertController;
 use App\Http\Controllers\Expert\MatriceRecommandationController;
 use App\Http\Controllers\Expert\NotificationExpertController;
 use App\Http\Controllers\Expert\HistoriqueParticipationController;
+use App\Http\Controllers\Expert\ExpertProfilController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
@@ -35,13 +36,10 @@ Route::get('/', function () {
 // ──────────────────────────────────────────────────────────────
 Route::get('/dashboard', function () {
     $user = Auth::user();
-
     if ($user && $user->role === 'expert') {
         return redirect()->route('expert.dashboard');
     }
-
     return redirect()->route('si.dashboard');
-
 })->middleware(['auth'])->name('dashboard');
 
 // ──────────────────────────────────────────────────────────────
@@ -88,6 +86,11 @@ Route::middleware(['auth'])->prefix('expert')->name('expert.')->group(function (
     // Dashboard
     Route::get('/dashboard', [ExpertDashboardController::class, 'index'])->name('dashboard');
 
+    // Profil expert (AVANT les autres pour éviter tout conflit)
+    Route::get('/profil',      [ExpertProfilController::class, 'show'])->name('profil.show');
+    Route::get('/profil/edit', [ExpertProfilController::class, 'edit'])->name('profil.edit');
+    Route::put('/profil',      [ExpertProfilController::class, 'update'])->name('profil.update');
+
     // Participations
     Route::get('/participations',                         [ParticipationController::class, 'index'])->name('participations.index');
     Route::post('/participations/{dossier}/confirmer',    [ParticipationController::class, 'confirmer'])->name('participations.confirmer');
@@ -113,18 +116,13 @@ Route::middleware(['auth'])->prefix('expert')->name('expert.')->group(function (
     Route::post('/dossiers/{dossier}/matrice/sauvegarder', [MatriceRecommandationController::class, 'sauvegarder'])->name('matrice.sauvegarder');
     Route::post('/dossiers/{dossier}/matrice/soumettre',   [MatriceRecommandationController::class, 'soumettre'])->name('matrice.soumettre');
 
-    // Notifications (tout-lire AVANT {notification} pour éviter conflit de routing)
-    Route::patch('/notifications/tout-lire',              [NotificationExpertController::class, 'toutMarquerLu'])->name('notifications.toutLire');
-    Route::get('/notifications',                          [NotificationExpertController::class, 'index'])->name('notifications.index');
-    Route::patch('/notifications/{notification}/lire',    [NotificationExpertController::class, 'marquerLu'])->name('notifications.lire');
+    // Notifications
+    Route::patch('/notifications/tout-lire',           [NotificationExpertController::class, 'toutMarquerLu'])->name('notifications.toutLire');
+    Route::get('/notifications',                       [NotificationExpertController::class, 'index'])->name('notifications.index');
+    Route::patch('/notifications/{notification}/lire', [NotificationExpertController::class, 'marquerLu'])->name('notifications.lire');
 
     // Historique
     Route::get('/historique', [HistoriqueParticipationController::class, 'index'])->name('historique.index');
-
-    // Profil expert
-    Route::get('/profil',       [ExpertDashboardController::class, 'profil'])->name('profil.show');
-    Route::get('/profil/edit',  [ExpertDashboardController::class, 'editProfil'])->name('profil.edit');
-    Route::put('/profil',       [ExpertDashboardController::class, 'updateProfil'])->name('profil.update');
 });
 
 require __DIR__.'/auth.php';
