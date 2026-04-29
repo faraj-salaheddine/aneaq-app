@@ -5,6 +5,7 @@ use App\Http\Controllers\SI\UtilisateursDEEController;
 use App\Http\Controllers\SI\ExpertController;
 use App\Http\Controllers\SI\EtablissementController;
 use App\Http\Controllers\SI\UniversiteController;
+use App\Http\Controllers\SI\SIProfileController;
 use App\Http\Controllers\Expert\ExpertDashboardController;
 use App\Http\Controllers\Expert\ParticipationController;
 use App\Http\Controllers\Expert\DossierExpertController;
@@ -48,6 +49,8 @@ Route::get('/dashboard', function () {
 Route::middleware(['auth'])->prefix('si')->name('si.')->group(function () {
 
     Route::get('/dashboard', [SIDashboardController::class, 'index'])->name('dashboard');
+    Route::get('/profile',        [SIProfileController::class, 'edit'])->name('profile.edit');
+Route::put('/profile',        [SIProfileController::class, 'update'])->name('profile.update');
 
     // Utilisateurs DEE
     Route::get('/utilisateurs-dee',                       [UtilisateursDEEController::class, 'index'])->name('utilisateurs-dee.index');

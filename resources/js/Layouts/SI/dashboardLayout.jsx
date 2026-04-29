@@ -77,19 +77,62 @@ export default function DashboardLayout({ children }) {
                             </div>
                         </div>
 
-                        {/* User pill */}
-                        <div style={{ marginTop: 16, padding: "8px 12px", borderRadius: 10, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.08)", display: "flex", alignItems: "center", gap: 8 }}>
-                            <div style={{ width: 28, height: 28, borderRadius: 8, background: `linear-gradient(135deg, ${BLUE}, #1a5fa8)`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                                <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2">
-                                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
-                                </svg>
-                            </div>
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                                <p style={{ fontSize: 12, fontWeight: 600, color: "#fff", margin: 0 }}>Administrateur SI</p>
-                                <p style={{ fontSize: 10, color: "rgba(255,255,255,0.4)", margin: "1px 0 0" }}>Accès complet</p>
-                            </div>
-                            <div style={{ width: 7, height: 7, borderRadius: "50%", background: GREEN, flexShrink: 0 }} />
-                        </div>
+                        {/* User pill — clickable */}
+<div style={{ marginTop: 16, position: "relative" }}>
+    <div
+        onClick={() => router.visit('/si/profile')}
+        style={{ padding: "8px 12px", borderRadius: 10, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.08)", display: "flex", alignItems: "center", gap: 8, cursor: "pointer", transition: "all 0.18s" }}
+        onMouseEnter={e => {
+            e.currentTarget.style.background = "rgba(255,255,255,0.12)";
+            e.currentTarget.querySelector('.profile-tooltip').style.opacity = "1";
+            e.currentTarget.querySelector('.profile-tooltip').style.transform = "translateY(0)";
+        }}
+        onMouseLeave={e => {
+            e.currentTarget.style.background = "rgba(255,255,255,0.06)";
+            e.currentTarget.querySelector('.profile-tooltip').style.opacity = "0";
+            e.currentTarget.querySelector('.profile-tooltip').style.transform = "translateY(4px)";
+        }}
+    >
+        <div style={{ width: 28, height: 28, borderRadius: 8, background: `linear-gradient(135deg, ${BLUE}, #1a5fa8)`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+            </svg>
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{ fontSize: 12, fontWeight: 600, color: "#fff", margin: 0 }}>Administrateur SI</p>
+            <p style={{ fontSize: 10, color: "rgba(255,255,255,0.4)", margin: "1px 0 0" }}>Accès complet</p>
+        </div>
+
+        {/* Arrow + green dot */}
+        <div style={{ display: "flex", alignItems: "center", gap: 5, flexShrink: 0 }}>
+            <div style={{ width: 7, height: 7, borderRadius: "50%", background: GREEN }} />
+            <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="2">
+                <polyline points="9 18 15 12 9 6"/>
+            </svg>
+        </div>
+
+        {/* Tooltip */}
+        <div
+            className="profile-tooltip"
+            style={{
+                position: "absolute", bottom: "110%", left: "25%", transform: "translateX(-50%) translateY(4px)",
+                background: "#fff", color: BLUE, fontSize: 11, fontWeight: 700,
+                padding: "6px 12px", borderRadius: 8, whiteSpace: "nowrap",
+                boxShadow: "0 4px 16px rgba(0,0,0,0.15)",
+                opacity: 0, transition: "all 0.18s ease", pointerEvents: "none",
+                display: "flex", alignItems: "center", gap: 6,
+            }}
+        >
+            <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke={BLUE} strokeWidth="2.5">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+            </svg>
+            Modifier le compte
+            {/* Arrow pointing down */}
+            <div style={{ position: "absolute", top: "100%", left: "50%", transform: "translateX(-50%)", width: 0, height: 0, borderLeft: "6px solid transparent", borderRight: "6px solid transparent", borderTop: "6px solid #fff" }} />
+        </div>
+    </div>
+</div>
                     </div>
 
                     {/* ── Nav items ── */}
