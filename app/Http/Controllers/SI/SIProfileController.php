@@ -6,7 +6,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Inertia\Inertia;
-
+use App\Models\ActivityLog;
 
 class SIProfileController extends Controller
 {
@@ -35,6 +35,17 @@ class SIProfileController extends Controller
     }
 
     $user->save();
+
+    ActivityLog::create([
+    'user_id'      => Auth::id(),
+    'action'       => 'Compte modifié',
+    'model_type'   => 'User',
+    'model_id'     => Auth::id(),
+    'model_name'   => $user->name,
+    'performed_by' => $user->name,
+    'role'         => 'si',
+    'details'      => 'Modification du profil SI',
+]);
 
     return back()->with('success', 'Profil mis à jour avec succès.');
 }

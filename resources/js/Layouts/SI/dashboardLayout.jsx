@@ -9,6 +9,7 @@ import {
     LogOut,
     Home,
     ChevronRight,
+    Clock
 } from 'lucide-react';
 
 const BLUE  = "#0C447C";
@@ -20,6 +21,7 @@ const navItems = [
     { label: 'Experts',          href: '/si/experts',          icon: Star,           color: GREEN     },
     { label: 'Établissements',   href: '/si/etablissements',   icon: Building2,      color: "#ef9f27" },
     { label: 'Universités',      href: '/si/universites',      icon: GraduationCap,  color: "#e11d48" },
+    { label: 'Historique', href: '/si/historique', icon: Clock, color: "#64748b" },
 ];
 
 export default function DashboardLayout({ children }) {

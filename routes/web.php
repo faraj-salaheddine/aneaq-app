@@ -6,6 +6,7 @@ use App\Http\Controllers\SI\ExpertController;
 use App\Http\Controllers\SI\EtablissementController;
 use App\Http\Controllers\SI\UniversiteController;
 use App\Http\Controllers\SI\SIProfileController;
+use App\Http\Controllers\SI\HistoriqueController;
 use App\Http\Controllers\Expert\ExpertDashboardController;
 use App\Http\Controllers\Expert\ParticipationController;
 use App\Http\Controllers\Expert\DossierExpertController;
@@ -79,7 +80,10 @@ Route::put('/profile',        [SIProfileController::class, 'update'])->name('pro
 
     // Universités
     Route::get('/universites', [UniversiteController::class, 'index'])->name('universites.index');
+
+    Route::get('/historique', [HistoriqueController::class, 'index'])->name('historique.index');
 });
+
 
 // ──────────────────────────────────────────────────────────────
 // Routes Expert
