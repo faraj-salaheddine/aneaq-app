@@ -34,7 +34,7 @@ export default function RapportDeposer({ expert, dossier, rapportExistant }) {
                         <button onClick={() => router.visit(route("expert.rapports.index"))} style={{ fontSize: 12, color: "#94a3b8", background: "none", border: "none", cursor: "pointer", padding: 0 }}>← Retour</button>
                     </div>
                     <h1 style={{ fontSize: 24, fontWeight: 700, color: "#0f172a", margin: 0 }}>Déposer un rapport final</h1>
-                    <p style={{ fontSize: 13, color: "#94a3b8", margin: "4px 0 0" }}>{etab?.acronyme} — {etab?.ville} · Vague {dossier.vague}</p>
+                    <p style={{ fontSize: 13, color: "#94a3b8", margin: "4px 0 0" }}>{etab?.acronyme} — {etab?.ville} · Vague {dossier.campagne}</p>
                 </div>
 
                 {rapportExistant?.statut === "rejete" && (

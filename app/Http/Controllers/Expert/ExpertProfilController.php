@@ -13,8 +13,6 @@ use Illuminate\Support\Facades\Hash;
 use App\Models\ActivityLog;
 use Inertia\Inertia;
 use Inertia\Response;
-use Illuminate\Support\Facades\DB;
-
 class ExpertProfilController extends Controller
 {
     // ─────────────────────────────────────────────────────────
@@ -75,7 +73,6 @@ class ExpertProfilController extends Controller
     public function update(Request $request): RedirectResponse
 {
     $expert = Expert::where('user_id', Auth::id())->firstOrFail();
-    $user   = Auth::user();
 
     $request->validate([
         'telephone'                             => 'nullable|string|max:30',

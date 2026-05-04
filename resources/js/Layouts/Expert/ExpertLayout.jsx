@@ -193,7 +193,7 @@ export default function ExpertLayout({ children, active }) {
 
                 {/* BAS */}
                 <div style={{ padding: "10px 10px 14px", borderTop: "1px solid #f1f5f9" }}>
-                    <Link href={route("dashboard")} className="nav-link"
+                    <Link href={route("home")} className="nav-link"
                         style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 12px", borderRadius: 9, marginBottom: 2, fontSize: 13, fontWeight: 500, color: "#475569" }}>
                         <span style={{ color: "#94a3b8" }}>{ICONS.home}</span>
                         <span>Accueil</span>

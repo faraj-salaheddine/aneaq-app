@@ -49,7 +49,7 @@ class ExpertDashboardController extends Controller
             ->join('dossiers', 'dossiers.id', '=', 'expert_dossier.dossier_id')
             ->join('etablissements', 'etablissements.id', '=', 'dossiers.etablissement_id')
             ->whereNotIn('dossiers.statut', ['cloture'])
-            ->select('dossiers.id','dossiers.vague','dossiers.statut','dossiers.date_visite',
+            ->select('dossiers.id','dossiers.campagne as vague','dossiers.statut','dossiers.date_visite',
                 'etablissements.acronyme','etablissements.etablissement_2 as nom',
                 'etablissements.ville','etablissements.universite',
                 'etablissements.domaine_connaissances','expert_dossier.role_comite')

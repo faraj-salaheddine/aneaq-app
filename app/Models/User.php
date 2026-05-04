@@ -21,8 +21,9 @@ class User extends Authenticatable
     protected $fillable = [
         'name',
         'email',
-        'password',
         'role',
+        'etablissement_id',
+        'password',
     ];
 
     /**
@@ -48,9 +49,8 @@ class User extends Authenticatable
         ];
     }
 
-    public function utilisateurDEE()
-{
-    return $this->hasOne(UtilisateurDEE::class);
-}
-
+    public function etablissement()
+    {
+        return $this->belongsTo(Etablissement::class);
+    }
 }

@@ -10,62 +10,54 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class Dossier extends Model
 {
     protected $fillable = [
-        'etablissement_id',
-        'vague',
+        'campagne_evaluation_id',
+        'reference',
+        'campagne',
+        'nom',
+        'description',
+        'observation',
         'statut',
-        'date_visite',
-        'observations',
+        'etablissement_id',
         'created_by',
+        'date_visite',
     ];
 
     protected $casts = [
         'date_visite' => 'date',
     ];
 
-    // ─── Relations ─────────────────────────────────────────
+    public function campagneEvaluation(): BelongsTo
+    {
+        return $this->belongsTo(CampagneEvaluation::class, 'campagne_evaluation_id');
+    }
 
     public function etablissement(): BelongsTo
     {
-        return $this->belongsTo(Etablissement::class);
+        return $this->belongsTo(Etablissement::class, 'etablissement_id');
     }
 
-    public function createdBy(): BelongsTo
+    public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
     }
 
+    public function expertAssignments(): HasMany
+    {
+        return $this->hasMany(DossierExpert::class, 'dossier_id');
+    }
+
     public function experts(): BelongsToMany
     {
-        return $this->belongsToMany(Expert::class, 'expert_dossier')
-                    ->withPivot([
-                        'statut_participation',
-                        'date_invitation',
-                        'date_reponse',
-                        'motif_refus',
-                        'role_comite',
-                        'affecte_par',
-                    ])
-                    ->withTimestamps();
+        return $this->belongsToMany(
+            Expert::class,
+            'dossier_experts',
+            'dossier_id',
+            'expert_id'
+        )->withTimestamps();
     }
 
-    public function expertsConfirmes(): BelongsToMany
+    public function documents(): HasMany
     {
-        return $this->experts()
-                    ->wherePivot('statut_participation', 'confirme');
-    }
-
-    public function evaluations(): HasMany
-    {
-        return $this->hasMany(EvaluationQuantitative::class);
-    }
-
-    public function rapportsExperts(): HasMany
-    {
-        return $this->hasMany(RapportExpert::class);
-    }
-
-    public function recommandations(): HasMany
-    {
-        return $this->hasMany(MatriceRecommandation::class);
+        return $this->hasMany(DossierDocument::class, 'dossier_id');
     }
 }

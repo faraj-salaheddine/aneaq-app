@@ -1,0 +1,10 @@
+[33mb8238d5[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m HEAD@{0}: pull origin main --rebase: Fast-forward
+[33md5cec2e[m HEAD@{1}: checkout: moving from merge-other-repo to main
+[33mf6cb67f[m[33m ([m[1;32mmerge-other-repo[m[33m)[m HEAD@{2}: commit (merge): tous les interfaces sont pret
+[33md5cec2e[m HEAD@{3}: checkout: moving from main to merge-other-repo
+[33md5cec2e[m HEAD@{4}: commit: mise a jour
+[33mf915f92[m HEAD@{5}: commit: expert
+[33mda8e031[m HEAD@{6}: pull: Fast-forward
+[33m5dac536[m HEAD@{7}: reset: moving to HEAD
+[33m5dac536[m HEAD@{8}: pull: Fast-forward
+[33m8eae96e[m HEAD@{9}: clone: from https://github.com/faraj-salaheddine/aneaq-app.git

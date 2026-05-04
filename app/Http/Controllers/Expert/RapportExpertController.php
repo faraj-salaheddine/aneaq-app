@@ -25,8 +25,17 @@ class RapportExpertController extends Controller
             ->join('dossiers', 'dossiers.id', '=', 'rapports_experts.dossier_id')
             ->join('etablissements', 'etablissements.id', '=', 'dossiers.etablissement_id')
             ->select(
-                'rapports_experts.*',
-                'dossiers.vague',
+                'rapports_experts.id',
+                'rapports_experts.dossier_id',
+                'rapports_experts.expert_id',
+                'rapports_experts.file_path',
+                'rapports_experts.original_name',
+                'rapports_experts.mime_type',
+                'rapports_experts.file_size',
+                'rapports_experts.statut',
+                'rapports_experts.motif_rejet',
+                'rapports_experts.created_at',
+                'dossiers.campagne as vague',
                 'etablissements.acronyme',
                 'etablissements.etablissement_2 as nom',
                 'etablissements.ville'
@@ -45,7 +54,7 @@ class RapportExpertController extends Controller
                 ->where('rapports_experts.expert_id', $expert->id))
             ->select(
                 'dossiers.id',
-                'dossiers.vague',
+                'dossiers.campagne as vague',
                 'dossiers.statut',
                 'etablissements.acronyme',
                 'etablissements.etablissement_2 as nom',
@@ -117,7 +126,7 @@ class RapportExpertController extends Controller
                     $uid,
                     'general',
                     "Rapport déposé — {$etab->acronyme} {$etab->ville}",
-                    "{$expert->prenom} {$expert->nom} a déposé son rapport final (Vague {$dossier->vague}).",
+                    "{$expert->prenom} {$expert->nom} a déposé son rapport final (Vague {$dossier->campagne}).",
                     'dossier',
                     $dossier->id
                 );
@@ -135,7 +144,10 @@ class RapportExpertController extends Controller
         abort_if($rapport->expert_id !== $expert->id, 403);
         abort_if(!Storage::disk('local')->exists($rapport->file_path), 404);
 
-        return Storage::disk('local')->download($rapport->file_path, $rapport->original_name);
+        return response()->download(
+            Storage::disk('local')->path($rapport->file_path),
+            $rapport->original_name
+        );
     }
 
     private function autoriser(Expert $expert, Dossier $dossier): void

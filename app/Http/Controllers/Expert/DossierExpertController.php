@@ -25,10 +25,10 @@ class DossierExpertController extends Controller
             ->join('etablissements', 'etablissements.id', '=', 'dossiers.etablissement_id')
             ->select(
                 'dossiers.id',
-                'dossiers.vague',
+                'dossiers.campagne as vague',
                 'dossiers.statut',
                 'dossiers.date_visite',
-                'dossiers.observations',
+                'dossiers.observation',
                 'etablissements.acronyme',
                 'etablissements.etablissement_2 as nom',
                 'etablissements.ville',

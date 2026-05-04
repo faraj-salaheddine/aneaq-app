@@ -10,7 +10,7 @@ const RAPPORT_META = {
     rejete: { label: "Rejeté",  color: "#ef4444", bg: "#fff1f2" },
 };
 
-export default function RapportsIndex({ expert, rapports = [], dossiersEnAttente = [] }) {
+export default function RapportsIndex({ rapports = [], dossiersEnAttente = [] }) {
     const thS = { textAlign: "left", padding: "10px 16px", fontSize: 10, fontWeight: 700, color: "#94a3b8", letterSpacing: "0.08em", textTransform: "uppercase", borderBottom: "2px solid #f1f5f9" };
     const tdS = { padding: "13px 16px", borderBottom: "1px solid #f8fafc", fontSize: 13, verticalAlign: "middle" };
 
@@ -78,7 +78,7 @@ export default function RapportsIndex({ expert, rapports = [], dossiersEnAttente
                                             <td style={{ ...tdS, fontFamily: "monospace", fontSize: 11, color: "#94a3b8" }}>{new Date(r.created_at).toLocaleDateString("fr-FR")}</td>
                                             <td style={tdS}><span style={{ fontSize: 11, fontWeight: 600, padding: "3px 9px", borderRadius: 99, color: sm.color, background: sm.bg }}>{sm.label}</span></td>
                                             <td style={tdS}>
-                                                <button onClick={() => router.visit(route("expert.rapports.telecharger", r.id))}
+                                                <button onClick={() => { window.location.href = route("expert.rapports.telecharger", r.id); }}
                                                     style={{ padding: "5px 12px", borderRadius: 7, border: `1px solid ${BLUE}25`, background: `${BLUE}08`, color: BLUE, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
                                                     ⬇ Télécharger
                                                 </button>

@@ -41,7 +41,7 @@ class UtilisateursDEEController extends Controller
             'name'     => $request->nom . ' ' . $request->prenom,
             'email'    => $request->email,
             'password' => Hash::make($request->password),
-            'role'     => $request->role,
+            'role'     => 'admin_dee',
         ]);
 
         // 2. Create DEE profile
@@ -90,7 +90,7 @@ class UtilisateursDEEController extends Controller
     $utilisateurDee->user->update([
         'name'  => $request->nom . ' ' . $request->prenom,
         'email' => $request->email,
-        'role'  => $request->role,
+        'role'  => 'admin_dee',
         ...($request->filled('password') ? ['password' => Hash::make($request->password)] : []),
     ]);
 

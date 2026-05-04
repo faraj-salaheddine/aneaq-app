@@ -24,7 +24,7 @@ class ParticipationController extends Controller
             ->join('etablissements', 'etablissements.id', '=', 'dossiers.etablissement_id')
             ->select(
                 'dossiers.id as dossier_id',
-                'dossiers.vague',
+                'dossiers.campagne as vague',
                 'dossiers.statut as dossier_statut',
                 'etablissements.acronyme',
                 'etablissements.etablissement_2 as nom',
@@ -110,7 +110,7 @@ class ParticipationController extends Controller
                 $uid,
                 'invitation_participation',
                 "Expert {$verbe} — {$etab->acronyme} {$etab->ville}",
-                "L'expert {$expert->prenom} {$expert->nom} a {$verbe} sa participation au dossier {$etab->etablissement_2} (Vague {$dossier->vague}).",
+                "L'expert {$expert->prenom} {$expert->nom} a {$verbe} sa participation au dossier {$etab->etablissement_2} (Vague {$dossier->campagne}).",
                 'dossier',
                 $dossier->id
             );

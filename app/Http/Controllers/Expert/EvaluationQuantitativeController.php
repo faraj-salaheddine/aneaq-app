@@ -95,7 +95,7 @@ class EvaluationQuantitativeController extends Controller
             foreach ($uids as $uid) {
                 NotificationAneaq::envoyer($uid,'general',
                     "Évaluation soumise — {$etab->acronyme} {$etab->ville}",
-                    "{$expert->prenom} {$expert->nom} a soumis son évaluation quantitative (Vague {$dossier->vague}).",
+                    "{$expert->prenom} {$expert->nom} a soumis son évaluation quantitative (Vague {$dossier->campagne}).",
                     'dossier',$dossier->id);
             }
         });

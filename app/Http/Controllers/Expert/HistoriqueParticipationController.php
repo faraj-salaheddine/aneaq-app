@@ -25,7 +25,7 @@ class HistoriqueParticipationController extends Controller
             })
             ->select(
                 'dossiers.id',
-                'dossiers.vague',
+                'dossiers.campagne as vague',
                 'dossiers.statut',
                 'etablissements.acronyme',
                 'etablissements.etablissement_2 as nom',
