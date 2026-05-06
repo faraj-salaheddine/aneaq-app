@@ -7,12 +7,191 @@ use App\Http\Controllers\Controller;
 use App\Models\Dossier;
 use App\Models\DossierExpert;
 use App\Models\Etablissement;
+use App\Models\Expert;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
 
 class WorkflowController extends Controller
 {
+    public function affectations()
+    {
+        if (!Schema::hasTable('dossier_experts')) {
+            return Inertia::render('DEE/Workflow/Affectations', ['dossiers' => []]);
+        }
+
+        $dossierIds = DossierExpert::query()
+            ->whereIn('status', ['acces_envoye', 'confirme_par_expert'])
+            ->pluck('dossier_id')
+            ->unique()
+            ->values();
+
+        if ($dossierIds->isEmpty()) {
+            return Inertia::render('DEE/Workflow/Affectations', ['dossiers' => []]);
+        }
+
+        $dossiers = Dossier::query()
+            ->whereIn('id', $dossierIds)
+            ->orderByDesc('updated_at')
+            ->get();
+
+        $etablissementIds = $dossiers->pluck('etablissement_id')->filter()->unique()->values();
+        $etablissements = collect();
+
+        if ($etablissementIds->isNotEmpty() && Schema::hasTable('etablissements')) {
+            $etablissements = Etablissement::query()
+                ->whereIn('id', $etablissementIds)
+                ->get()
+                ->keyBy('id');
+        }
+
+        $confirmedDossierExperts = DossierExpert::query()
+            ->whereIn('dossier_id', $dossierIds)
+            ->whereIn('status', ['acces_envoye', 'confirme_par_expert'])
+            ->get();
+
+        $expertIds = $confirmedDossierExperts->pluck('expert_id')->filter()->unique()->values();
+        $experts = collect();
+
+        if ($expertIds->isNotEmpty() && Schema::hasTable((new Expert())->getTable())) {
+            $experts = Expert::query()->whereIn('id', $expertIds)->get()->keyBy('id');
+        }
+
+        $expertsByDossier = $confirmedDossierExperts->groupBy('dossier_id');
+
+        $result = $dossiers->map(function ($dossier) use ($expertsByDossier, $etablissements, $experts) {
+            $etablissement = $etablissements->get($dossier->etablissement_id);
+            $dossierGroup = $expertsByDossier->get($dossier->id, collect());
+
+            $expertsList = $dossierGroup->map(function ($de) use ($experts) {
+                $expert = $experts->get($de->expert_id);
+                $prenom = $expert ? ($expert->prenom ?? $expert->first_name ?? '') : '';
+                $nom = $expert ? ($expert->nom ?? $expert->last_name ?? $expert->name ?? '') : '';
+                $fullName = trim($prenom . ' ' . $nom) ?: ($expert ? ($expert->name ?? 'Expert') : 'Expert');
+                return [
+                    'id' => $de->id,
+                    'role' => $de->role_expert ?? 'expert',
+                    'status' => $de->status,
+                    'name' => $fullName,
+                    'email' => $expert ? ($expert->email ?? '') : '',
+                ];
+            })->values();
+
+            $etablissementNom = $etablissement
+                ? ($etablissement->nom ?? $etablissement->etablissement_2 ?? $etablissement->etablissement ?? '—')
+                : $this->read($dossier, ['etablissement_nom', 'etablissement'], '—');
+
+            return [
+                'id' => $dossier->id,
+                'reference' => $this->read($dossier, ['reference'], '—'),
+                'nom' => $this->read($dossier, ['nom', 'name', 'titre'], $this->read($dossier, ['reference'], 'Dossier')),
+                'statut' => $this->read($dossier, ['statut', 'status'], '—'),
+                'etablissement' => $etablissementNom,
+                'experts_count' => $expertsList->count(),
+                'experts' => $expertsList,
+                'url' => route('dee.dossiers.show', $dossier->id),
+            ];
+        })->values();
+
+        return Inertia::render('DEE/Workflow/Affectations', ['dossiers' => $result]);
+    }
+
+    public function comites()
+    {
+        if (!Schema::hasTable('dossier_experts')) {
+            return Inertia::render('DEE/Workflow/Comites', ['comites' => []]);
+        }
+
+        $confirmedExperts = DossierExpert::query()
+            ->whereIn('status', ['acces_envoye', 'confirme_par_expert'])
+            ->get();
+
+        $groups = $confirmedExperts->groupBy('dossier_id');
+
+        $eligibleDossierIds = $groups->filter(function ($expertGroup) {
+            $chefs = $expertGroup->where('role_expert', 'chef_comite')->count();
+            $experts = $expertGroup->where('role_expert', 'expert')->count();
+            return $chefs >= 1 && $experts >= 2;
+        })->keys();
+
+        if ($eligibleDossierIds->isEmpty()) {
+            return Inertia::render('DEE/Workflow/Comites', ['comites' => []]);
+        }
+
+        $dossiers = Dossier::query()
+            ->whereIn('id', $eligibleDossierIds)
+            ->orderByDesc('updated_at')
+            ->get()
+            ->keyBy('id');
+
+        $etablissementIds = $dossiers->pluck('etablissement_id')->filter()->unique()->values();
+        $etablissements = collect();
+
+        if ($etablissementIds->isNotEmpty() && Schema::hasTable('etablissements')) {
+            $etablissements = Etablissement::query()
+                ->whereIn('id', $etablissementIds)
+                ->get()
+                ->keyBy('id');
+        }
+
+        $expertIds = $confirmedExperts
+            ->whereIn('dossier_id', $eligibleDossierIds->toArray())
+            ->pluck('expert_id')
+            ->filter()
+            ->unique()
+            ->values();
+
+        $experts = collect();
+        if ($expertIds->isNotEmpty() && Schema::hasTable((new Expert())->getTable())) {
+            $experts = Expert::query()->whereIn('id', $expertIds)->get()->keyBy('id');
+        }
+
+        $comites = $eligibleDossierIds->map(function ($dossierId) use ($dossiers, $groups, $experts, $etablissements) {
+            $dossier = $dossiers->get($dossierId);
+            if (!$dossier) return null;
+
+            $etablissement = $etablissements->get($dossier->etablissement_id);
+            $expertGroup = $groups->get($dossierId, collect());
+
+            $expertsList = $expertGroup->map(function ($de) use ($experts) {
+                $expert = $experts->get($de->expert_id);
+                $prenom = $expert ? ($expert->prenom ?? $expert->first_name ?? '') : '';
+                $nom = $expert ? ($expert->nom ?? $expert->last_name ?? $expert->name ?? '') : '';
+                $fullName = trim($prenom . ' ' . $nom) ?: ($expert ? ($expert->name ?? 'Expert') : 'Expert');
+                return [
+                    'id' => $de->id,
+                    'role' => $de->role_expert ?? 'expert',
+                    'status' => $de->status,
+                    'name' => $fullName,
+                    'email' => $expert ? ($expert->email ?? '') : '',
+                    'specialite' => $expert ? ($expert->specialite ?? $expert->domaine ?? '') : '',
+                ];
+            })->sortByDesc(fn($e) => $e['role'] === 'chef_comite' ? 1 : 0)->values();
+
+            $etablissementNom = $etablissement
+                ? ($etablissement->nom ?? $etablissement->etablissement_2 ?? $etablissement->etablissement ?? '—')
+                : $this->read($dossier, ['etablissement_nom', 'etablissement'], '—');
+
+            $universiteNom = $etablissement
+                ? ($etablissement->universite ?? $etablissement->universite_nom ?? '—')
+                : '—';
+
+            return [
+                'dossier_id' => $dossier->id,
+                'reference' => $this->read($dossier, ['reference'], '—'),
+                'nom' => $this->read($dossier, ['nom', 'name', 'titre'], $this->read($dossier, ['reference'], 'Dossier')),
+                'etablissement' => $etablissementNom,
+                'universite' => $universiteNom,
+                'experts' => $expertsList,
+                'experts_count' => $expertsList->count(),
+                'chef' => $expertsList->firstWhere('role', 'chef_comite'),
+                'url' => route('dee.dossiers.show', $dossier->id),
+            ];
+        })->filter()->values();
+
+        return Inertia::render('DEE/Workflow/Comites', ['comites' => $comites]);
+    }
+
     public function visites()
     {
         $dossierTable = (new Dossier())->getTable();

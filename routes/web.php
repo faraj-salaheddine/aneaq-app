@@ -210,7 +210,9 @@ Route::middleware(['auth', 'dee.admin'])
 
         // Workflow DEE
         Route::prefix('workflow')->name('workflow.')->group(function () {
+            Route::get('/affectations', [WorkflowController::class, 'affectations'])->name('affectations');
             Route::get('/visites', [WorkflowController::class, 'visites'])->name('visites');
+            Route::get('/comites', [WorkflowController::class, 'comites'])->name('comites');
         });
     });
 
