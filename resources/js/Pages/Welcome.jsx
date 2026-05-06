@@ -60,6 +60,9 @@ export default function Welcome({ auth }) {
             nav_guides: "Guides",
             nav_login: "Se connecter",
             nav_dashboard: "Dashboard DEE",
+            nav_dashboard_si: "Dashboard SI",
+            nav_dashboard_expert: "Espace Expert",
+            nav_dashboard_etablissement: "Espace Établissement",
             hero_badge: "Assurance Qualité de l'Enseignement Supérieur",
             hero_title1: "Évaluer aujourd'hui pour",
             hero_title2: "l'excellence de demain",
@@ -109,6 +112,9 @@ export default function Welcome({ auth }) {
             nav_guides: "الدلائل",
             nav_login: "تسجيل الدخول",
             nav_dashboard: "لوحة قيادة DEE",
+            nav_dashboard_si: "لوحة قيادة SI",
+            nav_dashboard_expert: "فضاء الخبير",
+            nav_dashboard_etablissement: "فضاء المؤسسة",
             hero_badge: "ضمان جودة التعليم العالي",
             hero_title1: "تقييم اليوم من أجل",
             hero_title2: "تميز الغد",
@@ -198,7 +204,53 @@ export default function Welcome({ auth }) {
         { title: t.docs_card3, file: "annexes.pdf" },
     ];
 
-    const dashboardUrl = currentUser?.role === 'admin_dee' ? '/dee/dashboard' : '/dashboard';
+    const dashboardUrl = (() => {
+        if (!currentUser) {
+            return '/login';
+        }
+
+        if (currentUser.role === 'admin_dee') {
+            return '/dee/dashboard';
+        }
+
+        if (currentUser.role === 'si' || currentUser.role === 'admin_si') {
+            return '/si/dashboard';
+        }
+
+        if (currentUser.role === 'expert') {
+            return '/expert/dashboard';
+        }
+
+        if (currentUser.role === 'etablissement') {
+            return '/etablissement/dashboard';
+        }
+
+        return '/dashboard';
+    })();
+
+    const dashboardLabel = (() => {
+        if (!currentUser) {
+            return t.nav_login;
+        }
+
+        if (currentUser.role === 'admin_dee') {
+            return t.nav_dashboard;
+        }
+
+        if (currentUser.role === 'si' || currentUser.role === 'admin_si') {
+            return t.nav_dashboard_si;
+        }
+
+        if (currentUser.role === 'expert') {
+            return t.nav_dashboard_expert;
+        }
+
+        if (currentUser.role === 'etablissement') {
+            return t.nav_dashboard_etablissement;
+        }
+
+        return currentUser.name || 'Dashboard';
+    })();
 
     return (
         <div
@@ -313,25 +365,13 @@ export default function Welcome({ auth }) {
                                     href={dashboardUrl}
                                     className="rounded-xl bg-blue-600 px-6 py-2.5 text-sm font-bold text-white shadow-lg shadow-blue-600/30 transition-all hover:bg-blue-700 active:scale-95"
                                 >
-                                    {currentUser.role === 'admin_dee' ? t.nav_dashboard : currentUser.name}
+                                    {dashboardLabel}
                                 </Link>
-<<<<<<< Updated upstream
-=======
 
->>>>>>> Stashed changes
                                 <Link
                                     href={route('logout')}
                                     method="post"
                                     as="button"
-<<<<<<< Updated upstream
-                                    className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold shadow-lg transition-all active:scale-95 ${
-                                        isSticky
-                                            ? 'bg-red-50 text-red-600 hover:bg-red-100'
-                                            : 'bg-white/10 text-white hover:bg-white/20'
-                                    }`}
-                                >
-                                    <LogOut size={16} />
-=======
                                     title="Se déconnecter"
                                     className={`flex h-10 w-10 items-center justify-center rounded-xl text-white shadow-lg transition-all active:scale-95 ${
                                         isSticky
@@ -340,7 +380,6 @@ export default function Welcome({ auth }) {
                                     }`}
                                 >
                                     <LogOut size={18} />
->>>>>>> Stashed changes
                                 </Link>
                             </div>
                         ) : (
@@ -528,31 +567,31 @@ export default function Welcome({ auth }) {
                             {[
                                 {
                                     label: t.stat_etab,
-                                    val: "100",
+                                    val: '100',
                                     icon: <ShieldCheck size={28} />,
-                                    color: "text-blue-600",
-                                    bg: "bg-blue-50",
+                                    color: 'text-blue-600',
+                                    bg: 'bg-blue-50',
                                 },
                                 {
                                     label: t.stat_exp,
-                                    val: "242+",
+                                    val: '242+',
                                     icon: <Users size={28} />,
-                                    color: "text-indigo-600",
-                                    bg: "bg-indigo-50",
+                                    color: 'text-indigo-600',
+                                    bg: 'bg-indigo-50',
                                 },
                                 {
                                     label: t.stat_rap,
-                                    val: "450+",
+                                    val: '450+',
                                     icon: <FileText size={28} />,
-                                    color: "text-emerald-600",
-                                    bg: "bg-emerald-50",
+                                    color: 'text-emerald-600',
+                                    bg: 'bg-emerald-50',
                                 },
                                 {
                                     label: t.stat_taux,
-                                    val: "88%",
+                                    val: '88%',
                                     icon: <BarChart3 size={28} />,
-                                    color: "text-sky-600",
-                                    bg: "bg-sky-50",
+                                    color: 'text-sky-600',
+                                    bg: 'bg-sky-50',
                                 },
                             ].map((s, i) => (
                                 <div
@@ -583,7 +622,7 @@ export default function Welcome({ auth }) {
                             </h3>
 
                             <p className="mb-8 px-8 text-sm text-slate-400">
-                                Répartition annuelle des missions d'évaluation
+                                Répartition annuelle des missions d&apos;évaluation
                             </p>
 
                             <div className="min-h-[350px] w-full flex-grow">
@@ -697,7 +736,7 @@ export default function Welcome({ auth }) {
                                             href={dashboardUrl}
                                             className="transition hover:text-white"
                                         >
-                                            {currentUser.role === 'admin_dee' ? t.nav_dashboard : currentUser.name}
+                                            {dashboardLabel}
                                         </Link>
                                     ) : (
                                         <button
