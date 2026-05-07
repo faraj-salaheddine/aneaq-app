@@ -1188,8 +1188,10 @@ function formatExpertRole(role) {
 function formatExpertStatus(status) {
     const labels = {
         en_attente_confirmation_dee: 'En attente confirmation DEE',
+        en_attente_confirmation_expert: 'Accès envoyé',
         acces_envoye: 'Accès envoyé',
-        confirme_par_expert: 'Confirmé par expert',
+        confirme_par_expert: 'Confirmé',
+        refuse_par_expert: 'Refusé par expert',
         pending_confirmation: 'En attente confirmation DEE',
         confirme_par_dee: 'Confirmé par DEE',
     };

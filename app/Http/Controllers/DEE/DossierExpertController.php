@@ -43,16 +43,37 @@ class DossierExpertController extends Controller
             ]);
         }
 
-        DossierExpert::create([
+        $payload = [
             'dossier_id' => $dossier->id,
             'expert_id' => $expert->id,
             'role_expert' => $validated['role_expert'],
-            'status' => 'en_attente_confirmation_dee',
-            'invitation_token' => null,
-            'access_sent_at' => null,
-            'dee_confirmed_at' => null,
-            'expert_confirmed_at' => null,
-        ]);
+        ];
+
+        if (Schema::hasColumn('dossier_experts', 'status')) {
+            $payload['status'] = 'en_attente_confirmation_dee';
+        }
+
+        if (Schema::hasColumn('dossier_experts', 'invitation_token')) {
+            $payload['invitation_token'] = null;
+        }
+
+        if (Schema::hasColumn('dossier_experts', 'access_sent_at')) {
+            $payload['access_sent_at'] = null;
+        }
+
+        if (Schema::hasColumn('dossier_experts', 'dee_confirmed_at')) {
+            $payload['dee_confirmed_at'] = null;
+        }
+
+        if (Schema::hasColumn('dossier_experts', 'expert_confirmed_at')) {
+            $payload['expert_confirmed_at'] = null;
+        }
+
+        if (Schema::hasColumn('dossier_experts', 'expert_refused_at')) {
+            $payload['expert_refused_at'] = null;
+        }
+
+        DossierExpert::create($payload);
 
         return back()->with('success', 'Expert ajouté en attente de confirmation DEE.');
     }
@@ -81,7 +102,7 @@ class DossierExpertController extends Controller
         $expertName = trim(($expert->prenom ?? '') . ' ' . ($expert->nom ?? ''));
 
         if ($expertName === '') {
-            $expertName = $expert->nom ?? $expert->name ?? 'Expert';
+            $expertName = $expert->name ?? $expert->nom ?? 'Expert';
         }
 
         DB::transaction(function () use ($expert, $expertName, $plainPassword, $token, $dossierExpert) {
@@ -96,14 +117,45 @@ class DossierExpertController extends Controller
                 $user->role = 'expert';
             }
 
+            if (Schema::hasColumn('users', 'email_verified_at') && empty($user->email_verified_at)) {
+                $user->email_verified_at = now();
+            }
+
             $user->save();
 
-            $dossierExpert->update([
-                'status' => 'acces_envoye',
-                'invitation_token' => $token,
-                'access_sent_at' => now(),
-                'dee_confirmed_at' => now(),
-            ]);
+            if (Schema::hasColumn('experts', 'user_id')) {
+                $expert->forceFill([
+                    'user_id' => $user->id,
+                ])->save();
+            }
+
+            $payload = [];
+
+            if (Schema::hasColumn('dossier_experts', 'status')) {
+                $payload['status'] = 'en_attente_confirmation_expert';
+            }
+
+            if (Schema::hasColumn('dossier_experts', 'invitation_token')) {
+                $payload['invitation_token'] = $token;
+            }
+
+            if (Schema::hasColumn('dossier_experts', 'access_sent_at')) {
+                $payload['access_sent_at'] = now();
+            }
+
+            if (Schema::hasColumn('dossier_experts', 'dee_confirmed_at')) {
+                $payload['dee_confirmed_at'] = now();
+            }
+
+            if (Schema::hasColumn('dossier_experts', 'expert_confirmed_at')) {
+                $payload['expert_confirmed_at'] = null;
+            }
+
+            if (Schema::hasColumn('dossier_experts', 'expert_refused_at')) {
+                $payload['expert_refused_at'] = null;
+            }
+
+            $dossierExpert->forceFill($payload)->save();
         });
 
         try {
@@ -116,8 +168,8 @@ class DossierExpertController extends Controller
                     expertName: $expertName,
                     loginEmail: $expert->email,
                     plainPassword: $plainPassword,
-                    dossierReference: $dossier->reference,
-                    campaignReference: $dossier->campagne ?? '—',
+                    dossierReference: $dossier->reference ?? '—',
+                    campaignReference: $dossier->campagne ?? $dossier->campagne_reference ?? '—',
                     confirmationUrl: $confirmationUrl,
                     expertRole: $this->roleLabel($dossierExpert->role_expert),
                 )
@@ -127,7 +179,7 @@ class DossierExpertController extends Controller
         } catch (\Throwable $e) {
             return back()->with(
                 'error',
-                'Expert accepté, mais email non envoyé : ' . $e->getMessage()
+                'Expert accepté et compte créé, mais email non envoyé : ' . $e->getMessage()
             );
         }
     }
@@ -157,7 +209,10 @@ class DossierExpertController extends Controller
 
         $expectedPassword = config('app.dee_delete_password', env('DEE_DELETE_PASSWORD'));
 
-        if (!$expectedPassword || !hash_equals((string) $expectedPassword, (string) $request->input('delete_password'))) {
+        if (
+            !$expectedPassword ||
+            !hash_equals((string) $expectedPassword, (string) $request->input('delete_password'))
+        ) {
             return back()->withErrors([
                 'delete_password' => 'Mot de passe incorrect.',
             ]);

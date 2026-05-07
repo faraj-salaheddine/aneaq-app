@@ -1,202 +1,376 @@
-// resources/js/Pages/Expert/Participations/Index.jsx
+import { Head, Link, router } from '@inertiajs/react';
+import ExpertLayout from '@/Layouts/Expert/ExpertLayout';
+import {
+    CheckCircle2,
+    ChevronRight,
+    Clock3,
+    Mail,
+    XCircle,
+} from 'lucide-react';
 
-import { Head, router, useForm } from "@inertiajs/react";
-import { useState } from "react";
-import ExpertLayout from "@/Layouts/Expert/ExpertLayout";
+export default function ParticipationsIndex({
+    expert = {},
+    participations = [],
+    stats = {},
+}) {
+    const pending = participations.filter((item) => item.is_pending);
+    const confirmed = participations.filter((item) => item.is_confirmed);
+    const refused = participations.filter((item) => item.is_refused);
 
-const BLUE   = "#0C447C";
-const GREEN  = "#1D9E75";
-const ORANGE = "#EF9F27";
-
-const STATUT_META = {
-    invite:   { label: "En attente",  color: ORANGE,    bg: "#FFF7ED" },
-    confirme: { label: "Confirmée",   color: GREEN,     bg: "#ECFDF5" },
-    refuse:   { label: "Refusée",     color: "#ef4444", bg: "#fff1f2" },
-};
-
-function ModalRefus({ dossier, onClose }) {
-    const { data, setData, post, processing } = useForm({ motif_refus: "" });
-    const submit = e => {
-        e.preventDefault();
-        post(route("expert.participations.refuser", dossier.dossier_id), { onSuccess: onClose });
+    const acceptParticipation = (participation) => {
+        router.post(`/expert/affectations/${participation.assignment_id}/accept`, {}, {
+            preserveScroll: true,
+        });
     };
-    return (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}>
-            <div style={{ background: "#fff", borderRadius: 16, padding: 28, width: 420, boxShadow: "0 20px 60px rgba(0,0,0,0.15)" }}>
-                <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 6, color: "#0f172a" }}>Refuser la participation</h3>
-                <p style={{ fontSize: 12, color: "#64748b", marginBottom: 18 }}>{dossier.acronyme} — {dossier.ville} · Vague {dossier.vague}</p>
-                <form onSubmit={submit}>
-                    <label style={{ fontSize: 12, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>Motif du refus (optionnel)</label>
-                    <textarea value={data.motif_refus} onChange={e => setData("motif_refus", e.target.value)} rows={3}
-                        placeholder="Expliquez la raison du refus..."
-                        style={{ width: "100%", border: "1px solid #e2e8f0", borderRadius: 8, padding: "10px 12px", fontSize: 13, color: "#0f172a", resize: "vertical", fontFamily: "inherit", outline: "none" }} />
-                    <div style={{ display: "flex", gap: 8, marginTop: 18 }}>
-                        <button type="button" onClick={onClose}
-                            style={{ flex: 1, padding: "10px", borderRadius: 8, border: "1px solid #e2e8f0", background: "#fff", color: "#64748b", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>
-                            Annuler
-                        </button>
-                        <button type="submit" disabled={processing}
-                            style={{ flex: 1, padding: "10px", borderRadius: 8, border: "none", background: "#ef4444", color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>
-                            Confirmer le refus
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    );
-}
 
-export default function ParticipationsIndex({ expert, invitations = [] }) {
-    const [modalRefus, setModalRefus] = useState(null);
-    const { post, processing } = useForm();
-
-    const confirmer = dossierId => post(route("expert.participations.confirmer", dossierId));
-
-    const enAttente  = invitations.filter(i => i.statut_participation === "invite");
-    const confirmees = invitations.filter(i => i.statut_participation === "confirme");
-    const refusees   = invitations.filter(i => i.statut_participation === "refuse");
-
-    const thS = { textAlign: "left", padding: "10px 16px", fontSize: 10, fontWeight: 700, color: "#94a3b8", letterSpacing: "0.08em", textTransform: "uppercase", borderBottom: "2px solid #f1f5f9" };
-    const tdS = { padding: "13px 16px", borderBottom: "1px solid #f8fafc", fontSize: 13, verticalAlign: "middle" };
+    const refuseParticipation = (participation) => {
+        const motif = window.prompt('Motif du refus :');
+        if (motif === null) return;
+        if (!motif.trim()) {
+            alert('Le motif du refus est obligatoire.');
+            return;
+        }
+        router.post(`/expert/affectations/${participation.assignment_id}/refuse`, {
+            motif_refus: motif,
+        }, { preserveScroll: true });
+    };
 
     return (
         <>
             <Head title="Mes invitations — Expert" />
-            <style>{`
-                @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
-                .expert-root * { font-family: 'DM Sans', sans-serif; box-sizing: border-box; }
-                .row-hover:hover { background: #f8fafc !important; }
-                @keyframes fadeUp { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
-                .fade-up { animation: fadeUp 0.3s ease both; }
-            `}</style>
 
-            <div className="expert-root" style={{ padding: "2.5rem 3rem", minHeight: "100vh", background: "linear-gradient(160deg, #f8fafc 0%, #f1f5f9 100%)" }}>
+            <div className="min-h-screen bg-[#f6f8fc] px-4 py-8 lg:px-10">
+                <div className="mx-auto max-w-7xl">
 
-                {/* Header */}
-                <div className="fade-up" style={{ marginBottom: "2rem" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
-                        <span style={{ fontSize: 12, color: "#94a3b8", fontWeight: 500 }}>Espace Expert</span>
-                        <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" strokeWidth="2"><polyline points="9 18 15 12 9 6"/></svg>
-                        <span style={{ fontSize: 12, color: GREEN, fontWeight: 600 }}>Mes invitations</span>
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-                        <div style={{ width: 44, height: 44, borderRadius: 12, background: `linear-gradient(135deg, ${ORANGE}, #d97706)`, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                            <svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2">
-                                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
-                                <polyline points="22,6 12,13 2,6"/>
-                            </svg>
+                    {/* Header */}
+                    <div className="mb-8">
+                        <div className="flex items-center gap-2 text-sm font-semibold text-slate-400">
+                            <Link href="/expert/dashboard" className="transition hover:text-blue-600">
+                                Espace Expert
+                            </Link>
+                            <span>/</span>
+                            <span className="text-emerald-600">Mes invitations</span>
                         </div>
-                        <div>
-                            <h1 style={{ fontSize: 24, fontWeight: 700, margin: 0, color: "#0f172a" }}>Demandes de participation</h1>
-                            <p style={{ fontSize: 13, color: "#94a3b8", margin: "3px 0 0", fontWeight: 500 }}>
-                                <span style={{ color: ORANGE, fontWeight: 700 }}>{enAttente.length}</span> invitation(s) en attente · {invitations.length} au total
-                            </p>
-                        </div>
-                    </div>
-                </div>
 
-                {/* Stats strip */}
-                <div className="fade-up" style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12, marginBottom: "1.5rem", animationDelay: "0.05s" }}>
-                    {[
-                        { label: "En attente",  value: enAttente.length,  color: ORANGE,    bg: "#FFF7ED" },
-                        { label: "Confirmées",  value: confirmees.length, color: GREEN,     bg: "#ECFDF5" },
-                        { label: "Refusées",    value: refusees.length,   color: "#ef4444", bg: "#fff1f2" },
-                    ].map((s, i) => (
-                        <div key={i} style={{ background: "#fff", border: "1px solid #e8edf3", borderRadius: 12, padding: "14px 18px", display: "flex", alignItems: "center", gap: 12, boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
-                            <div style={{ width: 36, height: 36, borderRadius: 9, background: s.bg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                                <span style={{ fontSize: 18, fontWeight: 800, color: s.color }}>{s.value}</span>
+                        <div className="mt-4 flex items-center gap-4">
+                            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-500 text-white shadow-lg shadow-amber-500/25">
+                                <Mail size={22} />
                             </div>
-                            <span style={{ fontSize: 13, color: "#475569", fontWeight: 500 }}>{s.label}</span>
+                            <div>
+                                <h1 className="text-3xl font-black text-slate-900">
+                                    Demandes de participation
+                                </h1>
+                                <p className="mt-1 text-sm text-slate-500">
+                                    {stats.en_attente || 0} en attente · {stats.total || 0} au total
+                                </p>
+                            </div>
                         </div>
-                    ))}
-                </div>
-
-                {/* Table */}
-                <div className="fade-up" style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 16, boxShadow: "0 2px 10px rgba(0,0,0,0.05)", overflow: "hidden", animationDelay: "0.1s" }}>
-                    <div style={{ padding: "1.25rem 1.5rem", borderBottom: "1px solid #f1f5f9", background: "#fafbfc", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                        <h3 style={{ fontSize: 14, fontWeight: 700, color: "#0f172a", margin: 0 }}>Toutes les invitations</h3>
-                        {enAttente.length > 0 && (
-                            <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 99, background: "#FFF7ED", color: ORANGE }}>
-                                {enAttente.length} action(s) requise(s)
-                            </span>
-                        )}
                     </div>
 
-                    {invitations.length === 0 ? (
-                        <div style={{ padding: "4rem", textAlign: "center", color: "#94a3b8", fontSize: 13 }}>
-                            Aucune invitation reçue.
-                        </div>
-                    ) : (
-                        <div style={{ overflowX: "auto" }}>
-                            <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 700 }}>
-                                <thead>
-                                    <tr style={{ background: "#fafbfc" }}>
-                                        <th style={thS}>Établissement</th>
-                                        <th style={thS}>Université</th>
-                                        <th style={thS}>Vague</th>
-                                        <th style={thS}>Date invitation</th>
-                                        <th style={thS}>Statut</th>
-                                        <th style={thS}>Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {invitations.map(inv => {
-                                        const sm = STATUT_META[inv.statut_participation] ?? STATUT_META.invite;
-                                        return (
-                                            <tr key={inv.dossier_id} className="row-hover" style={{ transition: "background 0.1s" }}>
-                                                <td style={tdS}>
-                                                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                                                        <div style={{ width: 34, height: 34, borderRadius: 8, background: `${BLUE}12`, display: "flex", alignItems: "center", justifyContent: "center", color: BLUE, fontWeight: 700, fontSize: 11, flexShrink: 0 }}>
-                                                            {inv.acronyme?.slice(0, 3)}
-                                                        </div>
-                                                        <div>
-                                                            <div style={{ fontWeight: 700, fontSize: 13, color: "#0f172a" }}>{inv.acronyme} — {inv.ville}</div>
-                                                            <div style={{ fontSize: 11, color: "#94a3b8" }}>{inv.domaine_connaissances}</div>
-                                                        </div>
-                                                    </div>
-                                                </td>
-                                                <td style={{ ...tdS, fontSize: 12, color: "#475569" }}>{inv.universite}</td>
-                                                <td style={{ ...tdS, fontFamily: "monospace", fontSize: 12, color: "#64748b" }}>{inv.vague}</td>
-                                                <td style={{ ...tdS, fontFamily: "monospace", fontSize: 11, color: "#94a3b8" }}>
-                                                    {inv.date_invitation ? new Date(inv.date_invitation).toLocaleDateString("fr-FR") : "—"}
-                                                </td>
-                                                <td style={tdS}>
-                                                    <span style={{ fontSize: 11, fontWeight: 600, padding: "3px 9px", borderRadius: 99, color: sm.color, background: sm.bg }}>{sm.label}</span>
-                                                </td>
-                                                <td style={tdS}>
-                                                    {inv.statut_participation === "invite" ? (
-                                                        <div style={{ display: "flex", gap: 6 }}>
-                                                            <button onClick={() => confirmer(inv.dossier_id)} disabled={processing}
-                                                                style={{ padding: "5px 12px", borderRadius: 7, border: `1px solid ${GREEN}30`, background: `${GREEN}08`, color: GREEN, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
-                                                                ✔ Confirmer
-                                                            </button>
-                                                            <button onClick={() => setModalRefus(inv)}
-                                                                style={{ padding: "5px 12px", borderRadius: 7, border: "1px solid #fee2e2", background: "#fff", color: "#ef4444", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
-                                                                ✖ Refuser
-                                                            </button>
-                                                        </div>
-                                                    ) : inv.statut_participation === "confirme" ? (
-                                                        <button onClick={() => router.visit(route("expert.dossiers.show", inv.dossier_id))}
-                                                            style={{ padding: "5px 12px", borderRadius: 7, border: `1px solid ${BLUE}25`, background: `${BLUE}08`, color: BLUE, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
-                                                            Voir dossier →
-                                                        </button>
-                                                    ) : (
-                                                        <span style={{ fontSize: 11, color: "#94a3b8" }}>{inv.motif_refus ? `"${inv.motif_refus.slice(0, 30)}…"` : "—"}</span>
-                                                    )}
-                                                </td>
-                                            </tr>
-                                        );
-                                    })}
-                                </tbody>
-                            </table>
-                        </div>
-                    )}
+                    {/* Stats */}
+                    <div className="mb-8 grid grid-cols-2 gap-4 md:grid-cols-4">
+                        <StatCard label="Total" value={stats.total || 0} color="blue" />
+                        <StatCard label="En attente" value={stats.en_attente || 0} color="amber" />
+                        <StatCard label="Confirmées" value={stats.confirmees || 0} color="emerald" />
+                        <StatCard label="Refusées" value={stats.refusees || 0} color="red" />
+                    </div>
+
+                    {/* Sections */}
+                    <div className="space-y-6">
+
+                        {/* Pending */}
+                        <Section
+                            title="Invitations en attente"
+                            subtitle="Acceptez ou refusez ces missions."
+                            icon={Clock3}
+                            color="amber"
+                            count={pending.length}
+                        >
+                            {pending.length > 0 ? (
+                                <Table
+                                    columns={['Dossier', 'Établissement', 'Campagne', 'Date invitation', 'Actions']}
+                                    lastRight
+                                >
+                                    {pending.map((p) => (
+                                        <PendingRow
+                                            key={p.assignment_id}
+                                            participation={p}
+                                            onAccept={() => acceptParticipation(p)}
+                                            onRefuse={() => refuseParticipation(p)}
+                                        />
+                                    ))}
+                                </Table>
+                            ) : (
+                                <EmptyState text="Aucune invitation en attente." />
+                            )}
+                        </Section>
+
+                        {/* Confirmed */}
+                        <Section
+                            title="Demandes confirmées"
+                            subtitle="Les missions que vous avez acceptées."
+                            icon={CheckCircle2}
+                            color="emerald"
+                            count={confirmed.length}
+                        >
+                            {confirmed.length > 0 ? (
+                                <Table
+                                    columns={['Dossier', 'Établissement', 'Campagne', 'Date réponse', 'Action']}
+                                    lastRight
+                                >
+                                    {confirmed.map((p) => (
+                                        <ConfirmedRow key={p.assignment_id} participation={p} />
+                                    ))}
+                                </Table>
+                            ) : (
+                                <EmptyState text="Aucune demande confirmée." />
+                            )}
+                        </Section>
+
+                        {/* Refused */}
+                        <Section
+                            title="Demandes refusées"
+                            subtitle="Les missions que vous avez refusées."
+                            icon={XCircle}
+                            color="red"
+                            count={refused.length}
+                        >
+                            {refused.length > 0 ? (
+                                <Table
+                                    columns={['Dossier', 'Établissement', 'Campagne', 'Date refus', 'Motif']}
+                                >
+                                    {refused.map((p) => (
+                                        <RefusedRow key={p.assignment_id} participation={p} />
+                                    ))}
+                                </Table>
+                            ) : (
+                                <EmptyState text="Aucune demande refusée." />
+                            )}
+                        </Section>
+
+                    </div>
                 </div>
             </div>
-
-            {modalRefus && <ModalRefus dossier={modalRefus} onClose={() => setModalRefus(null)} />}
         </>
     );
 }
 
-ParticipationsIndex.layout = page => <ExpertLayout active="participations">{page}</ExpertLayout>;
+/* ─── Table wrapper ────────────────────────────────────────────── */
+function Table({ columns, children, lastRight = false }) {
+    return (
+        <div className="overflow-x-auto">
+            <table className="w-full min-w-[640px] border-collapse">
+                <thead>
+                    <tr className="border-b border-slate-100">
+                        {columns.map((col, i) => (
+                            <th
+                                key={col}
+                                className={`px-4 py-3 text-xs font-black uppercase tracking-widest text-slate-400 ${
+                                    lastRight && i === columns.length - 1 ? 'text-right' : 'text-left'
+                                }`}
+                            >
+                                {col}
+                            </th>
+                        ))}
+                    </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50">{children}</tbody>
+            </table>
+        </div>
+    );
+}
+
+/* ─── Row: pending ──────────────────────────────────────────────── */
+function PendingRow({ participation, onAccept, onRefuse }) {
+    const dossier = participation.dossier || {};
+    const etablissement = participation.etablissement || {};
+
+    return (
+        <tr className="group transition hover:bg-amber-50/40">
+            <td className="px-4 py-4">
+                <StatusBadge status={participation.status} label={participation.status_label} />
+                <p className="mt-1.5 font-black text-slate-900">{dossier.reference || '—'}</p>
+                <p className="text-xs text-slate-400">{participation.role_label || 'Expert'}</p>
+            </td>
+            <td className="px-4 py-4">
+                <p className="font-semibold text-slate-800">{etablissement.nom || '—'}</p>
+                <p className="text-xs text-slate-400">{etablissement.ville || '—'}</p>
+            </td>
+            <td className="px-4 py-4 text-sm font-semibold text-slate-700">
+                {participation.campagne || '—'}
+            </td>
+            <td className="px-4 py-4 text-sm text-slate-500">
+                {participation.date_invitation || '—'}
+            </td>
+            <td className="px-4 py-4 text-right">
+                <div className="flex items-center justify-end gap-2">
+                    <button
+                        type="button"
+                        onClick={onRefuse}
+                        className="inline-flex items-center gap-1.5 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-black text-red-600 transition hover:bg-red-600 hover:text-white"
+                    >
+                        <XCircle size={14} />
+                        Refuser
+                    </button>
+                    <button
+                        type="button"
+                        onClick={onAccept}
+                        className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-600 transition hover:bg-emerald-600 hover:text-white"
+                    >
+                        <CheckCircle2 size={14} />
+                        Accepter
+                    </button>
+                </div>
+            </td>
+        </tr>
+    );
+}
+
+/* ─── Row: confirmed ────────────────────────────────────────────── */
+function ConfirmedRow({ participation }) {
+    const dossier = participation.dossier || {};
+    const etablissement = participation.etablissement || {};
+
+    return (
+        <tr className="group transition hover:bg-emerald-50/30">
+            <td className="px-4 py-4">
+                <StatusBadge status={participation.status} label={participation.status_label} />
+                <p className="mt-1.5 font-black text-slate-900">{dossier.reference || '—'}</p>
+                <p className="text-xs text-slate-400">{participation.role_label || 'Expert'}</p>
+            </td>
+            <td className="px-4 py-4">
+                <p className="font-semibold text-slate-800">{etablissement.nom || '—'}</p>
+                <p className="text-xs text-slate-400">{etablissement.ville || '—'}</p>
+            </td>
+            <td className="px-4 py-4 text-sm font-semibold text-slate-700">
+                {participation.campagne || '—'}
+            </td>
+            <td className="px-4 py-4 text-sm text-slate-500">
+                {participation.date_reponse || participation.date_invitation || '—'}
+            </td>
+            <td className="px-4 py-4 text-right">
+                <Link
+                    href={`/expert/dossiers/${dossier.id}`}
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-3 py-2 text-xs font-black text-white shadow-sm shadow-blue-600/20 transition hover:bg-blue-700"
+                >
+                    Ouvrir
+                    <ChevronRight size={14} />
+                </Link>
+            </td>
+        </tr>
+    );
+}
+
+/* ─── Row: refused ──────────────────────────────────────────────── */
+function RefusedRow({ participation }) {
+    const dossier = participation.dossier || {};
+    const etablissement = participation.etablissement || {};
+
+    return (
+        <tr className="group transition hover:bg-red-50/30">
+            <td className="px-4 py-4">
+                <StatusBadge status={participation.status} label={participation.status_label} />
+                <p className="mt-1.5 font-black text-slate-900">{dossier.reference || '—'}</p>
+                <p className="text-xs text-slate-400">{participation.role_label || 'Expert'}</p>
+            </td>
+            <td className="px-4 py-4">
+                <p className="font-semibold text-slate-800">{etablissement.nom || '—'}</p>
+                <p className="text-xs text-slate-400">{etablissement.ville || '—'}</p>
+            </td>
+            <td className="px-4 py-4 text-sm font-semibold text-slate-700">
+                {participation.campagne || '—'}
+            </td>
+            <td className="px-4 py-4 text-sm text-slate-500">
+                {participation.date_reponse || '—'}
+            </td>
+            <td className="px-4 py-4">
+                {participation.motif_refus ? (
+                    <span className="inline-block max-w-[220px] rounded-xl bg-red-50 px-3 py-2 text-xs font-semibold text-red-600">
+                        {participation.motif_refus}
+                    </span>
+                ) : (
+                    <span className="text-xs text-slate-400">—</span>
+                )}
+            </td>
+        </tr>
+    );
+}
+
+/* ─── Section wrapper ───────────────────────────────────────────── */
+function Section({ title, subtitle, icon: Icon, color, count, children }) {
+    const colorMap = {
+        amber:   { wrap: 'bg-amber-50 text-amber-600',   badge: 'bg-amber-100 text-amber-700' },
+        emerald: { wrap: 'bg-emerald-50 text-emerald-600', badge: 'bg-emerald-100 text-emerald-700' },
+        red:     { wrap: 'bg-red-50 text-red-600',       badge: 'bg-red-100 text-red-700' },
+        blue:    { wrap: 'bg-blue-50 text-blue-600',     badge: 'bg-blue-100 text-blue-700' },
+    };
+    const c = colorMap[color] || colorMap.blue;
+
+    return (
+        <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+                <div className="flex items-center gap-3">
+                    <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${c.wrap}`}>
+                        <Icon size={20} />
+                    </div>
+                    <div>
+                        <h2 className="font-black text-slate-900">{title}</h2>
+                        <p className="text-xs text-slate-400">{subtitle}</p>
+                    </div>
+                </div>
+                <span className={`rounded-full px-3 py-1 text-xs font-black ${c.badge}`}>
+                    {count} résultat{count !== 1 ? 's' : ''}
+                </span>
+            </div>
+            <div className="p-5">{children}</div>
+        </section>
+    );
+}
+
+/* ─── Stat card ─────────────────────────────────────────────────── */
+function StatCard({ label, value, color }) {
+    const map = {
+        blue:    'border-blue-500   text-blue-700   bg-blue-50',
+        amber:   'border-amber-500  text-amber-700  bg-amber-50',
+        emerald: 'border-emerald-500 text-emerald-700 bg-emerald-50',
+        red:     'border-red-500    text-red-700    bg-red-50',
+    };
+
+    return (
+        <div className={`rounded-2xl border-l-4 bg-white p-4 shadow-sm ${map[color]}`}>
+            <p className={`text-3xl font-black ${map[color].split(' ')[1]}`}>{value}</p>
+            <p className="mt-0.5 text-sm font-semibold text-slate-500">{label}</p>
+        </div>
+    );
+}
+
+/* ─── Status badge ──────────────────────────────────────────────── */
+function StatusBadge({ status, label }) {
+    const styles = {
+        en_attente_confirmation_expert: 'bg-amber-50 text-amber-700',
+        acces_envoye:                   'bg-amber-50 text-amber-700',
+        confirme_par_expert:            'bg-emerald-50 text-emerald-700',
+        comite_confirme:                'bg-blue-50 text-blue-700',
+        refuse_par_expert:              'bg-red-50 text-red-700',
+        confirme:                       'bg-emerald-50 text-emerald-700',
+        refuse:                         'bg-red-50 text-red-700',
+    };
+
+    return (
+        <span className={`inline-block rounded-full px-2.5 py-0.5 text-[11px] font-black ${styles[status] || 'bg-slate-100 text-slate-600'}`}>
+            {label || status || '—'}
+        </span>
+    );
+}
+
+/* ─── Empty state ───────────────────────────────────────────────── */
+function EmptyState({ text }) {
+    return (
+        <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/50 py-10 text-center">
+            <Clock3 className="mx-auto text-slate-300" size={28} />
+            <p className="mt-2 text-sm font-semibold text-slate-400">{text}</p>
+        </div>
+    );
+}
+
+ParticipationsIndex.layout = (page) => <ExpertLayout>{page}</ExpertLayout>;

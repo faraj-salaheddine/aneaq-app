@@ -1,0 +1,58 @@
+sequenceDiagram
+    actor DEE as DEE (Admin Eval.)
+    participant MW as Middleware role:dee.admin
+    participant DB as Base de donnees
+    participant Mail as Service Email
+    participant React as Inertia React
+
+    Note over DEE,React: GESTION DES DOSSIERS
+
+    DEE->>MW: GET /dee/dossiers
+    MW->>DB: SELECT dossiers + etablissements + campagnes
+    DB-->>MW: Liste des dossiers
+    MW-->>React: Page Dossiers/Index
+
+    DEE->>MW: GET /dee/dossiers/{id}
+    MW->>DB: SELECT dossier + experts + documents + timeline
+    DB-->>MW: Donnees completes
+    MW-->>React: Page Dossiers/Show
+
+    DEE->>MW: PATCH /dee/dossiers/{id} { statut, date_visite, observation }
+    MW->>DB: UPDATE dossiers
+    MW-->>React: flash Dossier modifie
+
+    DEE->>MW: POST /dee/dossiers/{dossier}/documents { fichier }
+    MW->>DB: INSERT dossier_documents
+    DB-->>MW: Document enregistre
+
+    Note over DEE,React: AFFECTER UN EXPERT A UN DOSSIER
+
+    DEE->>MW: POST /dee/dossiers/{dossier}/experts { expert_id, role }
+    MW->>DB: INSERT dossier_experts SET status=en_attente_confirmation_dee
+    MW-->>React: flash Expert assigne
+
+    DEE->>MW: POST /dee/dossiers/{dossier}/experts/{id}/confirm
+    MW->>DB: CREATE OR UPDATE users SET role=expert
+    MW->>DB: UPDATE dossier_experts SET status=acces_envoye
+    MW->>DB: SET invitation_token=uuid, access_sent_at=NOW()
+    MW->>Mail: Email invitation avec lien token
+    DB-->>MW: Confirmation envoyee
+    MW-->>React: flash Expert confirme invitation envoyee
+
+    DEE->>MW: DELETE /dee/dossiers/{dossier}/experts/{id}/refuse
+    MW->>DB: UPDATE dossier_experts SET status=refuse_par_dee
+    MW-->>React: flash Expert refuse
+
+    Note over DEE,React: WORKFLOW DE SUIVI
+
+    DEE->>MW: GET /dee/workflow/affectations
+    MW->>DB: SELECT dossier_experts + statuts + profils experts
+    MW-->>React: Tableau workflow affectations
+
+    DEE->>MW: GET /dee/workflow/comites
+    MW->>DB: SELECT comites min 1 chef + 2 experts confirmes
+    MW-->>React: Vue comites
+
+    DEE->>MW: GET /dee/workflow/visites
+    MW->>DB: SELECT dossiers WHERE date_visite IS NOT NULL
+    MW-->>React: Vue planning visites

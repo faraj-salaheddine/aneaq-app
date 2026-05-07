@@ -1,6 +1,6 @@
 <?php
 
-
+use App\Http\Controllers\Expert\ExpertProfilController;
 use App\Http\Controllers\DEE\AdminDashboardController;
 use App\Http\Controllers\DEE\CampagneEtablissementController;
 use App\Http\Controllers\DEE\CampagneEvaluationController;
@@ -19,7 +19,6 @@ use App\Http\Controllers\SI\UniversiteController as SIUniversiteController;
 use App\Http\Controllers\SI\ExpertController as SIExpertController;
 use App\Http\Controllers\SI\HistoriqueController as SIHistoriqueController;
 use App\Http\Controllers\Expert\ExpertDashboardController;
-use App\Http\Controllers\Expert\ExpertProfilController;
 use App\Http\Controllers\Expert\DossierExpertController as ExpertDossierController;
 use App\Http\Controllers\Expert\EvaluationQuantitativeController;
 use App\Http\Controllers\Expert\HistoriqueParticipationController;
@@ -321,7 +320,11 @@ Route::middleware(['auth', 'role:expert'])
             Route::post('/{dossier}/soumettre', [EvaluationQuantitativeController::class, 'soumettre'])
                 ->name('soumettre');
         });
+Route::get('/profil/modifier', [ExpertProfilController::class, 'edit'])
+    ->name('profil.edit');
 
+Route::put('/profil', [ExpertProfilController::class, 'update'])
+    ->name('profil.update');
         // Rapports Expert
         Route::prefix('rapports')->name('rapports.')->group(function () {
             Route::get('/', [RapportExpertController::class, 'index'])
@@ -390,6 +393,19 @@ Route::middleware(['auth', 'role:etablissement'])
     Route::get('/etablissements/{etablissement}', [\App\Http\Controllers\DEE\EtablissementController::class, 'show'])
     ->name('dee.etablissements.show');
 
+Route::middleware(['auth', 'role:expert'])
+    ->prefix('expert')
+    ->name('expert.')
+    ->group(function () {
+        Route::get('/dashboard', [ExpertDashboardController::class, 'index'])
+            ->name('dashboard');
+
+        Route::post('/affectations/{dossierExpert}/accept', [ExpertDashboardController::class, 'accept'])
+            ->name('affectations.accept');
+
+        Route::post('/affectations/{dossierExpert}/refuse', [ExpertDashboardController::class, 'refuse'])
+            ->name('affectations.refuse');
+    });
 /*
 |--------------------------------------------------------------------------
 | Routes Auth Breeze / Laravel

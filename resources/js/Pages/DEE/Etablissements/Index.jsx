@@ -14,10 +14,23 @@ function EtablissementsIndex({ etablissements = [] }) {
     const [search, setSearch]           = useState('');
     const [editingItem, setEditingItem] = useState(null);
     const [deleteItem, setDeleteItem]   = useState(null);
+    const [createOpen, setCreateOpen]   = useState(false);
 
     const { data, setData, patch, reset, processing, errors, clearErrors } = useForm({
         etablissement: '', etablissement_2: '', ville: '', universite: '', email: '',
     });
+
+    const {
+        data: cData, setData: setCData, post,
+        reset: resetCreate, processing: cProcessing, errors: cErrors, clearErrors: clearCErrors,
+    } = useForm({ etablissement: '', etablissement_2: '', ville: '', universite: '', email: '' });
+
+    const openCreateModal  = () => { resetCreate(); clearCErrors(); setCreateOpen(true); };
+    const closeCreateModal = () => { setCreateOpen(false); resetCreate(); clearCErrors(); };
+    const submitCreate = (e) => {
+        e.preventDefault();
+        post('/dee/etablissements', { preserveScroll: true, onSuccess: closeCreateModal });
+    };
 
     const filteredEtablissements = useMemo(() => {
         const q = search.trim().toLowerCase();
@@ -118,19 +131,28 @@ function EtablissementsIndex({ etablissements = [] }) {
 
                 {/* ── Table card ── */}
                 <div className="dee-fu" style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 18, boxShadow: '0 2px 12px rgba(0,0,0,0.05)', overflow: 'hidden', animationDelay: '0.1s' }}>
-                    <div style={{ padding: '1.25rem 1.75rem', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#fafbfc' }}>
+                    <div style={{ padding: '1.25rem 1.75rem', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#fafbfc', gap: 12, flexWrap: 'wrap' }}>
                         <div>
                             <h3 style={{ fontSize: 15, fontWeight: 700, color: '#0f172a', margin: 0 }}>Tous les établissements</h3>
                             <p style={{ fontSize: 12, color: '#94a3b8', margin: '2px 0 0' }}>Cliquez sur le nom pour accéder à l'historique complet</p>
                         </div>
-                        <div style={{ position: 'relative' }}>
-                            <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2" style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)' }}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                            <input
-                                value={search}
-                                onChange={e => setSearch(e.target.value)}
-                                placeholder="Nom, ville, université ou email…"
-                                style={{ height: 36, borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', paddingLeft: 32, paddingRight: 12, fontSize: 13, color: '#374151', outline: 'none', width: 280 }}
-                            />
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <div style={{ position: 'relative' }}>
+                                <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2" style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)' }}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                                <input
+                                    value={search}
+                                    onChange={e => setSearch(e.target.value)}
+                                    placeholder="Nom, ville, université ou email…"
+                                    style={{ height: 36, borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', paddingLeft: 32, paddingRight: 12, fontSize: 13, color: '#374151', outline: 'none', width: 280 }}
+                                />
+                            </div>
+                            <button
+                                onClick={openCreateModal}
+                                style={{ display: 'flex', alignItems: 'center', gap: 7, height: 36, padding: '0 16px', borderRadius: 9, border: 'none', background: ACCENT, color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                            >
+                                <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                                Ajouter un établissement
+                            </button>
                         </div>
                     </div>
 
@@ -219,6 +241,40 @@ function EtablissementsIndex({ etablissements = [] }) {
                     )}
                 </div>
             </div>
+
+            {/* ── Create modal ── */}
+            {createOpen && (
+                <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: 16, backdropFilter: 'blur(4px)' }}>
+                    <div style={{ background: '#fff', borderRadius: 20, width: '100%', maxWidth: 520, boxShadow: '0 24px 64px rgba(0,0,0,0.2)', overflow: 'hidden' }}>
+                        <div style={{ padding: '1.5rem 1.75rem', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <div>
+                                <span style={{ fontSize: 11, fontWeight: 700, color: ACCENT, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Nouveau</span>
+                                <h3 style={{ fontSize: 18, fontWeight: 700, color: '#0f172a', margin: '4px 0 0' }}>Ajouter un établissement</h3>
+                            </div>
+                            <button onClick={closeCreateModal} style={{ background: '#f1f5f9', border: 'none', borderRadius: 8, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+                                <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                            </button>
+                        </div>
+                        <form onSubmit={submitCreate} style={{ padding: '1.5rem 1.75rem' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                                <EField label="Nom principal *" value={cData.etablissement_2} onChange={v => setCData('etablissement_2', v)} error={cErrors.etablissement_2} />
+                                <EField label="Nom secondaire"  value={cData.etablissement}   onChange={v => setCData('etablissement', v)}   error={cErrors.etablissement} />
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                                    <EField label="Ville"      value={cData.ville}      onChange={v => setCData('ville', v)}      error={cErrors.ville} />
+                                    <EField label="Université" value={cData.universite} onChange={v => setCData('universite', v)} error={cErrors.universite} />
+                                </div>
+                                <EField label="Email" type="email" value={cData.email} onChange={v => setCData('email', v)} error={cErrors.email} />
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 24 }}>
+                                <button type="button" onClick={closeCreateModal} style={{ height: 38, padding: '0 16px', borderRadius: 9, border: '1px solid #e2e8f0', background: '#fff', color: '#374151', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Annuler</button>
+                                <button type="submit" disabled={cProcessing} style={{ height: 38, padding: '0 20px', borderRadius: 9, border: 'none', background: ACCENT, color: '#fff', fontSize: 13, fontWeight: 700, cursor: cProcessing ? 'not-allowed' : 'pointer', opacity: cProcessing ? 0.6 : 1 }}>
+                                    {cProcessing ? 'Enregistrement...' : 'Ajouter l\'établissement'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
 
             {/* ── Edit modal ── */}
             {editingItem && (

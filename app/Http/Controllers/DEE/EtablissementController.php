@@ -454,6 +454,32 @@ class EtablissementController extends Controller
         ]);
     }
 
+    public function store(Request $request)
+    {
+        $validated = $request->validate([
+            'etablissement'   => ['nullable', 'string', 'max:255'],
+            'etablissement_2' => ['required', 'string', 'max:255'],
+            'ville'           => ['nullable', 'string', 'max:255'],
+            'universite'      => ['nullable', 'string', 'max:255'],
+            'email'           => ['nullable', 'email', 'max:255'],
+        ]);
+
+        if (empty($validated['etablissement'])) {
+            $validated['etablissement'] = $validated['etablissement_2'];
+        }
+
+        $payload = [];
+        foreach ($validated as $column => $value) {
+            if ($this->hasColumn('etablissements', $column)) {
+                $payload[$column] = $value;
+            }
+        }
+
+        Etablissement::create($payload);
+
+        return back()->with('success', 'Établissement ajouté avec succès.');
+    }
+
     public function update(Request $request, Etablissement $etablissement)
     {
         $validated = $request->validate([

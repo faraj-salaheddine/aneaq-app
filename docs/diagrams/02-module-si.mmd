@@ -1,0 +1,47 @@
+sequenceDiagram
+    actor SI as SI (Admin Systeme)
+    participant MW as Middleware role:si
+    participant DB as Base de donnees
+    participant Mail as Service Email
+    participant React as Inertia React
+
+    Note over SI,React: CREER UN UTILISATEUR DEE
+
+    SI->>MW: GET /si/utilisateurs-dee/create
+    MW-->>React: Formulaire creation utilisateur DEE
+
+    SI->>MW: POST /si/utilisateurs-dee { nom, email, password }
+    MW->>DB: INSERT users SET role=dee.admin
+    MW->>Mail: Email de bienvenue DEE
+    DB-->>MW: Utilisateur cree
+    MW-->>React: redirect /si/utilisateurs-dee
+
+    SI->>MW: PATCH /si/utilisateurs-dee/{id} { nom, email }
+    MW->>DB: UPDATE users
+    MW->>Mail: Email de mise a jour
+    MW-->>React: redirect /si/utilisateurs-dee
+
+    SI->>MW: DELETE /si/utilisateurs-dee/{id}
+    MW->>DB: DELETE users
+    MW-->>React: redirect /si/utilisateurs-dee
+
+    Note over SI,React: CREER UN EXPERT
+
+    SI->>MW: GET /si/experts/create
+    MW-->>React: Formulaire creation expert
+
+    SI->>MW: POST /si/experts { profil, documents[] }
+    MW->>DB: INSERT experts
+    MW->>DB: INSERT expert_documents (CIN, RIB, contrat)
+    MW->>DB: INSERT users SET role=expert
+    MW->>Mail: Email de bienvenue expert
+    MW->>DB: INSERT activity_log
+    DB-->>MW: Expert cree
+    MW-->>React: redirect /si/experts/{id}
+
+    Note over SI,React: HISTORIQUE ET AUDIT
+
+    SI->>MW: GET /si/historique
+    MW->>DB: SELECT activity_log ORDER BY created_at DESC
+    DB-->>MW: Journal des actions
+    MW-->>React: Page Historique (audit trail)

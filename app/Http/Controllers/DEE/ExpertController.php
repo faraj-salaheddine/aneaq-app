@@ -54,6 +54,29 @@ class ExpertController extends Controller
         ]);
     }
 
+    public function store(Request $request)
+    {
+        $validated = $request->validate([
+            'nom'                                      => ['required', 'string', 'max:255'],
+            'prenom'                                   => ['nullable', 'string', 'max:255'],
+            'email'                                    => ['nullable', 'email', 'max:255'],
+            'ville'                                    => ['nullable', 'string', 'max:255'],
+            'pays'                                     => ['nullable', 'string', 'max:255'],
+            'telephone'                                => ['nullable', 'string', 'max:255'],
+            'specialite'                               => ['nullable', 'string'],
+            'fonction_actuelle'                        => ['nullable', 'string'],
+            'universite_ou_departement_ministeriel'    => ['nullable', 'string'],
+            'type_etablissement'                       => ['nullable', 'string', 'max:255'],
+            'etablissement'                            => ['nullable', 'string'],
+            'grade'                                    => ['nullable', 'string'],
+            'diplomes_obtenus'                         => ['nullable', 'string'],
+        ]);
+
+        Expert::create($validated);
+
+        return back()->with('success', 'Expert ajouté avec succès.');
+    }
+
     public function update(Request $request, Expert $expert)
     {
         $validated = $request->validate([

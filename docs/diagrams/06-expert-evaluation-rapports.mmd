@@ -1,0 +1,73 @@
+sequenceDiagram
+    actor EXP as Expert
+    participant MW as Middleware role:expert
+    participant DB as Base de donnees
+    participant React as Inertia React
+
+    Note over EXP,React: ACCES AU DOSSIER CONFIRME
+
+    EXP->>MW: GET /expert/dossiers/{id}
+    MW->>DB: confirmedAssignmentsForExpert
+    MW->>DB: authorizeDossier status confirme requis
+
+    alt Acces autorise status confirme_par_expert ou comite_confirme
+        MW->>DB: SELECT dossier + comite + progression + rapports
+        DB-->>MW: Donnees completes
+        MW-->>React: Page Dossiers/Show progression et actions
+    else Acces refuse non confirme
+        MW-->>EXP: 403 Acces non autorise
+    end
+
+    Note over EXP,React: EVALUATION QUANTITATIVE
+
+    EXP->>MW: GET /expert/evaluations/{dossier}
+    MW->>DB: SELECT criteres_evaluation grille hierarchique
+    MW->>DB: SELECT evaluations_quantitatives reponses existantes
+    DB-->>MW: Grille et reponses brouillon
+    MW-->>React: Formulaire evaluation quantitative
+
+    EXP->>MW: POST /expert/evaluations/{dossier}/sauvegarder { scores[] }
+    MW->>DB: UPSERT evaluations_quantitatives SET status=brouillon
+    MW-->>React: flash Brouillon sauvegarde
+
+    EXP->>MW: POST /expert/evaluations/{dossier}/soumettre
+    MW->>DB: UPDATE evaluations_quantitatives SET status=soumis
+    MW->>DB: INSERT notification_aneaq notifier DEE
+    MW-->>React: flash Evaluation soumise au DEE
+
+    Note over EXP,React: DEPOT DU RAPPORT
+
+    EXP->>MW: GET /expert/rapports/{dossier}/deposer
+    MW-->>React: Formulaire depot rapport
+
+    EXP->>MW: POST /expert/rapports/{dossier} { fichier }
+    MW->>DB: INSERT rapport_experts fichier stocke
+    MW-->>React: redirect /expert/rapports flash Rapport depose
+
+    EXP->>MW: GET /expert/rapports/{rapport}/telecharger
+    MW->>DB: SELECT rapport_experts WHERE id = ?
+    MW-->>EXP: Telechargement fichier
+
+    Note over EXP,React: MATRICE DE RECOMMANDATIONS
+
+    EXP->>MW: GET /expert/recommandations/{dossier}
+    MW->>DB: SELECT matrice_recommandations brouillon
+    MW-->>React: Formulaire recommandations
+
+    EXP->>MW: POST /expert/recommandations/{dossier}/sauvegarder { matrix[] }
+    MW->>DB: UPSERT matrice_recommandations SET status=brouillon
+
+    EXP->>MW: POST /expert/recommandations/{dossier}/soumettre
+    MW->>DB: UPDATE matrice_recommandations SET status=soumis
+    MW->>DB: INSERT notification_aneaq notifier DEE
+    MW-->>React: flash Recommandations soumises
+
+    Note over EXP,React: NOTIFICATIONS
+
+    EXP->>MW: GET /expert/notifications
+    MW->>DB: SELECT notification_aneaq WHERE user_id = ? pagine
+    MW-->>React: Page Notifications/Index
+
+    EXP->>MW: PATCH /expert/notifications/{id}/lire
+    MW->>DB: UPDATE notification_aneaq SET lu=true
+    MW-->>React: Notification marquee lue
