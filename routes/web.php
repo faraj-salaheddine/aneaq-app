@@ -386,13 +386,23 @@ Route::middleware(['auth', 'role:etablissement'])
                 ->name('store');
             Route::get('/{document}/telecharger', [EtablissementDocumentController::class, 'telecharger'])
                 ->name('telecharger');
+                Route::get('/{document}/voir', [EtablissementDocumentController::class, 'voir'])->name('voir');
         });
+        
 
 
         Route::get('/annexes', [AnnexeController::class, 'index'])->name('annexes');
 Route::post('/annexes', [AnnexeController::class, 'store'])->name('annexes.store');
 Route::get('/annexes/{criterePreuve}/download', [AnnexeController::class, 'download'])->name('annexes.download');
 Route::post('/annexes/note', [AnnexeController::class, 'saveNote'])->name('annexes.note');
+
+
+// Document complémentaire
+Route::get('/documents-complementaires', [EtablissementDocumentController::class, 'complementaires'])->name('documents.complementaires');
+Route::post('/documents-complementaires', [EtablissementDocumentController::class, 'storeComplementaire'])->name('documents.complementaires.store');
+
+// Rapport ANEAQ
+Route::get('/rapport-aneaq', [EtablissementDocumentController::class, 'rapportAneaq'])->name('rapport.aneaq');
 
         Route::get('/notifications',                        [EtablissementNotificationController::class, 'index'])->name('notifications.index');
 Route::patch('/notifications/{notification}/lire',  [EtablissementNotificationController::class, 'marquerLu'])->name('notifications.lire');

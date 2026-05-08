@@ -4,8 +4,10 @@ import { useEffect, useState } from "react";
 const NAV = [
     { key: "dashboard",     label: "Tableau de bord", icon: "grid",          route: "etablissement.dashboard" },
     { key: "profil",        label: "Mon profil",       icon: "building",      route: "etablissement.profil.show" },
-    { key: "documents",     label: "Documents",        icon: "file-text",     route: "etablissement.documents.index" },
+    { key: "documents", label: "Rapport d'autoévaluation", icon: "file-text", route: "etablissement.documents.index" },
     { key: "annexes",       label: "Annexes",          icon: "clipboard-list",route: "etablissement.annexes" },
+    { key: "complementaires",         label: "Documents complémentaires",icon: "paperclip",     route: "etablissement.documents.complementaires" },
+    { key: "rapport-aneaq",           label: "Rapport ANEAQ",            icon: "award",         route: "etablissement.rapport.aneaq" },
     { key: "notifications", label: "Notifications",    icon: "bell",          route: "etablissement.notifications.index" },
     { key: "historique",    label: "Historique",       icon: "clock",         route: "etablissement.historique.index" },
 ];
@@ -116,6 +118,8 @@ function Icon({ name, cls = "el-nav-icon" }) {
         clock:          "M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z",
         home:           "M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2V9zm6 11V12h6v8",
         logout:         "M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1",
+            paperclip:      "M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48",
+    award:          "M12 15a7 7 0 100-14 7 7 0 000 14zM8.21 13.89L7 23l5-3 5 3-1.21-9.12",
     };
     const d = paths[name] || "";
     return (

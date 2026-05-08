@@ -37,42 +37,50 @@ class EtablissementProfilController extends Controller
     }
 
     public function update(Request $request): RedirectResponse
-    {
-        $etablissement = Etablissement::where('user_id', Auth::id())->firstOrFail();
+{
+    $etablissement = Etablissement::where('user_id', Auth::id())->firstOrFail();
 
-        $request->validate([
-            'adresse'                => 'nullable|string|max:500',
-            'site_web'               => 'nullable|url|max:255',
-            'telephone'              => 'nullable|string|max:30',
-            'responsable_nom'        => 'nullable|string|max:255',
-            'responsable_fonction'   => 'nullable|string|max:255',
-            'responsable_email'      => 'nullable|email|max:255',
-            'responsable_telephone'  => 'nullable|string|max:30',
-        ]);
+    $request->validate([
+        'adresse'               => 'required|string|max:500',
+        'telephone'             => 'required|string|max:30',
+        'responsable_nom'       => 'required|string|max:255',
+        'responsable_fonction'  => 'required|string|max:255',
+        'responsable_email'     => 'required|email|max:255',
+        'responsable_telephone' => 'required|string|max:30',
+        'site_web'              => 'nullable|url|max:255',
+    ], [
+        'adresse.required'              => 'L\'adresse est obligatoire.',
+        'telephone.required'            => 'Le téléphone est obligatoire.',
+        'responsable_nom.required'      => 'Le nom du responsable est obligatoire.',
+        'responsable_fonction.required' => 'La fonction du responsable est obligatoire.',
+        'responsable_email.required'    => 'L\'email du responsable est obligatoire.',
+        'responsable_email.email'       => 'L\'email du responsable n\'est pas valide.',
+        'responsable_telephone.required'=> 'Le téléphone du responsable est obligatoire.',
+    ]);
 
-        $dossier = Dossier::where('etablissement_id', $etablissement->id)->latest()->first();
+    $dossier = Dossier::where('etablissement_id', $etablissement->id)->latest()->first();
 
-        EtablissementOnboarding::updateOrCreate(
-            ['etablissement_id' => $etablissement->id],
-            [
-                'dossier_id'             => $dossier?->id,
-                'adresse'                => $request->adresse,
-                'site_web'               => $request->site_web,
-                'telephone'              => $request->telephone,
-                'responsable_nom'        => $request->responsable_nom,
-                'responsable_fonction'   => $request->responsable_fonction,
-                'responsable_email'      => $request->responsable_email,
-                'responsable_telephone'  => $request->responsable_telephone,
-                'statut'                 => 'complete',
-                'completed_at'           => now(),
-            ]
-        );
+    EtablissementOnboarding::updateOrCreate(
+        ['etablissement_id' => $etablissement->id],
+        [
+            'dossier_id'            => $dossier?->id,
+            'adresse'               => $request->adresse,
+            'site_web'              => $request->site_web,
+            'telephone'             => $request->telephone,
+            'responsable_nom'       => $request->responsable_nom,
+            'responsable_fonction'  => $request->responsable_fonction,
+            'responsable_email'     => $request->responsable_email,
+            'responsable_telephone' => $request->responsable_telephone,
+            'statut'                => 'complete',
+            'completed_at'          => now(),
+        ]
+    );
 
-        if ($dossier && $dossier->statut === 'en_attente_formulaire') {
-            $dossier->update(['statut' => 'formulaire_complete']);
-        }
-
-        return redirect()->route('etablissement.profil.show')
-            ->with('success', 'Profil mis à jour avec succès.');
+    if ($dossier && $dossier->statut === 'en_attente_formulaire') {
+        $dossier->update(['statut' => 'formulaire_complete']);
     }
+
+    return redirect()->route('etablissement.profil.show')
+        ->with('success', 'Profil mis à jour avec succès.');
+}
 }

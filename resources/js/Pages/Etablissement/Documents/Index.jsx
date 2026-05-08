@@ -1,165 +1,532 @@
-import { Head, useForm } from "@inertiajs/react";
+import { Head, useForm, usePage } from "@inertiajs/react";
 import { useState, useRef } from "react";
 import EtablissementLayout from "@/Layouts/Etablissement/EtablissementLayout";
 
-const BLUE = "#0C447C", GREEN = "#1D9E75", ORANGE = "#EF9F27";
+const CSS = `
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap');
+.doc-wrap { font-family:'Inter',sans-serif; }
+.doc-wrap *, .doc-wrap *::before, .doc-wrap *::after { box-sizing:border-box; }
+.doc-row { transition:background .08s; }
+.doc-row:hover { background:#f8fafc!important; }
+.doc-dl:hover  { background:#1c5fdc!important; color:#fff!important; border-color:#1c5fdc!important; }
+.doc-see:hover { background:#0e7c5b!important; color:#fff!important; border-color:#0e7c5b!important; }
+.doc-drop { transition:border-color .15s, background .15s; cursor:pointer; }
+.doc-submit:hover:not(:disabled) { background:#1445b8!important; }
+`;
 
-const TYPE_META = {
-    rapport_autoevaluation: { label: "Rapport d'autoévaluation", color: BLUE,      bg: "#EFF6FF" },
-    annexe:                 { label: "Annexe",                   color: ORANGE,    bg: "#FFF7ED" },
-    lettre_dee:             { label: "Lettre DEE",               color: GREEN,     bg: "#ECFDF5" },
+const STATUT = {
+    "Déposé":  { color:"#b35c00", bg:"#fdf5ec", border:"#fde8cc" },
+    "Validé":  { color:"#0e7c5b", bg:"#ecfaf4", border:"#c6f0df" },
+    "Rejeté":  { color:"#b91c1c", bg:"#fef2f2", border:"#fecaca" },
 };
 
-const STATUT_META = {
-    "Déposé":  { color: ORANGE,    bg: "#FFF7ED" },
-    "Validé":  { color: GREEN,     bg: "#ECFDF5" },
-    "Rejeté":  { color: "#ef4444", bg: "#FFF1F2" },
+function Svg({ d, w=16, h=16, sw=1.6, color="currentColor" }) {
+    return (
+        <svg width={w} height={h} viewBox="0 0 24 24" fill="none"
+            stroke={color} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
+            <path d={d}/>
+        </svg>
+    );
+}
+
+const IC = {
+    upload:  "M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12",
+    file:    "M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8zM14 2v6h6",
+    dl:      "M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3",
+    eye:     "M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8zM12 9a3 3 0 100 6 3 3 0 000-6z",
+    check:   "M20 6L9 17l-5-5",
+    warn:    "M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0zM12 9v4m0 4v.01",
+    chevron: "M9 18l6-6-6-6",
+    x:       "M18 6L6 18M6 6l12 12",
+    clock:   "M12 2a10 10 0 100 20A10 10 0 0012 2zM12 6v6l4 2",
+    info:    "M12 2a10 10 0 100 20A10 10 0 0012 2zm0 7v5m0 4v.01",
 };
+
+// Single drop zone component
+function DropZone({ label, accept, mimeLabel, color, bgColor, borderColor, preview, onFile, error, inputRef, dragState, onDragOver, onDragLeave, onDrop }) {
+    return (
+        <div style={{ flex:1 }}>
+            <div style={{ fontSize:12, fontWeight:600, color:"#3d4461", marginBottom:6, display:"flex", alignItems:"center", gap:5 }}>
+                <span style={{
+                    display:"inline-block", width:7, height:7, borderRadius:"50%",
+                    background:color, flexShrink:0,
+                }}/>
+                {label}
+                <span style={{ color:"#b91c1c" }}>*</span>
+            </div>
+            <div
+                className="doc-drop"
+                onClick={() => inputRef.current?.click()}
+                onDragOver={onDragOver}
+                onDragLeave={onDragLeave}
+                onDrop={onDrop}
+                style={{
+                    border:`2px dashed ${dragState ? color : preview ? color : "#d0d5e8"}`,
+                    borderRadius:10, padding:"22px 16px", textAlign:"center",
+                    background: dragState ? bgColor : preview ? bgColor : "#fafbfc",
+                    minHeight:130,
+                    display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:6,
+                }}
+            >
+                <input ref={inputRef} type="file" accept={accept} style={{ display:"none" }}
+                    onChange={e => onFile(e.target.files[0])}
+                />
+                {preview ? (
+                    <>
+                        <div style={{
+                            width:36, height:36, borderRadius:8,
+                            background:bgColor, border:`1px solid ${borderColor}`,
+                            display:"flex", alignItems:"center", justifyContent:"center",
+                        }}>
+                            <Svg d={IC.file} w={16} h={16} color={color} sw={2}/>
+                        </div>
+                        <p style={{ fontSize:13, fontWeight:600, color:"#1a1f2e", margin:0, maxWidth:180, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                            {preview.name}
+                        </p>
+                        <p style={{ fontSize:11, color:"#8891aa", margin:0 }}>{preview.size}</p>
+                        <span style={{ fontSize:11, color, fontWeight:500 }}>Changer</span>
+                    </>
+                ) : (
+                    <>
+                        <div style={{
+                            width:36, height:36, borderRadius:8,
+                            background:"#f4f6fb", border:"1px solid #e4e7f0",
+                            display:"flex", alignItems:"center", justifyContent:"center",
+                        }}>
+                            <Svg d={IC.upload} w={16} h={16} color="#8891aa" sw={1.8}/>
+                        </div>
+                        <p style={{ fontSize:12, color:"#5c6480", margin:0 }}>
+                            Glisser ou <span style={{ color, fontWeight:600 }}>parcourir</span>
+                        </p>
+                        <p style={{ fontSize:11, color:"#9ca3af", margin:0 }}>{mimeLabel}</p>
+                    </>
+                )}
+            </div>
+            {error && (
+                <p style={{ fontSize:11, color:"#b91c1c", margin:"5px 0 0", display:"flex", alignItems:"center", gap:4 }}>
+                    <Svg d={IC.x} w={11} h={11} color="#b91c1c" sw={2.5}/>
+                    {error}
+                </p>
+            )}
+        </div>
+    );
+}
 
 export default function EtablissementDocuments({ etablissement, dossier, documents = [] }) {
-    const [typeUpload, setTypeUpload] = useState("rapport_autoevaluation");
-    const [drag, setDrag]             = useState(false);
-    const [preview, setPreview]       = useState(null);
-    const ref                         = useRef();
+    const { flash } = usePage().props;
+
+    const [dragPdf, setDragPdf]     = useState(false);
+    const [dragWord, setDragWord]   = useState(false);
+    const [previewPdf, setPrevPdf]  = useState(null);
+    const [previewWord, setPrevWord]= useState(null);
+    const pdfRef                    = useRef();
+    const wordRef                   = useRef();
 
     const { data, setData, post, processing, errors, progress, reset } = useForm({
-        fichier: null, type_document: "rapport_autoevaluation", observation: "",
+        fichier_pdf:   null,
+        fichier_word:  null,
+        type_document: "rapport_autoevaluation",
+        observation:   "",
     });
 
-    const handleFile = f => {
-        if (!f) return;
-        setData("fichier", f);
+    function makePreview(f) {
         const kb = f.size / 1024;
-        setPreview({ name: f.name, size: kb < 1024 ? `${kb.toFixed(1)} Ko` : `${(kb / 1024).toFixed(1)} Mo` });
-    };
+        return { name: f.name, size: kb < 1024 ? `${kb.toFixed(1)} Ko` : `${(kb/1024).toFixed(1)} Mo` };
+    }
 
-    const selectType = t => { setTypeUpload(t); setData("type_document", t); };
+    function handlePdf(f) {
+        if (!f) return;
+        setData("fichier_pdf", f);
+        setPrevPdf(makePreview(f));
+    }
 
-    const thS = { textAlign: "left", padding: "10px 16px", fontSize: 10, fontWeight: 700, color: "#94a3b8", letterSpacing: "0.08em", textTransform: "uppercase", borderBottom: "2px solid #f1f5f9" };
-    const tdS = { padding: "12px 16px", borderBottom: "1px solid #f8fafc", fontSize: 13, verticalAlign: "middle" };
+    function handleWord(f) {
+        if (!f) return;
+        setData("fichier_word", f);
+        setPrevWord(makePreview(f));
+    }
+
+    function handleSubmit(e) {
+        e.preventDefault();
+        post(route("etablissement.documents.store"), {
+            onSuccess: () => { reset(); setPrevPdf(null); setPrevWord(null); },
+        });
+    }
+
+    const canSubmit = !processing && data.fichier_pdf && data.fichier_word;
+
+    const rapports = documents;
+    const dernierRapport = rapports[0] ?? null;
 
     return (
         <>
-            <Head title="Documents" />
-            <style>{`
-                * { box-sizing: border-box; }
-                @keyframes fadeUp { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
-                .fade-up { animation: fadeUp 0.3s ease both; }
-                .row-hover:hover { background: #f8fafc !important; }
-            `}</style>
-            <div style={{ padding: "2.5rem 3rem", minHeight: "100vh", fontFamily: "'DM Sans', sans-serif" }}>
+            <Head title="Rapport d'autoévaluation — ANEAQ"/>
+            <style>{CSS}</style>
+            <div className="doc-wrap" style={{ background:"#f4f6fb", minHeight:"100vh" }}>
 
-                <div className="fade-up" style={{ marginBottom: "2rem" }}>
-                    <h1 style={{ fontSize: 24, fontWeight: 700, color: "#0f172a", margin: 0 }}>Documents</h1>
-                    <p style={{ fontSize: 13, color: "#94a3b8", margin: "4px 0 0" }}>Dépôt du rapport d'autoévaluation et des annexes</p>
+                {/* ── Header ── */}
+                <div style={{ background:"#fff", borderBottom:"1px solid #e4e7f0", padding:"18px 32px 16px" }}>
+                    <div style={{ display:"flex", alignItems:"center", gap:5, marginBottom:12 }}>
+                        <span style={{ fontSize:11, color:"#9ca3af", fontWeight:500 }}>Espace établissement</span>
+                        <Svg d={IC.chevron} w={10} h={10} color="#d1d5db" sw={2}/>
+                        <span style={{ fontSize:11, color:"#1c5fdc", fontWeight:600 }}>Rapport d'autoévaluation</span>
+                    </div>
+                    <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:16 }}>
+                        <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+                            <div style={{
+                                width:40, height:40, borderRadius:10, flexShrink:0,
+                                background:"#eef3fd", border:"1px solid #d6e4fb",
+                                display:"flex", alignItems:"center", justifyContent:"center",
+                            }}>
+                                <Svg d={IC.file} w={18} h={18} color="#1c5fdc" sw={1.7}/>
+                            </div>
+                            <div>
+                                <h1 style={{ fontSize:18, fontWeight:700, color:"#1a1f2e", margin:"0 0 2px", letterSpacing:"-.02em" }}>
+                                    Rapport d'autoévaluation
+                                </h1>
+                                <p style={{ fontSize:12, color:"#8891aa", margin:0 }}>
+                                    Déposez votre rapport en deux formats obligatoires — PDF et Word · Max 50 Mo chacun
+                                </p>
+                            </div>
+                        </div>
+                        {dossier && (
+                            <div style={{
+                                display:"flex", alignItems:"center", gap:7,
+                                padding:"6px 12px", borderRadius:8,
+                                background:"#f4f6fb", border:"1px solid #e4e7f0",
+                            }}>
+                                <Svg d={IC.clock} w={13} h={13} color="#8891aa" sw={1.5}/>
+                                <span style={{ fontSize:11, fontWeight:600, color:"#3d4461", fontFamily:"'JetBrains Mono',monospace" }}>
+                                    Réf. {dossier.reference ?? dossier.id}
+                                </span>
+                            </div>
+                        )}
+                    </div>
                 </div>
 
-                {/* Upload */}
-                <div className="fade-up" style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 16, overflow: "hidden", boxShadow: "0 2px 10px rgba(0,0,0,0.04)", marginBottom: "1.5rem", animationDelay: "0.05s" }}>
-                    <div style={{ padding: "1.25rem 1.5rem", borderBottom: "1px solid #f1f5f9", background: "#fafbfc", fontSize: 14, fontWeight: 700, color: "#0f172a" }}>
-                        📤 Déposer un document
-                    </div>
-                    <div style={{ padding: "1.5rem" }}>
-                        {/* Type selector */}
-                        <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-                            {[
-                                { value: "rapport_autoevaluation", label: "Rapport d'autoévaluation" },
-                                { value: "annexe",                 label: "Annexe" },
-                            ].map(opt => (
-                                <button key={opt.value} type="button" onClick={() => selectType(opt.value)}
-                                    style={{ padding: "8px 16px", borderRadius: 8, border: `1.5px solid ${typeUpload === opt.value ? BLUE : "#e2e8f0"}`, background: typeUpload === opt.value ? `${BLUE}10` : "#fff", color: typeUpload === opt.value ? BLUE : "#64748b", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
-                                    {opt.label}
-                                </button>
-                            ))}
+                {/* ── Content ── */}
+                <div style={{ padding:"20px 32px", display:"flex", flexDirection:"column", gap:16 }}>
+
+                    {/* flash */}
+                    {flash?.success && (
+                        <div style={{
+                            padding:"11px 16px", borderRadius:8,
+                            background:"#ecfaf4", border:"1px solid #c6f0df",
+                            display:"flex", alignItems:"center", gap:8,
+                        }}>
+                            <Svg d={IC.check} w={14} h={14} color="#0e7c5b" sw={2.5}/>
+                            <span style={{ fontSize:13, fontWeight:600, color:"#0e7c5b" }}>{flash.success}</span>
+                        </div>
+                    )}
+
+                    {/* last status banner */}
+                    {dernierRapport && (() => {
+                        const s = STATUT[dernierRapport.status] ?? { color:"#5c6480", bg:"#f4f6fb", border:"#e4e7f0" };
+                        return (
+                            <div style={{
+                                padding:"12px 16px", borderRadius:8,
+                                background:s.bg, border:`1px solid ${s.border}`,
+                                display:"flex", alignItems:"center", gap:10,
+                            }}>
+                                <Svg d={dernierRapport.status === "Validé" ? IC.check : IC.warn}
+                                    w={15} h={15} color={s.color} sw={2}/>
+                                <span style={{ fontSize:13, fontWeight:600, color:s.color }}>
+                                    Dernier dépôt — statut :
+                                </span>
+                                <span style={{
+                                    fontSize:11, fontWeight:700, color:s.color,
+                                    padding:"2px 8px", borderRadius:999,
+                                    background:"rgba(255,255,255,.6)", border:`1px solid ${s.border}`,
+                                    textTransform:"uppercase", letterSpacing:".04em",
+                                }}>{dernierRapport.status}</span>
+                                <span style={{ fontSize:11, color:"#8891aa", marginLeft:"auto", fontFamily:"'JetBrains Mono',monospace" }}>
+                                    {new Date(dernierRapport.created_at).toLocaleDateString("fr-FR", { day:"2-digit", month:"long", year:"numeric" })}
+                                </span>
+                            </div>
+                        );
+                    })()}
+
+                    {/* ── Upload card ── */}
+                    <div style={{ background:"#fff", border:"1px solid #e4e7f0", borderRadius:12, overflow:"hidden" }}>
+                        <div style={{
+                            padding:"11px 18px", borderBottom:"1px solid #f1f5f9",
+                            background:"#fafbfc", display:"flex", alignItems:"center", gap:8,
+                        }}>
+                            <Svg d={IC.upload} w={14} h={14} color="#1c5fdc" sw={2}/>
+                            <span style={{ fontSize:13, fontWeight:600, color:"#1a1f2e" }}>Déposer le rapport</span>
+                            <span style={{
+                                marginLeft:"auto", fontSize:11, color:"#b35c00",
+                                background:"#fdf5ec", border:"1px solid #fde8cc",
+                                padding:"2px 8px", borderRadius:999, fontWeight:600,
+                            }}>
+                                PDF + Word obligatoires
+                            </span>
                         </div>
 
-                        <div style={{ marginBottom: 14, padding: "10px 14px", background: "#fffbeb", borderRadius: 8, borderLeft: `3px solid ${ORANGE}`, fontSize: 12, color: "#92400e" }}>
-                            Formats acceptés : <strong>PDF (.pdf)</strong>, <strong>Word (.doc, .docx)</strong> · Max <strong>50 Mo</strong>
-                        </div>
+                        <form onSubmit={handleSubmit} style={{ padding:"20px 24px" }}>
 
-                        <form onSubmit={e => { e.preventDefault(); post(route("etablissement.documents.store"), { onSuccess: () => { reset(); setPreview(null); } }); }}>
-                            <div
-                                onClick={() => ref.current?.click()}
-                                onDragOver={e => { e.preventDefault(); setDrag(true); }}
-                                onDragLeave={() => setDrag(false)}
-                                onDrop={e => { e.preventDefault(); setDrag(false); handleFile(e.dataTransfer.files[0]); }}
-                                style={{ border: `2px dashed ${drag ? BLUE : preview ? GREEN : "#e2e8f0"}`, borderRadius: 12, padding: "2rem", textAlign: "center", cursor: "pointer", background: drag ? `${BLUE}04` : preview ? `${GREEN}04` : "#fafbfc", transition: "all 0.2s" }}>
-                                <input ref={ref} type="file" accept=".pdf,.doc,.docx" style={{ display: "none" }} onChange={e => handleFile(e.target.files[0])} />
-                                {preview ? (
-                                    <>
-                                        <div style={{ fontSize: 32, marginBottom: 6 }}>📄</div>
-                                        <div style={{ fontSize: 14, fontWeight: 700, color: GREEN }}>{preview.name}</div>
-                                        <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 2 }}>{preview.size}</div>
-                                        <div style={{ fontSize: 11, color: BLUE, marginTop: 6 }}>Cliquez pour changer</div>
-                                    </>
-                                ) : (
-                                    <>
-                                        <div style={{ fontSize: 32, marginBottom: 6 }}>📎</div>
-                                        <div style={{ fontSize: 13, color: "#64748b" }}>
-                                            Glissez-déposez ici ou <strong style={{ color: BLUE }}>parcourir</strong>
-                                        </div>
-                                    </>
-                                )}
+                            {/* info */}
+                            <div style={{
+                                padding:"10px 14px", borderRadius:8, marginBottom:16,
+                                background:"#eef3fd", border:"1px solid #d6e4fb",
+                                display:"flex", alignItems:"center", gap:8,
+                            }}>
+                                <Svg d={IC.info} w={14} h={14} color="#1c5fdc" sw={1.8}/>
+                                <p style={{ fontSize:12, color:"#1c5fdc", margin:0 }}>
+                                    Les deux fichiers sont <b>obligatoires</b> — déposez votre rapport en format PDF et en format Word (.doc/.docx).
+                                </p>
                             </div>
 
-                            {errors.fichier && <p style={{ color: "#ef4444", fontSize: 12, marginTop: 8 }}>❌ {errors.fichier}</p>}
+                            {/* two drop zones side by side */}
+                            <div style={{ display:"flex", gap:16, marginBottom:16 }}>
+                                <DropZone
+                                    label="Version PDF"
+                                    accept=".pdf"
+                                    mimeLabel="PDF uniquement"
+                                    color="#1c5fdc"
+                                    bgColor="#eef3fd"
+                                    borderColor="#d6e4fb"
+                                    preview={previewPdf}
+                                    onFile={handlePdf}
+                                    error={errors.fichier_pdf}
+                                    inputRef={pdfRef}
+                                    dragState={dragPdf}
+                                    onDragOver={e => { e.preventDefault(); setDragPdf(true); }}
+                                    onDragLeave={() => setDragPdf(false)}
+                                    onDrop={e => { e.preventDefault(); setDragPdf(false); handlePdf(e.dataTransfer.files[0]); }}
+                                />
+                                <DropZone
+                                    label="Version Word"
+                                    accept=".doc,.docx"
+                                    mimeLabel=".doc ou .docx uniquement"
+                                    color="#7c3aed"
+                                    bgColor="#f5f3ff"
+                                    borderColor="#dddaf7"
+                                    preview={previewWord}
+                                    onFile={handleWord}
+                                    error={errors.fichier_word}
+                                    inputRef={wordRef}
+                                    dragState={dragWord}
+                                    onDragOver={e => { e.preventDefault(); setDragWord(true); }}
+                                    onDragLeave={() => setDragWord(false)}
+                                    onDrop={e => { e.preventDefault(); setDragWord(false); handleWord(e.dataTransfer.files[0]); }}
+                                />
+                            </div>
 
-                            {progress && (
-                                <div style={{ marginTop: 10, height: 4, background: "#f1f5f9", borderRadius: 3, overflow: "hidden" }}>
-                                    <div style={{ height: "100%", background: `linear-gradient(90deg, ${BLUE}, ${GREEN})`, width: `${progress.percentage}%`, transition: "width 0.2s" }} />
+                            {/* observation */}
+                            <div style={{ marginBottom:16 }}>
+                                <label style={{ fontSize:12, fontWeight:600, color:"#3d4461", display:"block", marginBottom:5 }}>
+                                    Observation
+                                    <span style={{ color:"#9ca3af", fontWeight:400, marginLeft:6 }}>(optionnel)</span>
+                                </label>
+                                <textarea
+                                    rows={2}
+                                    placeholder="Remarques ou contexte sur ce dépôt…"
+                                    value={data.observation}
+                                    onChange={e => setData("observation", e.target.value)}
+                                    style={{
+                                        width:"100%", resize:"vertical",
+                                        border:"1px solid #e4e7f0", borderRadius:7,
+                                        padding:"8px 11px", fontSize:13,
+                                        fontFamily:"'Inter',sans-serif", color:"#374151",
+                                        background:"#fff", outline:"none", lineHeight:1.6,
+                                    }}
+                                />
+                            </div>
+
+                            {/* progress */}
+                            {processing && progress && (
+                                <div style={{ marginBottom:14 }}>
+                                    <div style={{ display:"flex", justifyContent:"space-between", marginBottom:4 }}>
+                                        <span style={{ fontSize:11, color:"#8891aa" }}>Envoi en cours…</span>
+                                        <span style={{ fontSize:11, color:"#1c5fdc", fontWeight:600 }}>{progress.percentage}%</span>
+                                    </div>
+                                    <div style={{ height:4, background:"#e4e7f0", borderRadius:999, overflow:"hidden" }}>
+                                        <div style={{
+                                            height:"100%", borderRadius:999,
+                                            background:"linear-gradient(90deg,#1c5fdc,#7c3aed)",
+                                            width:`${progress.percentage}%`, transition:"width .3s ease",
+                                        }}/>
+                                    </div>
                                 </div>
                             )}
 
-                            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 16 }}>
-                                <button type="submit" disabled={!data.fichier || processing}
-                                    style={{ padding: "11px 24px", borderRadius: 9, border: "none", background: !data.fichier ? "#e2e8f0" : `linear-gradient(135deg, ${BLUE}, #1a6fbb)`, color: !data.fichier ? "#94a3b8" : "#fff", cursor: !data.fichier ? "not-allowed" : "pointer", fontSize: 13, fontWeight: 600 }}>
-                                    {processing ? "⏳ Dépôt en cours..." : "📤 Déposer"}
+                            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+                                <div style={{ display:"flex", gap:8 }}>
+                                    {/* PDF status */}
+                                    <span style={{
+                                        fontSize:11, fontWeight:600, padding:"3px 9px", borderRadius:999,
+                                        background: previewPdf ? "#ecfaf4" : "#f4f6fb",
+                                        color: previewPdf ? "#0e7c5b" : "#9ca3af",
+                                        border: `1px solid ${previewPdf ? "#c6f0df" : "#e4e7f0"}`,
+                                    }}>
+                                        {previewPdf ? "✓ PDF prêt" : "PDF manquant"}
+                                    </span>
+                                    {/* Word status */}
+                                    <span style={{
+                                        fontSize:11, fontWeight:600, padding:"3px 9px", borderRadius:999,
+                                        background: previewWord ? "#ecfaf4" : "#f4f6fb",
+                                        color: previewWord ? "#0e7c5b" : "#9ca3af",
+                                        border: `1px solid ${previewWord ? "#c6f0df" : "#e4e7f0"}`,
+                                    }}>
+                                        {previewWord ? "✓ Word prêt" : "Word manquant"}
+                                    </span>
+                                </div>
+
+                                <button type="submit" className="doc-submit" disabled={!canSubmit} style={{
+                                    display:"flex", alignItems:"center", gap:6,
+                                    padding:"9px 20px", borderRadius:8,
+                                    background: canSubmit ? "#1c5fdc" : "#e4e7f0",
+                                    color: canSubmit ? "#fff" : "#9ca3af",
+                                    border:"none", fontSize:13, fontWeight:600,
+                                    cursor: canSubmit ? "pointer" : "not-allowed",
+                                    transition:"background .1s",
+                                }}>
+                                    <Svg d={IC.upload} w={14} h={14} color="currentColor" sw={2}/>
+                                    {processing ? "Dépôt en cours…" : "Déposer le rapport"}
                                 </button>
                             </div>
                         </form>
                     </div>
-                </div>
 
-                {/* Liste */}
-                <div className="fade-up" style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 16, overflow: "hidden", boxShadow: "0 2px 10px rgba(0,0,0,0.04)", animationDelay: "0.1s" }}>
-                    <div style={{ padding: "1.25rem 1.5rem", borderBottom: "1px solid #f1f5f9", background: "#fafbfc", fontSize: 14, fontWeight: 700, color: "#0f172a" }}>
-                        Historique ({documents.length})
+                    {/* ── History ── */}
+                    <div style={{ background:"#fff", border:"1px solid #e4e7f0", borderRadius:12, overflow:"hidden" }}>
+                        <div style={{
+                            padding:"11px 18px", borderBottom:"1px solid #f1f5f9",
+                            background:"#fafbfc", display:"flex", alignItems:"center", gap:8,
+                        }}>
+                            <Svg d={IC.clock} w={14} h={14} color="#8891aa" sw={1.7}/>
+                            <span style={{ fontSize:13, fontWeight:600, color:"#1a1f2e" }}>Historique des dépôts</span>
+                            <span style={{
+                                marginLeft:"auto", fontSize:10, fontWeight:700,
+                                padding:"2px 8px", borderRadius:999,
+                                background:"#f4f6fb", color:"#8891aa", border:"1px solid #e4e7f0",
+                            }}>{rapports.length} fichier{rapports.length !== 1 ? "s" : ""}</span>
+                        </div>
+
+                        {rapports.length === 0 ? (
+                            <div style={{ padding:"48px 24px", textAlign:"center" }}>
+                                <div style={{
+                                    width:48, height:48, borderRadius:12,
+                                    background:"#f4f6fb", border:"1px solid #e4e7f0",
+                                    margin:"0 auto 12px",
+                                    display:"flex", alignItems:"center", justifyContent:"center",
+                                }}>
+                                    <Svg d={IC.file} w={20} h={20} color="#d1d5db" sw={1.5}/>
+                                </div>
+                                <p style={{ fontSize:14, fontWeight:600, color:"#374151", margin:"0 0 4px" }}>
+                                    Aucun rapport déposé
+                                </p>
+                                <p style={{ fontSize:12, color:"#9ca3af", margin:0 }}>
+                                    Votre premier dépôt (PDF + Word) apparaîtra ici
+                                </p>
+                            </div>
+                        ) : (
+                            <table style={{ width:"100%", borderCollapse:"collapse" }}>
+                                <thead>
+                                    <tr style={{ background:"#fafbfc" }}>
+                                        {["Fichier", "Format", "Date de dépôt", "Statut", "Actions"].map(h => (
+                                            <th key={h} style={{
+                                                textAlign:"left", padding:"9px 16px",
+                                                fontSize:10, fontWeight:700, color:"#8891aa",
+                                                letterSpacing:".08em", textTransform:"uppercase",
+                                                borderBottom:"1px solid #e4e7f0",
+                                            }}>{h}</th>
+                                        ))}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {rapports.map((doc, i) => {
+                                        const s = STATUT[doc.status] ?? { color:"#5c6480", bg:"#f4f6fb", border:"#e4e7f0" };
+                                        const isPdf  = doc.original_name?.toLowerCase().endsWith(".pdf");
+                                        const isWord = doc.original_name?.toLowerCase().match(/\.(doc|docx)$/);
+                                        const fmtColor  = isPdf ? "#1c5fdc" : "#7c3aed";
+                                        const fmtBg     = isPdf ? "#eef3fd" : "#f5f3ff";
+                                        const fmtBorder = isPdf ? "#d6e4fb" : "#dddaf7";
+                                        const fmtLabel  = isPdf ? "PDF" : isWord ? "Word" : "Fichier";
+                                        return (
+                                            <tr key={doc.id} className="doc-row" style={{ background:"#fff" }}>
+                                                <td style={{ padding:"12px 16px", borderBottom:"1px solid #f4f6fb", verticalAlign:"middle" }}>
+                                                    <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                                                        <div style={{
+                                                            width:30, height:30, borderRadius:7, flexShrink:0,
+                                                            background:fmtBg, border:`1px solid ${fmtBorder}`,
+                                                            display:"flex", alignItems:"center", justifyContent:"center",
+                                                        }}>
+                                                            <Svg d={IC.file} w={13} h={13} color={fmtColor} sw={2}/>
+                                                        </div>
+                                                        <div>
+                                                            <p style={{ fontSize:13, fontWeight:500, color:"#1a1f2e", margin:0, maxWidth:240, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                                                                {doc.original_name}
+                                                            </p>
+                                                            {i < 2 && (
+                                                                <span style={{ fontSize:9, fontWeight:700, color:"#1c5fdc", textTransform:"uppercase", letterSpacing:".05em" }}>
+                                                                    Dernier dépôt
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td style={{ padding:"12px 16px", borderBottom:"1px solid #f4f6fb", verticalAlign:"middle" }}>
+                                                    <span style={{
+                                                        fontSize:10, fontWeight:700, padding:"2px 8px", borderRadius:999,
+                                                        color:fmtColor, background:fmtBg, border:`1px solid ${fmtBorder}`,
+                                                        textTransform:"uppercase", letterSpacing:".04em",
+                                                    }}>{fmtLabel}</span>
+                                                </td>
+                                                <td style={{ padding:"12px 16px", borderBottom:"1px solid #f4f6fb", verticalAlign:"middle" }}>
+                                                    <span style={{ fontSize:12, color:"#5c6480", fontFamily:"'JetBrains Mono',monospace" }}>
+                                                        {new Date(doc.created_at).toLocaleDateString("fr-FR", { day:"2-digit", month:"long", year:"numeric" })}
+                                                    </span>
+                                                </td>
+                                                <td style={{ padding:"12px 16px", borderBottom:"1px solid #f4f6fb", verticalAlign:"middle" }}>
+                                                    <span style={{
+                                                        fontSize:10, fontWeight:700,
+                                                        padding:"3px 9px", borderRadius:999,
+                                                        color:s.color, background:s.bg,
+                                                        border:`1px solid ${s.border}`,
+                                                        textTransform:"uppercase", letterSpacing:".04em",
+                                                    }}>{doc.status}</span>
+                                                </td>
+                                                <td style={{ padding:"12px 16px", borderBottom:"1px solid #f4f6fb", verticalAlign:"middle" }}>
+                                                    <div style={{ display:"flex", gap:6 }}>
+                                                        {isPdf && (
+                                                            <a className="doc-see"
+                                                                href={route("etablissement.documents.voir", doc.id)}
+                                                                target="_blank"
+                                                                style={{
+                                                                    display:"inline-flex", alignItems:"center", gap:4,
+                                                                    padding:"5px 11px", borderRadius:7,
+                                                                    border:"1px solid #c6f0df", background:"#ecfaf4",
+                                                                    color:"#0e7c5b", fontSize:11, fontWeight:600,
+                                                                    textDecoration:"none", transition:"all .1s",
+                                                                }}>
+                                                                <Svg d={IC.eye} w={12} h={12} color="currentColor" sw={2}/>
+                                                                Voir
+                                                            </a>
+                                                        )}
+                                                        <a className="doc-dl"
+                                                            href={route("etablissement.documents.telecharger", doc.id)}
+                                                            style={{
+                                                                display:"inline-flex", alignItems:"center", gap:4,
+                                                                padding:"5px 11px", borderRadius:7,
+                                                                border:"1px solid #d6e4fb", background:"#eef3fd",
+                                                                color:"#1c5fdc", fontSize:11, fontWeight:600,
+                                                                textDecoration:"none", transition:"all .1s",
+                                                            }}>
+                                                            <Svg d={IC.dl} w={12} h={12} color="currentColor" sw={2}/>
+                                                            Télécharger
+                                                        </a>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        )}
                     </div>
-                    {documents.length === 0 ? (
-                        <div style={{ padding: "4rem", textAlign: "center", color: "#94a3b8", fontSize: 13 }}>Aucun document déposé.</div>
-                    ) : (
-                        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                            <thead><tr style={{ background: "#fafbfc" }}>
-                                <th style={thS}>Type</th>
-                                <th style={thS}>Fichier</th>
-                                <th style={thS}>Date</th>
-                                <th style={thS}>Statut</th>
-                                <th style={thS}>Actions</th>
-                            </tr></thead>
-                            <tbody>
-                                {documents.map(d => {
-                                    const tm = TYPE_META[d.type_document] ?? { label: d.type_document, color: "#64748b", bg: "#f1f5f9" };
-                                    const sm = STATUT_META[d.status]     ?? { color: "#64748b", bg: "#f1f5f9" };
-                                    return (
-                                        <tr key={d.id} className="row-hover" style={{ transition: "background 0.1s" }}>
-                                            <td style={tdS}><span style={{ fontSize: 11, fontWeight: 600, padding: "3px 9px", borderRadius: 99, color: tm.color, background: tm.bg }}>{tm.label}</span></td>
-                                            <td style={{ ...tdS, fontSize: 11, color: "#64748b" }}><span title={d.original_name}>{d.original_name?.length > 38 ? d.original_name.slice(0, 38) + "…" : d.original_name}</span></td>
-                                            <td style={{ ...tdS, fontFamily: "monospace", fontSize: 11, color: "#94a3b8" }}>{new Date(d.created_at).toLocaleDateString("fr-FR")}</td>
-                                            <td style={tdS}><span style={{ fontSize: 11, fontWeight: 600, padding: "3px 9px", borderRadius: 99, color: sm.color, background: sm.bg }}>{d.status}</span></td>
-                                            <td style={tdS}>
-                                                <button onClick={() => { window.location.href = route("etablissement.documents.telecharger", d.id); }}
-                                                    style={{ padding: "5px 12px", borderRadius: 7, border: `1px solid ${BLUE}25`, background: `${BLUE}08`, color: BLUE, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
-                                                    ⬇ Télécharger
-                                                </button>
-                                            </td>
-                                        </tr>
-                                    );
-                                })}
-                            </tbody>
-                        </table>
-                    )}
                 </div>
-
             </div>
         </>
     );

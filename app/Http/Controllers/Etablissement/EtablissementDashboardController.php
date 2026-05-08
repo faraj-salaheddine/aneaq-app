@@ -73,26 +73,39 @@ class EtablissementDashboardController extends Controller
     }
 
     private function buildTimeline(?Dossier $dossier): array
-    {
-        if (!$dossier) return [];
+{
+    if (!$dossier) return [];
 
-        $etapes = [
-            ['statut' => 'en_attente_formulaire',  'label' => 'Sélectionné'],
-            ['statut' => 'formulaire_complete',     'label' => 'Profil complété'],
-            ['statut' => 'rapport_depose',          'label' => 'Rapport déposé'],
-            ['statut' => 'visite_planifiee',        'label' => 'Visite planifiée'],
-            ['statut' => 'rapport_en_attente',      'label' => 'Rapport expert'],
-            ['statut' => 'valide',                  'label' => 'Validé'],
-        ];
+    $etapes = [
+        ['statut' => 'en_attente_formulaire', 'label' => 'Sélectionné'],
+        ['statut' => 'formulaire_complete',   'label' => 'Profil complété'],
+        ['statut' => 'rapport_depose',        'label' => 'Rapport déposé'],
+        ['statut' => 'visite_planifiee',      'label' => 'Visite planifiée'],
+        ['statut' => 'rapport_en_attente',    'label' => 'Rapport expert'],
+        ['statut' => 'valide',                'label' => 'Validé'],
+    ];
 
-        $ordre = array_column($etapes, 'statut');
-        $idx   = array_search($dossier->statut, $ordre);
+    // Map des valeurs "libres" vers les clés normalisées
+    $mapping = [
+        'date de visite planifiée' => 'visite_planifiee',
+        'visite planifiée'         => 'visite_planifiee',
+        'rapport déposé'           => 'rapport_depose',
+        'profil complété'          => 'formulaire_complete',
+        'validé'                   => 'valide',
+        'rejeté'                   => 'valide',
+    ];
 
-        return array_map(function ($etape, $i) use ($idx) {
-            return array_merge($etape, [
-                'done'    => $idx !== false && $i <= $idx,
-                'current' => $idx !== false && $i === $idx,
-            ]);
-        }, $etapes, array_keys($etapes));
-    }
+    $statutBrut = strtolower(trim($dossier->statut));
+    $statut     = $mapping[$statutBrut] ?? $dossier->statut;
+
+    $ordre = array_column($etapes, 'statut');
+    $idx   = array_search($statut, $ordre);
+
+    return array_map(function ($etape, $i) use ($idx) {
+        return array_merge($etape, [
+            'done'    => $idx !== false && $i <= $idx,
+            'current' => $idx !== false && $i === $idx,
+        ]);
+    }, $etapes, array_keys($etapes));
+}
 }
