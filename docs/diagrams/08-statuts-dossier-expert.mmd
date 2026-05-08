@@ -1,0 +1,16 @@
+stateDiagram-v2
+    [*] --> en_attente_confirmation_dee : Expert assigne par DEE
+
+    en_attente_confirmation_dee --> acces_envoye : DEE confirme email envoye
+    en_attente_confirmation_dee --> refuse_par_dee : DEE refuse
+
+    acces_envoye --> en_attente_confirmation_expert : Expert clique le lien token
+
+    en_attente_confirmation_expert --> confirme_par_expert : Expert accepte
+    en_attente_confirmation_expert --> refuse_par_expert : Expert refuse
+
+    confirme_par_expert --> comite_confirme : Tout le comite accepte
+
+    refuse_par_dee --> [*]
+    refuse_par_expert --> [*]
+    comite_confirme --> [*]

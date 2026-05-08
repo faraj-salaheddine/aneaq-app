@@ -1,0 +1,41 @@
+sequenceDiagram
+    actor ETAB as Etablissement
+    participant MW as Middleware role:etablissement
+    participant DB as Base de donnees
+    participant React as Inertia React
+
+    Note over ETAB,React: TABLEAU DE BORD
+
+    ETAB->>MW: GET /etablissement/dashboard
+    MW->>DB: SELECT dossier + taches en cours + notifications
+    DB-->>MW: Donnees du tableau de bord
+    MW-->>React: Page Dashboard timeline taches alertes
+
+    Note over ETAB,React: COMPLETER LE PROFIL
+
+    ETAB->>MW: GET /etablissement/profil/modifier
+    MW->>DB: SELECT etablissement + onboarding status
+    DB-->>MW: Profil actuel
+    MW-->>React: Formulaire edition profil
+
+    ETAB->>MW: PATCH /etablissement/profil { contact, adresse, responsable, ville }
+    MW->>DB: UPDATE etablissements
+    MW->>DB: UPDATE etablissement_onboarding SET profil_complete=true
+    DB-->>MW: Profil mis a jour
+    MW-->>React: redirect /etablissement/profil flash Profil sauvegarde
+
+    Note over ETAB,React: GESTION DES DOCUMENTS
+
+    ETAB->>MW: GET /etablissement/documents
+    MW->>DB: SELECT documents WHERE etablissement_id = ?
+    DB-->>MW: Liste des documents
+    MW-->>React: Page Documents/Index
+
+    ETAB->>MW: POST /etablissement/documents { fichier, type_document }
+    MW->>DB: INSERT documents fichier stocke
+    DB-->>MW: Document enregistre
+    MW-->>React: flash Document televerse
+
+    ETAB->>MW: GET /etablissement/documents/{id}/telecharger
+    MW->>DB: SELECT documents WHERE id = ? AND etablissement_id = ?
+    MW-->>ETAB: Telechargement fichier

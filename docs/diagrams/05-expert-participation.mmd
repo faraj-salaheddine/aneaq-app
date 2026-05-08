@@ -1,0 +1,50 @@
+sequenceDiagram
+    actor EXP as Expert
+    participant MW as Middleware role:expert
+    participant DB as Base de donnees
+    participant React as Inertia React
+
+    Note over EXP,React: RECEPTION DE L INVITATION PAR EMAIL
+
+    EXP->>MW: GET /experts/invitation/{token}/confirm
+    MW->>DB: SELECT dossier_experts WHERE invitation_token = ?
+    MW->>DB: UPDATE status=en_attente_confirmation_expert
+    MW-->>React: redirect /expert/dashboard
+
+    Note over EXP,React: TABLEAU DE BORD EXPERT
+
+    EXP->>MW: GET /expert/dashboard
+    MW->>DB: findExpertForUser SELECT experts WHERE user_id = ?
+    MW->>DB: SELECT dossier_experts status IN [en_attente, acces_envoye]
+    DB-->>MW: Invitations en attente + stats
+    MW-->>React: Page Dashboard invitations et statistiques
+
+    Note over EXP,React: PAGE MES INVITATIONS
+
+    EXP->>MW: GET /expert/participations
+    MW->>DB: SELECT dossier_experts WHERE expert_id = ?
+    MW->>DB: JOIN dossiers + etablissements + campagnes
+    DB-->>MW: Toutes les participations
+    MW-->>React: Page Participations/Index en attente confirmes refuses
+
+    Note over EXP,React: ACCEPTER UNE INVITATION
+
+    EXP->>MW: POST /expert/affectations/{id}/accept
+    MW->>DB: authorizeExpertAffectation verifie appartenance
+    DB-->>MW: Autorise
+    MW->>DB: UPDATE dossier_experts SET status=confirme_par_expert
+    MW->>DB: SET expert_confirmed_at = NOW()
+    MW->>DB: updateDossierCommitteeStatus comite complet ?
+    DB-->>MW: Mis a jour
+    MW-->>React: redirect /expert/participations flash Confirmee
+
+    Note over EXP,React: REFUSER UNE INVITATION
+
+    EXP->>React: Clic Refuser window.prompt motif
+    React-->>EXP: Saisie du motif
+    EXP->>MW: POST /expert/affectations/{id}/refuse { motif_refus }
+    MW->>DB: authorizeExpertAffectation
+    MW->>DB: UPDATE dossier_experts SET status=refuse_par_expert
+    MW->>DB: SET expert_refused_at=NOW motif_refus=?
+    DB-->>MW: Refus enregistre
+    MW-->>React: redirect /expert/participations flash Refusee

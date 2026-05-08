@@ -3,17 +3,16 @@
 namespace App\Http\Controllers\DEE;
 
 use App\Http\Controllers\Controller;
-
 use App\Models\CampagneEtablissement;
 use App\Models\CampagneEvaluation;
 use App\Models\Dossier;
 use App\Models\Etablissement;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
-
 
 class CampagneEvaluationController extends Controller
 {
@@ -26,9 +25,7 @@ class CampagneEvaluationController extends Controller
         if ($statut !== '') {
             if ($this->hasColumn('campagne_evaluations', 'statut')) {
                 $query->where('statut', $statut);
-            }
-
-            if ($this->hasColumn('campagne_evaluations', 'status')) {
+            } elseif ($this->hasColumn('campagne_evaluations', 'status')) {
                 $query->where('status', $statut);
             }
         }
@@ -85,7 +82,7 @@ class CampagneEvaluationController extends Controller
 
         $selectedVocations = collect($validated['vocations'])
             ->filter()
-            ->map(fn ($value) => trim($value))
+            ->map(fn ($value) => trim((string) $value))
             ->unique()
             ->values();
 
@@ -140,6 +137,10 @@ class CampagneEvaluationController extends Controller
                 $payload['created_by'] = Auth::id();
             }
 
+            if ($this->hasColumn('campagne_evaluations', 'created_by_name')) {
+                $payload['created_by_name'] = Auth::user()?->name;
+            }
+
             $campagne->forceFill($payload);
             $campagne->save();
 
@@ -150,9 +151,9 @@ class CampagneEvaluationController extends Controller
             return $campagne;
         });
 
-       return redirect()
-    ->route('dee.campagnes.show', $campagne)
-    ->with('success', 'Vague créée avec succès. '.$etablissements->count().' établissement(s) ajouté(s) automatiquement.');
+        return redirect()
+            ->route('dee.campagnes.show', $campagne)
+            ->with('success', 'Vague créée avec succès. '.$etablissements->count().' établissement(s) ajouté(s) automatiquement.');
     }
 
     public function show(CampagneEvaluation $campagneEvaluation)
@@ -173,12 +174,55 @@ class CampagneEvaluationController extends Controller
             ->get()
             ->keyBy('id');
 
+        /*
+         * IMPORTANT :
+         * Cette partie permet d’envoyer dossier_id au frontend.
+         * Comme ça, l’icône dossier devient bleue et cliquable.
+         */
+        $dossiersQuery = Dossier::query();
+
+        if ($this->hasColumn('dossiers', 'campagne_evaluation_id')) {
+            $dossiersQuery->where('campagne_evaluation_id', $campagneEvaluation->id);
+        }
+
+        $dossiers = $dossiersQuery->get();
+
+        $dossiersById = $dossiers->keyBy('id');
+
+        $dossiersByRattachement = $this->hasColumn('dossiers', 'campagne_etablissement_id')
+            ? $dossiers->whereNotNull('campagne_etablissement_id')->keyBy('campagne_etablissement_id')
+            : collect();
+
+        $dossiersByEtablissement = $this->hasColumn('dossiers', 'etablissement_id')
+            ? $dossiers->whereNotNull('etablissement_id')->keyBy('etablissement_id')
+            : collect();
+
         $etablissements = $campagneEtablissements
-            ->map(function (CampagneEtablissement $item) use ($etablissementsById) {
+            ->map(function (CampagneEtablissement $item) use (
+                $etablissementsById,
+                $dossiersById,
+                $dossiersByRattachement,
+                $dossiersByEtablissement
+            ) {
                 $etablissement = $etablissementsById->get($item->etablissement_id);
+
+                $dossierFromPivotId = null;
+
+                if ($this->hasColumn('campagne_etablissements', 'dossier_id')) {
+                    $pivotDossierId = $this->read($item, ['dossier_id'], null);
+
+                    if ($pivotDossierId) {
+                        $dossierFromPivotId = $dossiersById->get((int) $pivotDossierId);
+                    }
+                }
+
+                $dossier = $dossierFromPivotId
+                    ?? $dossiersByRattachement->get($item->id)
+                    ?? $dossiersByEtablissement->get($item->etablissement_id);
 
                 return [
                     'id' => $item->id,
+                    'pivot_id' => $item->id,
                     'campagne_evaluation_id' => $item->campagne_evaluation_id,
                     'etablissement_id' => $item->etablissement_id,
 
@@ -186,17 +230,25 @@ class CampagneEvaluationController extends Controller
                     'statut' => $this->read($item, ['statut', 'status'], 'en_attente_confirmation_dee'),
 
                     'email' => $this->read($item, ['email'], $this->read($etablissement, ['email'], '')),
-                    'access_sent_at' => $this->read($item, ['access_sent_at'], null),
-                    'dossier_id' => $this->read($item, ['dossier_id'], null),
-                    'dossier_reference' => $this->read($item, ['dossier_reference'], null),
+                    'access_sent_at' => $this->dateValue($item, ['access_sent_at']),
+
+                    'dossier_id' => $dossier?->id,
+                    'dossier_reference' => $dossier?->reference,
+                    'dossier' => $dossier ? [
+                        'id' => $dossier->id,
+                        'reference' => $this->read($dossier, ['reference'], '—'),
+                        'nom' => $this->read($dossier, ['nom'], '—'),
+                        'statut' => $this->read($dossier, ['statut', 'status'], '—'),
+                        'date_visite' => $this->read($dossier, ['date_visite'], null),
+                    ] : null,
 
                     'etablissement' => [
                         'id' => $etablissement?->id,
                         'nom' => $this->etablissementName($etablissement),
                         'type' => $this->etablissementType($etablissement),
                         'ville' => $this->read($etablissement, ['ville'], '—'),
-                        'universite' => $this->read($etablissement, ['universite'], '—'),
-                        'email' => $this->read($etablissement, ['email'], '—'),
+                        'universite' => $this->read($etablissement, ['universite', 'universite_nom'], '—'),
+                        'email' => $this->read($etablissement, ['email'], ''),
                         'acronyme' => $this->read($etablissement, ['acronyme'], '—'),
                         'evaluation' => $this->read($etablissement, ['evaluation'], '—'),
                     ],
@@ -214,10 +266,15 @@ class CampagneEvaluationController extends Controller
                 return [
                     'id' => $etablissement->id,
                     'nom' => $this->etablissementName($etablissement),
+                    'name' => $this->etablissementName($etablissement),
+                    'etablissement' => $this->read($etablissement, ['etablissement'], null),
+                    'etablissement_2' => $this->read($etablissement, ['etablissement_2'], null),
                     'type' => $this->etablissementType($etablissement),
+                    'vocation' => $this->read($etablissement, ['vocation'], null),
+                    'domaine_connaissances' => $this->read($etablissement, ['domaine_connaissances'], null),
                     'ville' => $this->read($etablissement, ['ville'], '—'),
-                    'universite' => $this->read($etablissement, ['universite'], '—'),
-                    'email' => $this->read($etablissement, ['email'], '—'),
+                    'universite' => $this->read($etablissement, ['universite', 'universite_nom'], '—'),
+                    'email' => $this->read($etablissement, ['email'], ''),
                     'acronyme' => $this->read($etablissement, ['acronyme'], '—'),
                     'evaluation' => $this->read($etablissement, ['evaluation'], '—'),
                 ];
@@ -233,103 +290,161 @@ class CampagneEvaluationController extends Controller
                 'observation' => $this->read($campagneEvaluation, ['observation'], ''),
                 'statut' => $this->read($campagneEvaluation, ['statut', 'status'], 'brouillon'),
                 'status' => $this->read($campagneEvaluation, ['status', 'statut'], 'brouillon'),
+                'created_by' => $this->creatorName($campagneEvaluation),
                 'created_at' => optional($campagneEvaluation->created_at)->format('d/m/Y H:i'),
                 'updated_at' => optional($campagneEvaluation->updated_at)->format('d/m/Y H:i'),
             ],
-
             'stats' => [
                 'etablissements' => $etablissements->count(),
-                'acces_envoyes' => $etablissements->where('status', 'acces_envoye')->count()
-                    + $etablissements->where('status', 'compte_etablissement_cree')->count(),
-                'dossiers' => $this->campagneDossiersCount($campagneEvaluation),
-                'formulaires' => 0,
-            ],
+                'acces_envoyes' => $etablissements->filter(function ($item) {
+                    $status = strtolower((string) ($item['statut'] ?? $item['status'] ?? ''));
 
+                    return $status === 'acces_envoye'
+                        || $status === 'compte_etablissement_cree'
+                        || str_contains($status, 'acces')
+                        || str_contains($status, 'accès')
+                        || !empty($item['access_sent_at']);
+                })->count(),
+                'dossiers' => $etablissements->filter(fn ($item) => !empty($item['dossier_id']))->count(),
+                'formulaires' => $etablissements->filter(function ($item) {
+                    $status = strtolower((string) ($item['dossier']['statut'] ?? ''));
+
+                    return str_contains($status, 'formulaire');
+                })->count(),
+            ],
             'etablissements' => $etablissements,
             'availableEtablissements' => $availableEtablissements,
-            'vocations' => $this->vocationsPayload(),
         ]);
     }
 
     public function update(Request $request, CampagneEvaluation $campagneEvaluation)
     {
         $validated = $request->validate([
-            'annee' => ['sometimes', 'nullable', 'integer', 'min:2000', 'max:2100'],
+            'annee' => ['sometimes', 'required', 'integer', 'min:2000', 'max:2100'],
             'vocation' => ['sometimes', 'nullable', 'string', 'max:255'],
             'observation' => ['sometimes', 'nullable', 'string'],
-            'statut' => ['sometimes', 'nullable', 'string', 'max:255'],
-            'status' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'statut' => ['sometimes', 'required', 'string', 'max:255'],
+            'status' => ['sometimes', 'required', 'string', 'max:255'],
         ]);
 
         $payload = [];
 
-        foreach (['annee', 'vocation', 'observation', 'statut', 'status'] as $field) {
-            if ($request->has($field) && $this->hasColumn('campagne_evaluations', $field)) {
-                $payload[$field] = $validated[$field] ?? null;
-            }
+        if (array_key_exists('annee', $validated) && $this->hasColumn('campagne_evaluations', 'annee')) {
+            $payload['annee'] = $validated['annee'];
         }
 
-        if (!empty($payload)) {
-            $campagneEvaluation->forceFill($payload);
-            $campagneEvaluation->save();
+        if (array_key_exists('vocation', $validated) && $this->hasColumn('campagne_evaluations', 'vocation')) {
+            $payload['vocation'] = $validated['vocation'];
         }
+
+        if (array_key_exists('observation', $validated) && $this->hasColumn('campagne_evaluations', 'observation')) {
+            $payload['observation'] = $validated['observation'];
+        }
+
+        if (array_key_exists('statut', $validated) && $this->hasColumn('campagne_evaluations', 'statut')) {
+            $payload['statut'] = $validated['statut'];
+        }
+
+        if (array_key_exists('status', $validated) && $this->hasColumn('campagne_evaluations', 'status')) {
+            $payload['status'] = $validated['status'];
+        }
+
+        $campagneEvaluation->forceFill($payload);
+        $campagneEvaluation->save();
 
         return back()->with('success', 'Vague mise à jour avec succès.');
     }
 
-   public function destroy(Request $request, CampagneEvaluation $campagneEvaluation)
-{
-    $request->validate([
-        'delete_password' => ['required', 'string'],
-    ], [
-        'delete_password.required' => 'Le mot de passe de suppression est obligatoire.',
-    ]);
-
-    $expectedPassword = env('DEE_DELETE_PASSWORD');
-
-    if (!$expectedPassword || $request->delete_password !== $expectedPassword) {
-        return back()->withErrors([
-            'delete_password' => 'Mot de passe incorrect.',
+    public function destroy(Request $request, CampagneEvaluation $campagneEvaluation)
+    {
+        $request->validate([
+            'delete_password' => ['required', 'string'],
+        ], [
+            'delete_password.required' => 'Le mot de passe de suppression est obligatoire.',
         ]);
+
+        $expectedPassword = config('app.dee_delete_password', env('DEE_DELETE_PASSWORD'));
+
+        if (!$expectedPassword || !hash_equals((string) $expectedPassword, (string) $request->input('delete_password'))) {
+            return back()->withErrors([
+                'delete_password' => 'Mot de passe incorrect.',
+            ]);
+        }
+
+        DB::transaction(function () use ($campagneEvaluation) {
+            $campagneEtablissementIds = CampagneEtablissement::query()
+                ->where('campagne_evaluation_id', $campagneEvaluation->id)
+                ->pluck('id')
+                ->all();
+
+            if (!empty($campagneEtablissementIds) && $this->hasColumn('dossiers', 'campagne_etablissement_id')) {
+                Dossier::query()
+                    ->whereIn('campagne_etablissement_id', $campagneEtablissementIds)
+                    ->delete();
+            }
+
+            if ($this->hasColumn('dossiers', 'campagne_evaluation_id')) {
+                Dossier::query()
+                    ->where('campagne_evaluation_id', $campagneEvaluation->id)
+                    ->delete();
+            }
+
+            CampagneEtablissement::query()
+                ->where('campagne_evaluation_id', $campagneEvaluation->id)
+                ->delete();
+
+            $campagneEvaluation->delete();
+        });
+
+        return redirect()
+            ->route('dee.campagnes.index')
+            ->with('success', 'Vague supprimée avec succès.');
     }
 
-    $campagneEvaluation->delete();
-
-    return redirect()
-        ->route('dee.campagnes.index')
-        ->with('success', 'La vague a été supprimée avec succès.');
-}
-
-    private function attachEtablissementAutomatically(CampagneEvaluation $campagne, Etablissement $etablissement): void
+    private function attachEtablissementAutomatically(CampagneEvaluation $campagne, Etablissement $etablissement): CampagneEtablissement
     {
-        $pivot = CampagneEtablissement::query()
+        $existing = CampagneEtablissement::query()
             ->where('campagne_evaluation_id', $campagne->id)
             ->where('etablissement_id', $etablissement->id)
             ->first();
 
-        if (!$pivot) {
-            $pivot = new CampagneEtablissement();
-            $pivot->campagne_evaluation_id = $campagne->id;
-            $pivot->etablissement_id = $etablissement->id;
+        if ($existing) {
+            return $existing;
         }
 
-        if ($this->hasColumn('campagne_etablissements', 'status')) {
-            $pivot->status = 'en_attente_confirmation_dee';
+        $item = new CampagneEtablissement();
+
+        if ($this->hasColumn('campagne_etablissements', 'campagne_evaluation_id')) {
+            $item->campagne_evaluation_id = $campagne->id;
+        }
+
+        if ($this->hasColumn('campagne_etablissements', 'etablissement_id')) {
+            $item->etablissement_id = $etablissement->id;
         }
 
         if ($this->hasColumn('campagne_etablissements', 'statut')) {
-            $pivot->statut = 'en_attente_confirmation_dee';
+            $item->statut = 'en_attente_confirmation_dee';
+        }
+
+        if ($this->hasColumn('campagne_etablissements', 'status')) {
+            $item->status = 'en_attente_confirmation_dee';
         }
 
         if ($this->hasColumn('campagne_etablissements', 'email')) {
-            $pivot->email = $this->read($etablissement, ['email'], null);
+            $item->email = $this->read($etablissement, ['email'], null);
         }
 
-        if ($this->hasColumn('campagne_etablissements', 'created_by') && !$pivot->exists) {
-            $pivot->created_by = Auth::id();
+        if ($this->hasColumn('campagne_etablissements', 'access_sent_at')) {
+            $item->access_sent_at = null;
         }
 
-        $pivot->save();
+        if ($this->hasColumn('campagne_etablissements', 'created_by')) {
+            $item->created_by = Auth::id();
+        }
+
+        $item->save();
+
+        return $item;
     }
 
     private function vocationsPayload()
@@ -337,25 +452,20 @@ class CampagneEvaluationController extends Controller
         $column = $this->etablissementVocationColumn();
 
         if (!$column) {
-            return collect();
+            return [];
         }
 
         return Etablissement::query()
             ->select($column)
             ->whereNotNull($column)
             ->where($column, '!=', '')
-            ->groupBy($column)
-            ->orderBy($column)
             ->get()
-            ->map(function ($row) use ($column) {
-                $value = $row->{$column};
-
+            ->groupBy($column)
+            ->map(function ($items, $value) {
                 return [
                     'value' => $value,
                     'label' => $value,
-                    'count' => Etablissement::query()
-                        ->where($column, $value)
-                        ->count(),
+                    'count' => $items->count(),
                 ];
             })
             ->values();
@@ -364,17 +474,12 @@ class CampagneEvaluationController extends Controller
     private function etablissementVocationColumn(): ?string
     {
         foreach ([
+            'vocation',
+            'type',
+            'type_etablissement',
             'domaine_connaissances',
             'evaluation',
-            'type',
-            'vocation',
-            'categorie',
-            'category',
-            'type_etablissement',
-            'etablissement_type',
-            'nature',
-            'domaine',
-            'secteur',
+            'etablissement',
         ] as $column) {
             if ($this->hasColumn('etablissements', $column)) {
                 return $column;
@@ -384,77 +489,9 @@ class CampagneEvaluationController extends Controller
         return null;
     }
 
-    private function generateReference(int $annee): string
-    {
-        $nextId = ((int) CampagneEvaluation::query()->max('id')) + 1;
-
-        return 'VAG-'.$annee.'-'.str_pad((string) $nextId, 3, '0', STR_PAD_LEFT);
-    }
-
-    private function campagneEtablissementsCount(CampagneEvaluation $campagne): int
-    {
-        if (!Schema::hasTable('campagne_etablissements')) {
-            return 0;
-        }
-
-        return CampagneEtablissement::query()
-            ->where('campagne_evaluation_id', $campagne->id)
-            ->count();
-    }
-
-    private function campagneDossiersCount(CampagneEvaluation $campagne): int
-    {
-        if (!Schema::hasTable('dossiers')) {
-            return 0;
-        }
-
-        $query = Dossier::query();
-
-        if ($this->hasColumn('dossiers', 'campagne_evaluation_id')) {
-            return $query->where('campagne_evaluation_id', $campagne->id)->count();
-        }
-
-        if ($this->hasColumn('dossiers', 'campagne_id')) {
-            return $query->where('campagne_id', $campagne->id)->count();
-        }
-
-        if ($this->hasColumn('dossiers', 'campagne') && $this->hasColumn('campagne_evaluations', 'reference')) {
-            return $query->where('campagne', $campagne->reference)->count();
-        }
-
-        return 0;
-    }
-
-    private function etablissementName($etablissement): string
-    {
-        return $this->read($etablissement, [
-            'etablissement_2',
-            'etablissement',
-            'nom',
-            'name',
-            'intitule',
-            'acronyme',
-        ], '—');
-    }
-
-    private function etablissementType($etablissement): string
-    {
-        return $this->read($etablissement, [
-            'domaine_connaissances',
-            'evaluation',
-            'type',
-            'vocation',
-            'categorie',
-            'category',
-            'nature',
-            'domaine',
-            'secteur',
-        ], '—');
-    }
-
     private function orderColumnForEtablissements(): string
     {
-        foreach (['etablissement_2', 'etablissement', 'nom', 'name', 'acronyme', 'id'] as $column) {
+        foreach (['nom', 'etablissement_2', 'etablissement', 'name', 'id'] as $column) {
             if ($this->hasColumn('etablissements', $column)) {
                 return $column;
             }
@@ -463,41 +500,122 @@ class CampagneEvaluationController extends Controller
         return 'id';
     }
 
-    private function read($model, array $columns, mixed $default = null): mixed
+    private function etablissementName(?Etablissement $etablissement): string
+    {
+        return $this->read($etablissement, [
+            'nom',
+            'name',
+            'etablissement_2',
+            'etablissement',
+            'acronyme',
+        ], '—');
+    }
+
+    private function etablissementType(?Etablissement $etablissement): string
+    {
+        return $this->read($etablissement, [
+            'type',
+            'type_etablissement',
+            'vocation',
+            'domaine_connaissances',
+            'evaluation',
+        ], '—');
+    }
+
+    private function campagneEtablissementsCount(CampagneEvaluation $campagne): int
+    {
+        return CampagneEtablissement::query()
+            ->where('campagne_evaluation_id', $campagne->id)
+            ->count();
+    }
+
+    private function campagneDossiersCount(CampagneEvaluation $campagne): int
+    {
+        if (!$this->hasColumn('dossiers', 'campagne_evaluation_id')) {
+            return 0;
+        }
+
+        return Dossier::query()
+            ->where('campagne_evaluation_id', $campagne->id)
+            ->count();
+    }
+
+    private function generateReference(int $annee): string
+    {
+        $nextNumber = ((int) CampagneEvaluation::query()
+            ->where('reference', 'like', 'VAG-'.$annee.'-%')
+            ->count()) + 1;
+
+        do {
+            $reference = 'VAG-'.$annee.'-'.str_pad((string) $nextNumber, 3, '0', STR_PAD_LEFT);
+
+            $exists = CampagneEvaluation::query()
+                ->where('reference', $reference)
+                ->exists();
+
+            $nextNumber++;
+        } while ($exists);
+
+        return $reference;
+    }
+
+    private function creatorName(CampagneEvaluation $campagne): string
+    {
+        $createdByName = $this->read($campagne, ['created_by_name'], null);
+
+        if ($createdByName) {
+            return $createdByName;
+        }
+
+        $createdBy = $this->read($campagne, ['created_by'], null);
+
+        if ($createdBy) {
+            return User::query()->where('id', $createdBy)->value('name') ?? '—';
+        }
+
+        return '—';
+    }
+
+    private function read($model, array $columns, $default = '—')
     {
         if (!$model) {
             return $default;
         }
 
         foreach ($columns as $column) {
-            try {
-                if (method_exists($model, 'getAttribute')) {
-                    $value = $model->getAttribute($column);
-                } else {
-                    $value = $model->{$column} ?? null;
-                }
+            $value = $model->getAttribute($column);
 
-                if ($value !== null && $value !== '') {
-                    return $value;
-                }
-            } catch (\Throwable $e) {
-                continue;
+            if ($value !== null && $value !== '') {
+                return $value;
             }
         }
 
         return $default;
     }
 
-    private function hasColumn(string $table, string $column): bool
+    private function dateValue($model, array $columns)
     {
-        static $cache = [];
-
-        $key = $table.'.'.$column;
-
-        if (!array_key_exists($key, $cache)) {
-            $cache[$key] = Schema::hasTable($table) && Schema::hasColumn($table, $column);
+        if (!$model) {
+            return null;
         }
 
-        return $cache[$key];
+        foreach ($columns as $column) {
+            $value = $model->getAttribute($column);
+
+            if ($value) {
+                if ($value instanceof \Carbon\Carbon) {
+                    return $value->format('d/m/Y H:i');
+                }
+
+                return (string) $value;
+            }
+        }
+
+        return null;
+    }
+
+    private function hasColumn(string $table, string $column): bool
+    {
+        return Schema::hasColumn($table, $column);
     }
 }

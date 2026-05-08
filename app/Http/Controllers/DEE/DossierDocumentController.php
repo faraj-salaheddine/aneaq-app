@@ -67,8 +67,23 @@ class DossierDocumentController extends Controller
         return back()->with('success', 'Document ajouté avec succès.');
     }
 
-    public function destroy(Dossier $dossier, $document)
+    public function destroy(Request $request, Dossier $dossier, $document)
     {
+        request()->validate([
+            'delete_password' => ['required', 'string'],
+        ], [
+            'delete_password.required' => 'Le mot de passe de suppression est obligatoire.',
+        ]);
+
+        $expectedPassword = config('app.dee_delete_password', env('DEE_DELETE_PASSWORD'));
+
+        if (!$expectedPassword || !hash_equals((string) $expectedPassword, (string) request()->input('delete_password'))) {
+            return back()->withErrors([
+                'delete_password' => 'Mot de passe incorrect.',
+            ]);
+        }
+
+
         $table = $this->documentsTable();
 
         if (!$table) {

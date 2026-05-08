@@ -6,7 +6,6 @@ import {
     CheckCircle2,
     ClipboardList,
     Edit3,
-    Eye,
     FileUp,
     FolderKanban,
     LockKeyhole,
@@ -139,7 +138,7 @@ function CampagneShow({
         setConfirmTarget(item);
 
         confirmForm.setData({
-            email: item.email || item.etablissement?.email || '',
+            email: '',
             lettre_dee: null,
             message_lettre: '',
         });
@@ -241,7 +240,7 @@ function CampagneShow({
 
                     <div className="flex flex-wrap gap-3">
                         <Link
-                            href="/campagnes"
+                            href="/dee/campagnes"
                             className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-black text-slate-700 shadow-sm transition hover:bg-slate-50"
                         >
                             <ArrowLeft size={17} />
@@ -1001,7 +1000,15 @@ function InputBlock({ label, value, onChange, disabled = false, error = null }) 
 
 function EtablissementRow({ item, onAccept, onRefuse }) {
     const status = item.statut || item.status || 'en_attente_confirmation_dee';
-    const isAccessSent = status === 'acces_envoye' || status === 'compte_etablissement_cree';
+    const normalizedStatus = String(status || '').toLowerCase();
+    const dossierId = getDossierId(item);
+
+    const isAccessSent =
+        normalizedStatus === 'acces_envoye' ||
+        normalizedStatus === 'compte_etablissement_cree' ||
+        normalizedStatus.includes('accès envoyé') ||
+        normalizedStatus.includes('acces envoye') ||
+        normalizedStatus.includes('compte');
 
     return (
         <tr className="border-b border-slate-100 transition hover:bg-blue-50/40">
@@ -1066,14 +1073,25 @@ function EtablissementRow({ item, onAccept, onRefuse }) {
                         </>
                     )}
 
-                    {isAccessSent && item.dossier && (
+                    {isAccessSent && dossierId && (
                         <Link
-                            href={`/dee/dossiers/${item.dossier.id}`}
+                            href={`/dee/dossiers/${dossierId}`}
                             title="Voir le dossier"
                             className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-blue-700 transition hover:bg-blue-600 hover:text-white"
                         >
-                            <Eye size={18} />
+                            <FolderKanban size={18} />
                         </Link>
+                    )}
+
+                    {isAccessSent && !dossierId && (
+                        <button
+                            type="button"
+                            title="Dossier non disponible"
+                            disabled
+                            className="flex h-9 w-9 cursor-not-allowed items-center justify-center rounded-xl bg-slate-100 text-slate-400"
+                        >
+                            <FolderKanban size={18} />
+                        </button>
                     )}
 
                     <button
@@ -1087,6 +1105,17 @@ function EtablissementRow({ item, onAccept, onRefuse }) {
                 </div>
             </td>
         </tr>
+    );
+}
+
+
+function getDossierId(item) {
+    return (
+        item?.dossier_id ||
+        item?.dossierId ||
+        item?.dossier?.id ||
+        item?.dossier?.dossier_id ||
+        null
     );
 }
 

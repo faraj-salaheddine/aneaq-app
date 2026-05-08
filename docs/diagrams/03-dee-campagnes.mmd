@@ -1,0 +1,40 @@
+sequenceDiagram
+    actor DEE as DEE (Admin Eval.)
+    participant MW as Middleware role:dee.admin
+    participant DB as Base de donnees
+    participant Mail as Service Email
+    participant React as Inertia React
+
+    Note over DEE,React: CREER UNE CAMPAGNE D EVALUATION
+
+    DEE->>MW: GET /dee/campagnes/create
+    MW-->>React: Formulaire nouvelle campagne
+
+    DEE->>MW: POST /dee/campagnes { annee, titre, date_debut, date_fin }
+    MW->>DB: INSERT campagne_evaluations SET status=brouillon
+    DB-->>MW: Campagne creee
+    MW-->>React: redirect /dee/campagnes/{id}
+
+    DEE->>MW: PATCH /dee/campagnes/{id} { status=active }
+    MW->>DB: UPDATE campagne_evaluations
+    DB-->>MW: Mise a jour
+
+    Note over DEE,React: ATTACHER ET CONFIRMER LES ETABLISSEMENTS
+
+    DEE->>MW: POST /dee/campagnes/{id}/etablissements/attach
+    MW->>DB: INSERT campagne_etablissements (pivot)
+    DB-->>MW: Etablissements attaches
+    MW-->>React: flash Etablissements ajoutes
+
+    DEE->>MW: POST /dee/campagnes/{id}/etablissements/{pivot}/confirm
+    MW->>DB: INSERT users SET role=etablissement
+    MW->>DB: INSERT dossiers (auto-creation du dossier)
+    MW->>DB: UPDATE campagne_etablissements SET status=confirme
+    MW->>Mail: Email acces a l etablissement
+    DB-->>MW: Confirmation faite
+    MW-->>React: flash Etablissement confirme dossier cree
+
+    DEE->>MW: DELETE /dee/campagnes/{id}/etablissements/{pivot}/refuse
+    MW->>DB: UPDATE campagne_etablissements SET status=refuse
+    DB-->>MW: Refus enregistre
+    MW-->>React: flash Etablissement refuse

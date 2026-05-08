@@ -11,6 +11,7 @@ import {
     Eye,
     FileText,
     FolderKanban,
+    LockKeyhole,
     Mail,
     MapPin,
     Save,
@@ -20,6 +21,7 @@ import {
     Trash2,
     UserCheck,
     Users,
+    X,
     XCircle,
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
@@ -31,6 +33,16 @@ function Show({ dossier, experts = [], dossierExperts = [], documents = [] }) {
     const [activeTab, setActiveTab] = useState('pilotage');
     const [expertSearch, setExpertSearch] = useState('');
     const [selectedExpert, setSelectedExpert] = useState(null);
+
+    const [deleteModal, setDeleteModal] = useState({
+        open: false,
+        type: null,
+        item: null,
+    });
+
+    const secureDeleteForm = useForm({
+        delete_password: '',
+    });
 
     const updateForm = useForm({
         description: dossier.description || '',
@@ -100,23 +112,86 @@ function Show({ dossier, experts = [], dossierExperts = [], documents = [] }) {
         });
     };
 
-    const deleteExpert = (dossierExpertId) => {
-        if (!confirm('Voulez-vous vraiment supprimer cet expert du dossier ?')) {
-            return;
-        }
-
-        router.delete(`/dee/dossiers/${dossier.id}/experts/${dossierExpertId}`, {
-            preserveScroll: true,
+    const openSecureDeleteModal = (type, item) => {
+        setDeleteModal({
+            open: true,
+            type,
+            item,
         });
+
+        secureDeleteForm.setData('delete_password', '');
+        secureDeleteForm.clearErrors();
     };
 
-    const deleteDocument = (documentId) => {
-        if (!confirm('Voulez-vous vraiment supprimer ce document ?')) {
+    const closeSecureDeleteModal = () => {
+        setDeleteModal({
+            open: false,
+            type: null,
+            item: null,
+        });
+
+        secureDeleteForm.reset();
+        secureDeleteForm.clearErrors();
+    };
+
+    const deleteExpert = (dossierExpert) => {
+        const item =
+            typeof dossierExpert === 'object' && dossierExpert !== null
+                ? dossierExpert
+                : dossierExperts.find((expertItem) => Number(expertItem.id) === Number(dossierExpert)) || {
+                      id: dossierExpert,
+                      expert: {
+                          name: 'Expert',
+                      },
+                  };
+
+        openSecureDeleteModal('expert', item);
+    };
+
+    const deleteDocument = (document) => {
+        const item =
+            typeof document === 'object' && document !== null
+                ? document
+                : documents.find((doc) => Number(doc.id) === Number(document)) || {
+                      id: document,
+                      nom: 'Document',
+                  };
+
+        openSecureDeleteModal('document', item);
+    };
+
+    const submitSecureDelete = (e) => {
+        e.preventDefault();
+
+        secureDeleteForm.clearErrors();
+
+        if (!deleteModal.item) {
+            secureDeleteForm.setError('delete_password', 'Aucun élément sélectionné.');
             return;
         }
 
-        router.delete(`/dee/dossiers/${dossier.id}/documents/${documentId}`, {
+        if (!secureDeleteForm.data.delete_password.trim()) {
+            secureDeleteForm.setError('delete_password', 'Le mot de passe est obligatoire.');
+            return;
+        }
+
+        const url =
+            deleteModal.type === 'document'
+                ? `/dee/dossiers/${dossier.id}/documents/${deleteModal.item.id}`
+                : `/dee/dossiers/${dossier.id}/experts/${deleteModal.item.id}`;
+
+        secureDeleteForm.delete(url, {
             preserveScroll: true,
+            preserveState: true,
+            onSuccess: () => {
+                closeSecureDeleteModal();
+            },
+            onError: (errors) => {
+                secureDeleteForm.setError(
+                    'delete_password',
+                    errors.delete_password || 'Mot de passe incorrect.'
+                );
+            },
         });
     };
 
@@ -165,7 +240,6 @@ function Show({ dossier, experts = [], dossierExperts = [], documents = [] }) {
         '';
 
     const hasDateVisite = isValidDateVisite(dateVisiteBrute);
-
     const dateVisiteAffichee = hasDateVisite ? dateVisiteBrute : '—';
 
     return (
@@ -636,7 +710,7 @@ function Show({ dossier, experts = [], dossierExperts = [], documents = [] }) {
                                                 item={item}
                                                 onAccept={() => acceptExpert(item.id)}
                                                 onRefuse={() => refuseExpert(item.id)}
-                                                onDelete={() => deleteExpert(item.id)}
+                                                onDelete={() => deleteExpert(item)}
                                             />
                                         ))
                                     ) : (
@@ -703,7 +777,7 @@ function Show({ dossier, experts = [], dossierExperts = [], documents = [] }) {
 
                                                 <button
                                                     type="button"
-                                                    onClick={() => deleteDocument(document.id)}
+                                                    onClick={() => deleteDocument(document)}
                                                     className="inline-flex items-center gap-2 rounded-xl bg-red-600 px-4 py-2.5 text-sm font-black text-white transition hover:bg-red-700"
                                                 >
                                                     <Trash2 size={15} />
@@ -807,6 +881,103 @@ function Show({ dossier, experts = [], dossierExperts = [], documents = [] }) {
                     </div>
                 </div>
             </div>
+
+            {deleteModal.open && deleteModal.item && (
+                <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/60 px-4 backdrop-blur-sm">
+                    <div className="w-full max-w-xl rounded-[2rem] bg-white shadow-2xl">
+                        <div className="flex items-start justify-between border-b border-slate-100 p-6">
+                            <div>
+                                <p className="text-xs font-black uppercase tracking-[0.25em] text-red-600">
+                                    Suppression sécurisée
+                                </p>
+
+                                <h3 className="mt-2 text-2xl font-black text-slate-950">
+                                    {deleteModal.type === 'document'
+                                        ? 'Confirmer la suppression du document'
+                                        : 'Confirmer la suppression de l’expert'}
+                                </h3>
+
+                                <p className="mt-2 text-sm font-medium leading-7 text-slate-500">
+                                    Pour supprimer{' '}
+                                    {deleteModal.type === 'document' ? 'le document' : 'l’expert'}{' '}
+                                    <strong>
+                                        {deleteModal.type === 'document'
+                                            ? deleteModal.item.nom ||
+                                              deleteModal.item.name ||
+                                              deleteModal.item.filename ||
+                                              'Document'
+                                            : expertFullName(deleteModal.item.expert || deleteModal.item)}
+                                    </strong>
+                                    , saisissez le mot de passe unique administrateur DEE.
+                                </p>
+                            </div>
+
+                            <button
+                                type="button"
+                                onClick={closeSecureDeleteModal}
+                                className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-slate-500 transition hover:bg-slate-200"
+                            >
+                                <X size={18} />
+                            </button>
+                        </div>
+
+                        <form onSubmit={submitSecureDelete} className="p-6">
+                            <label className="mb-2 block text-sm font-black text-slate-700">
+                                Mot de passe DEE
+                            </label>
+
+                            <div className="relative">
+                                <LockKeyhole
+                                    size={18}
+                                    className="absolute left-4 top-1/2 -translate-y-1/2 text-red-500"
+                                />
+
+                                <input
+                                    type="password"
+                                    value={secureDeleteForm.data.delete_password}
+                                    onChange={(e) => {
+                                        secureDeleteForm.setData('delete_password', e.target.value);
+                                        secureDeleteForm.clearErrors('delete_password');
+                                    }}
+                                    placeholder="Mot de passe de confirmation"
+                                    className={`h-14 w-full rounded-2xl border bg-slate-50 pl-12 pr-4 text-sm font-bold text-slate-700 outline-none transition focus:bg-white focus:ring-4 ${
+                                        secureDeleteForm.errors.delete_password
+                                            ? 'border-red-500 focus:ring-red-100'
+                                            : 'border-slate-200 focus:border-red-500 focus:ring-red-100'
+                                    }`}
+                                />
+                            </div>
+
+                            {secureDeleteForm.errors.delete_password && (
+                                <p className="mt-2 text-sm font-bold text-red-600">
+                                    {secureDeleteForm.errors.delete_password}
+                                </p>
+                            )}
+
+                            <div className="mt-6 flex justify-end gap-3">
+                                <button
+                                    type="button"
+                                    onClick={closeSecureDeleteModal}
+                                    className="inline-flex h-12 items-center justify-center rounded-2xl border border-slate-200 bg-white px-5 text-sm font-black text-slate-700 transition hover:bg-slate-50"
+                                >
+                                    Annuler
+                                </button>
+
+                                <button
+                                    type="submit"
+                                    disabled={secureDeleteForm.processing}
+                                    className="inline-flex h-12 items-center gap-2 rounded-2xl bg-red-600 px-5 text-sm font-black text-white shadow-lg shadow-red-600/20 transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                    <Trash2 size={18} />
+                                    {secureDeleteForm.processing
+                                        ? 'Suppression...'
+                                        : 'Supprimer définitivement'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
         </>
     );
 }
@@ -1017,8 +1188,10 @@ function formatExpertRole(role) {
 function formatExpertStatus(status) {
     const labels = {
         en_attente_confirmation_dee: 'En attente confirmation DEE',
+        en_attente_confirmation_expert: 'Accès envoyé',
         acces_envoye: 'Accès envoyé',
-        confirme_par_expert: 'Confirmé par expert',
+        confirme_par_expert: 'Confirmé',
+        refuse_par_expert: 'Refusé par expert',
         pending_confirmation: 'En attente confirmation DEE',
         confirme_par_dee: 'Confirmé par DEE',
     };
@@ -1030,6 +1203,7 @@ function formatDossierStatus(status) {
     const labels = {
         etablissement_selectionne: 'Établissement sélectionné',
         compte_etablissement_cree: 'Compte établissement créé',
+        en_attente_formulaire: 'En attente formulaire',
         formulaire_rempli: 'Formulaire rempli',
         rapport_autoevaluation_ajoute: "Rapport d’autoévaluation ajouté",
         annexe_ajoutee: 'Annexe ajoutée',

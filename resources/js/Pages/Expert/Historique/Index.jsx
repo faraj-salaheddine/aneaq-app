@@ -1,128 +1,326 @@
-// resources/js/Pages/Expert/Historique/Index.jsx
-import { Head, router } from "@inertiajs/react";
-import ExpertLayout from "@/Layouts/Expert/ExpertLayout";
+import { Head, Link } from '@inertiajs/react';
+import ExpertLayout from '@/Layouts/Expert/ExpertLayout';
+import {
+    CalendarClock,
+    CheckCircle2,
+    ChevronRight,
+    Clock3,
+    Download,
+    FileText,
+    FolderOpen,
+    History,
+    ShieldCheck,
+    XCircle,
+} from 'lucide-react';
 
-const BLUE = "#0C447C", GREEN = "#1D9E75", ORANGE = "#EF9F27";
-
-const SP_META = {
-    invite:   { label: "Invité",    color: ORANGE,    bg: "#FFF7ED" },
-    confirme: { label: "Confirmé",  color: GREEN,     bg: "#ECFDF5" },
-    refuse:   { label: "Refusé",    color: "#ef4444", bg: "#fff1f2" },
-};
-const SR_META = {
-    depose: { label: "Déposé", color: ORANGE,    bg: "#FFF7ED" },
-    valide: { label: "Validé", color: GREEN,     bg: "#ECFDF5" },
-    rejete: { label: "Rejeté", color: "#ef4444", bg: "#fff1f2" },
-};
-
-function Badge({ meta }) {
-    return <span style={{ fontSize: 11, fontWeight: 600, padding: "3px 9px", borderRadius: 99, color: meta.color, background: meta.bg }}>{meta.label}</span>;
-}
-
-export default function HistoriqueIndex({ expert, participations = [] }) {
-    const total    = participations.length;
-    const confirme = participations.filter(p => p.statut_participation === "confirme").length;
-    const clotures = participations.filter(p => ["valide","transfere","cloture"].includes(p.statut)).length;
-
-    const thS = { textAlign: "left", padding: "10px 16px", fontSize: 10, fontWeight: 700, color: "#94a3b8", letterSpacing: "0.08em", textTransform: "uppercase", borderBottom: "2px solid #f1f5f9", whiteSpace: "nowrap" };
-    const tdS = { padding: "13px 16px", borderBottom: "1px solid #f8fafc", fontSize: 13, verticalAlign: "middle" };
+export default function HistoriqueIndex({ expert = {}, participations = [] }) {
+    const total = participations.length;
+    const confirmed = participations.filter((p) => p.is_confirmed).length;
+    const refused = participations.filter((p) => p.is_refused).length;
+    const closed = participations.filter((p) => p.is_closed).length;
+    const rapports = participations.filter((p) => p.rapport_id).length;
 
     return (
         <>
-            <Head title="Historique des participations" />
-            <style>{`
-                @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
-                * { box-sizing: border-box; font-family: 'DM Sans', sans-serif; }
-                .row-hover:hover { background: #f8fafc !important; }
-                @keyframes fadeUp { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
-                .fade-up { animation: fadeUp 0.3s ease both; }
-            `}</style>
-            <div style={{ padding: "2.5rem 3rem", minHeight: "100vh", background: "linear-gradient(160deg, #f8fafc 0%, #f1f5f9 100%)" }}>
+            <Head title="Historique des participations — Expert" />
 
-                {/* Header */}
-                <div className="fade-up" style={{ marginBottom: "2rem" }}>
-                    <h1 style={{ fontSize: 24, fontWeight: 700, color: "#0f172a", margin: 0 }}>Historique des participations</h1>
-                    <p style={{ fontSize: 13, color: "#94a3b8", margin: "4px 0 0" }}>Toutes vos missions d'évaluation ANEAQ</p>
-                </div>
+            <div className="min-h-screen bg-[#f6f8fc] px-6 py-8 lg:px-10">
+                <div className="mx-auto max-w-[96rem]">
+                    <div className="mb-8">
+                        <p className="text-sm font-black uppercase tracking-[0.28em] text-blue-600">
+                            Historique expert
+                        </p>
 
-                {/* Stats */}
-                <div className="fade-up" style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12, marginBottom: "1.5rem", animationDelay: "0.05s" }}>
-                    {[
-                        { label: "Total missions",  value: total,    color: BLUE   },
-                        { label: "Confirmées",       value: confirme, color: GREEN  },
-                        { label: "Clôturées",        value: clotures, color: "#64748b" },
-                    ].map((s, i) => (
-                        <div key={i} style={{ background: "#fff", border: "1px solid #e8edf3", borderRadius: 12, padding: "14px 18px", display: "flex", alignItems: "center", gap: 12, boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
-                            <span style={{ fontSize: 28, fontWeight: 800, color: s.color }}>{s.value}</span>
-                            <span style={{ fontSize: 13, color: "#64748b", fontWeight: 500 }}>{s.label}</span>
-                        </div>
-                    ))}
-                </div>
+                        <h1 className="mt-3 text-4xl font-black text-slate-950">
+                            Historique des participations
+                        </h1>
 
-                {/* Table */}
-                <div className="fade-up" style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 16, overflow: "hidden", boxShadow: "0 2px 10px rgba(0,0,0,0.05)", animationDelay: "0.1s" }}>
-                    <div style={{ padding: "1.25rem 1.5rem", borderBottom: "1px solid #f1f5f9", background: "#fafbfc", fontSize: 14, fontWeight: 700, color: "#0f172a" }}>
-                        🕒 Toutes les missions ({total})
+                        <p className="mt-2 text-sm font-semibold text-slate-500">
+                            Toutes vos missions d’évaluation ANEAQ.
+                        </p>
                     </div>
-                    {total === 0 ? (
-                        <div style={{ padding: "4rem", textAlign: "center", color: "#94a3b8", fontSize: 13 }}>Aucune participation enregistrée.</div>
-                    ) : (
-                        <div style={{ overflowX: "auto" }}>
-                            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                                <thead>
-                                    <tr style={{ background: "#fafbfc" }}>
-                                        <th style={thS}>Établissement</th>
-                                        <th style={thS}>Université</th>
-                                        <th style={thS}>Vague</th>
-                                        <th style={thS}>Rôle</th>
-                                        <th style={thS}>Invitation</th>
-                                        <th style={thS}>Participation</th>
-                                        <th style={thS}>Rapport</th>
-                                        <th style={thS}>Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {participations.map((p, i) => {
-                                        const sp = SP_META[p.statut_participation] ?? SP_META.invite;
-                                        const sr = p.rapport_statut ? (SR_META[p.rapport_statut] ?? null) : null;
-                                        return (
-                                            <tr key={i} className="row-hover" style={{ transition: "background 0.1s" }}>
-                                                <td style={tdS}>
-                                                    <div style={{ fontWeight: 700, color: "#0f172a" }}>{p.acronyme} — {p.ville}</div>
-                                                    <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 1 }}>{p.nom}</div>
-                                                </td>
-                                                <td style={{ ...tdS, fontSize: 12, color: "#475569", maxWidth: 160 }}>{p.universite}</td>
-                                                <td style={{ ...tdS, fontFamily: "monospace", fontSize: 12 }}>{p.vague}</td>
-                                                <td style={{ ...tdS, fontSize: 11, color: "#64748b", textTransform: "capitalize" }}>{p.role_comite}</td>
-                                                <td style={{ ...tdS, fontFamily: "monospace", fontSize: 11, color: "#94a3b8" }}>
-                                                    {p.date_invitation ? new Date(p.date_invitation).toLocaleDateString("fr-FR") : "—"}
-                                                </td>
-                                                <td style={tdS}><Badge meta={sp} /></td>
-                                                <td style={tdS}>{sr ? <Badge meta={sr} /> : <span style={{ fontSize: 11, color: "#94a3b8" }}>Non déposé</span>}</td>
-                                                <td style={tdS}>
-                                                    <div style={{ display: "flex", gap: 6 }}>
-                                                        <button onClick={() => router.visit(route("expert.dossiers.show", p.id))}
-                                                            style={{ padding: "5px 11px", borderRadius: 7, border: `1px solid ${BLUE}25`, background: `${BLUE}08`, color: BLUE, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
+
+                    <section className="grid gap-5 sm:grid-cols-2 xl:grid-cols-5">
+                        <StatCard
+                            icon={FolderOpen}
+                            label="Total missions"
+                            value={total}
+                            color="blue"
+                        />
+
+                        <StatCard
+                            icon={CheckCircle2}
+                            label="Confirmées"
+                            value={confirmed}
+                            color="emerald"
+                        />
+
+                        <StatCard
+                            icon={XCircle}
+                            label="Refusées"
+                            value={refused}
+                            color="red"
+                        />
+
+                        <StatCard
+                            icon={ShieldCheck}
+                            label="Clôturées"
+                            value={closed}
+                            color="slate"
+                        />
+
+                        <StatCard
+                            icon={FileText}
+                            label="Rapports déposés"
+                            value={rapports}
+                            color="amber"
+                        />
+                    </section>
+
+                    <section className="mt-8 overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-sm">
+                        <div className="flex flex-col gap-4 border-b border-slate-100 p-6 sm:flex-row sm:items-center sm:justify-between">
+                            <div className="flex items-center gap-4">
+                                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
+                                    <History size={26} />
+                                </div>
+
+                                <div>
+                                    <h2 className="text-2xl font-black text-slate-950">
+                                        Toutes les missions
+                                    </h2>
+
+                                    <p className="mt-1 text-sm font-semibold text-slate-400">
+                                        Total : {total}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {total === 0 ? (
+                            <div className="p-6">
+                                <EmptyState text="Aucune participation enregistrée." />
+                            </div>
+                        ) : (
+                            <div className="overflow-x-auto">
+                                <table className="min-w-full border-collapse">
+                                    <thead>
+                                        <tr className="bg-slate-50 text-left">
+                                            <Th>Dossier</Th>
+                                            <Th>Établissement</Th>
+                                            <Th>Campagne</Th>
+                                            <Th>Statut mission</Th>
+                                            <Th>Date réponse</Th>
+                                            <Th>Rapport final</Th>
+                                            <Th>Actions</Th>
+                                        </tr>
+                                    </thead>
+
+                                    <tbody>
+                                        {participations.map((p) => (
+                                            <tr
+                                                key={`${p.assignment_id || p.dossier_id}-${p.dossier_id}`}
+                                                className="border-t border-slate-100 transition hover:bg-blue-50/40"
+                                            >
+                                                <Td>
+                                                    <div>
+                                                        <p className="font-black text-slate-950">
+                                                            {p.reference || '—'}
+                                                        </p>
+
+                                                        <p className="mt-1 text-xs font-semibold text-slate-400">
+                                                            Dossier #{p.dossier_id}
+                                                        </p>
+                                                    </div>
+                                                </Td>
+
+                                                <Td>
+                                                    <div>
+                                                        <p className="font-black text-slate-800">
+                                                            {p.etablissement || '—'}
+                                                        </p>
+
+                                                        <p className="mt-1 text-xs font-semibold text-slate-400">
+                                                            {p.ville || '—'} • {p.universite || '—'}
+                                                        </p>
+                                                    </div>
+                                                </Td>
+
+                                                <Td>
+                                                    <p className="font-bold text-slate-700">
+                                                        {p.campagne || '—'}
+                                                    </p>
+                                                </Td>
+
+                                                <Td>
+                                                    <div className="space-y-2">
+                                                        <MissionBadge status={p.status} label={p.status_label} />
+
+                                                        <p className="text-xs font-semibold text-slate-400">
+                                                            Rôle : {p.role_comite || 'Expert'}
+                                                        </p>
+                                                    </div>
+                                                </Td>
+
+                                                <Td>
+                                                    <div className="flex items-center gap-2 text-sm font-bold text-slate-600">
+                                                        <CalendarClock size={16} className="text-slate-400" />
+                                                        {p.date_reponse || p.date_invitation || '—'}
+                                                    </div>
+                                                </Td>
+
+                                                <Td>
+                                                    {p.rapport_id ? (
+                                                        <div className="space-y-2">
+                                                            <RapportBadge status={p.rapport_statut} label={p.rapport_statut_label} />
+
+                                                            <p className="text-xs font-semibold text-slate-400">
+                                                                {p.date_depot_rapport || 'Date non renseignée'}
+                                                            </p>
+                                                        </div>
+                                                    ) : (
+                                                        <span className="rounded-full bg-slate-50 px-3 py-1 text-xs font-black text-slate-500">
+                                                            Non déposé
+                                                        </span>
+                                                    )}
+                                                </Td>
+
+                                                <Td>
+                                                    <div className="flex flex-wrap items-center gap-2">
+                                                        <Link
+                                                            href={`/expert/dossiers/${p.dossier_id}`}
+                                                            className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-3 py-2 text-xs font-black text-white shadow-sm transition hover:bg-blue-700"
+                                                        >
                                                             Voir
-                                                        </button>
+                                                            <ChevronRight size={14} />
+                                                        </Link>
+
                                                         {p.rapport_id && (
-                                                            <button onClick={() => router.visit(route("expert.rapports.telecharger", p.rapport_id))}
-                                                                style={{ padding: "5px 11px", borderRadius: 7, border: `1px solid ${GREEN}25`, background: `${GREEN}08`, color: GREEN, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
-                                                                ⬇
-                                                            </button>
+                                                            <Link
+                                                                href={`/expert/rapports/${p.rapport_id}/telecharger`}
+                                                                className="inline-flex items-center gap-2 rounded-xl bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-700 transition hover:bg-emerald-100"
+                                                            >
+                                                                <Download size={14} />
+                                                                Rapport
+                                                            </Link>
                                                         )}
                                                     </div>
-                                                </td>
+                                                </Td>
                                             </tr>
-                                        );
-                                    })}
-                                </tbody>
-                            </table>
-                        </div>
-                    )}
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                    </section>
                 </div>
             </div>
         </>
     );
 }
-HistoriqueIndex.layout = page => <ExpertLayout active="historique">{page}</ExpertLayout>;
+
+function StatCard({ icon: Icon, label, value, color }) {
+    const colors = {
+        blue: {
+            icon: 'bg-blue-50 text-blue-600',
+            line: 'border-b-blue-600',
+        },
+        emerald: {
+            icon: 'bg-emerald-50 text-emerald-600',
+            line: 'border-b-emerald-600',
+        },
+        red: {
+            icon: 'bg-red-50 text-red-600',
+            line: 'border-b-red-500',
+        },
+        slate: {
+            icon: 'bg-slate-100 text-slate-600',
+            line: 'border-b-slate-500',
+        },
+        amber: {
+            icon: 'bg-amber-50 text-amber-600',
+            line: 'border-b-amber-500',
+        },
+    };
+
+    return (
+        <div className={`rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-sm ${colors[color].line} border-b-4`}>
+            <div className={`flex h-12 w-12 items-center justify-center rounded-2xl ${colors[color].icon}`}>
+                <Icon size={24} />
+            </div>
+
+            <p className="mt-6 text-4xl font-black text-slate-950">
+                {value ?? 0}
+            </p>
+
+            <p className="mt-2 text-sm font-bold text-slate-500">
+                {label}
+            </p>
+        </div>
+    );
+}
+
+function MissionBadge({ status, label }) {
+    const styles = {
+        en_attente_confirmation_expert: 'bg-amber-50 text-amber-700',
+        acces_envoye: 'bg-amber-50 text-amber-700',
+        confirme_par_expert: 'bg-emerald-50 text-emerald-700',
+        comite_confirme: 'bg-blue-50 text-blue-700',
+        refuse_par_expert: 'bg-red-50 text-red-700',
+        confirme: 'bg-emerald-50 text-emerald-700',
+        refuse: 'bg-red-50 text-red-700',
+    };
+
+    return (
+        <span className={`inline-flex rounded-full px-3 py-1 text-xs font-black ${styles[status] || 'bg-slate-50 text-slate-600'}`}>
+            {label || status || '—'}
+        </span>
+    );
+}
+
+function RapportBadge({ status, label }) {
+    const styles = {
+        brouillon: 'bg-slate-50 text-slate-600',
+        depose: 'bg-amber-50 text-amber-700',
+        transmis_dee: 'bg-blue-50 text-blue-700',
+        valide_dee: 'bg-emerald-50 text-emerald-700',
+        retourne_correction: 'bg-red-50 text-red-700',
+        valide: 'bg-emerald-50 text-emerald-700',
+        rejete: 'bg-red-50 text-red-700',
+    };
+
+    return (
+        <span className={`inline-flex rounded-full px-3 py-1 text-xs font-black ${styles[status] || 'bg-slate-50 text-slate-600'}`}>
+            {label || 'Non déposé'}
+        </span>
+    );
+}
+
+function Th({ children }) {
+    return (
+        <th className="whitespace-nowrap px-5 py-4 text-xs font-black uppercase tracking-[0.18em] text-slate-400">
+            {children}
+        </th>
+    );
+}
+
+function Td({ children }) {
+    return (
+        <td className="whitespace-nowrap px-5 py-5 align-middle text-sm">
+            {children}
+        </td>
+    );
+}
+
+function EmptyState({ text }) {
+    return (
+        <div className="rounded-3xl border border-dashed border-slate-200 bg-white p-12 text-center">
+            <Clock3 className="mx-auto text-slate-300" size={36} />
+
+            <p className="mt-3 text-sm font-bold text-slate-500">
+                {text}
+            </p>
+        </div>
+    );
+}
+
+HistoriqueIndex.layout = (page) => <ExpertLayout>{page}</ExpertLayout>;

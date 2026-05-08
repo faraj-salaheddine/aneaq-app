@@ -3,195 +3,178 @@
 namespace App\Http\Controllers\Expert;
 
 use App\Http\Controllers\Controller;
-use App\Models\Expert;
-use App\Models\ExpertDocument;
 use App\Models\User;
 use Illuminate\Http\Request;
-use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
-use App\Models\ActivityLog;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
-use Inertia\Response;
+
 class ExpertProfilController extends Controller
 {
-    // ─────────────────────────────────────────────────────────
-    // GET /expert/profil
-    // ─────────────────────────────────────────────────────────
-    public function show(): Response
+    public function edit()
     {
-        $expert = Expert::where('user_id', Auth::id())->firstOrFail();
-
-        $documents = ExpertDocument::where('expert_id', $expert->id)
-            ->orderByDesc('created_at')
-            ->get()
-            ->groupBy('type')
-            ->map(fn($docs) => $docs->map(fn($d) => [
-                'id'            => $d->id,
-                'original_name' => $d->original_name,
-                'file_size'     => $d->file_size,
-                'type'          => $d->type,
-                'expert_id'     => $d->expert_id,
-            ])->values()->toArray())
-            ->toArray();
-
-        return Inertia::render('Expert/Profil/Show', [
-            'expert'    => $expert,
-            'documents' => $documents,
-        ]);
-    }
-
-    // ─────────────────────────────────────────────────────────
-    // GET /expert/profil/edit
-    // ─────────────────────────────────────────────────────────
-    public function edit(): Response
-    {
-        $expert = Expert::where('user_id', Auth::id())->firstOrFail();
-
-        $documents = ExpertDocument::where('expert_id', $expert->id)
-            ->orderByDesc('created_at')
-            ->get()
-            ->groupBy('type')
-            ->map(fn($docs) => $docs->map(fn($d) => [
-                'id'            => $d->id,
-                'original_name' => $d->original_name,
-                'file_size'     => $d->file_size,
-                'type'          => $d->type,
-                'expert_id'     => $d->expert_id,
-            ])->values()->toArray())
-            ->toArray();
+        $user = Auth::user();
+        $expert = $this->findExpertForUser($user);
 
         return Inertia::render('Expert/Profil/Edit', [
-            'expert'    => $expert,
-            'documents' => $documents,
+            'user' => [
+                'id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+            ],
+            'expert' => [
+                'id' => $expert->id ?? null,
+                'nom' => $expert->nom ?? $this->extractNom($user->name),
+                'prenom' => $expert->prenom ?? $this->extractPrenom($user->name),
+                'email' => $expert->email ?? $user->email,
+                'telephone' => $expert->telephone ?? '',
+                'grade' => $expert->grade ?? '',
+                'specialite' => $expert->specialite ?? '',
+                'etablissement' => $expert->etablissement ?? '',
+                'ville' => $expert->ville ?? '',
+            ],
         ]);
     }
 
-    // ─────────────────────────────────────────────────────────
-    // PUT /expert/profil
-    // ─────────────────────────────────────────────────────────
-    public function update(Request $request): RedirectResponse
-{
-    $expert = Expert::where('user_id', Auth::id())->firstOrFail();
+    public function update(Request $request)
+    {
+        $user = Auth::user();
+        $expert = $this->findExpertForUser($user);
 
-    $request->validate([
-        'telephone'                             => 'nullable|string|max:30',
-        'ville'                                 => 'nullable|string|max:100',
-        'pays'                                  => 'nullable|string|max:100',
-        'specialite'                            => 'nullable|string|max:255',
-        'grade'                                 => 'nullable|string|max:100',
-        'fonction_actuelle'                     => 'nullable|string|max:255',
-        'universite_ou_departement_ministeriel' => 'nullable|string|max:255',
-        'type_etablissement'                    => 'nullable|string|max:255',
-        'etablissement'                         => 'nullable|string|max:255',
-        'diplomes_obtenus'                      => 'nullable|string|max:2000',
-        'responsabilite'                        => 'nullable|string|max:255',
-        'cin_number'                            => 'nullable|string|max:20',
-        'rib'                                   => 'nullable|string|max:24',
-        'password'                              => 'nullable|string|min:8|confirmed',
-        'cin_file'                              => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120',
-        'contract_file'                         => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120',
-        'carte_grise_file'                      => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120',
-        'rib_file'                              => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120',
-    ]);
+        $validated = $request->validate([
+            'nom' => ['required', 'string', 'max:255'],
+            'prenom' => ['nullable', 'string', 'max:255'],
+            'email' => [
+                'required',
+                'email',
+                'max:255',
+                Rule::unique('users', 'email')->ignore($user->id),
+            ],
+            'telephone' => ['nullable', 'string', 'max:50'],
+            'grade' => ['nullable', 'string', 'max:255'],
+            'specialite' => ['nullable', 'string', 'max:255'],
+            'etablissement' => ['nullable', 'string', 'max:255'],
+            'ville' => ['nullable', 'string', 'max:255'],
+            'password' => ['nullable', 'string', 'min:8', 'confirmed'],
+        ], [
+            'nom.required' => 'Le nom est obligatoire.',
+            'email.required' => "L'email est obligatoire.",
+            'email.email' => "L'email est invalide.",
+            'email.unique' => 'Cet email est déjà utilisé.',
+            'password.min' => 'Le mot de passe doit contenir au moins 8 caractères.',
+            'password.confirmed' => 'La confirmation du mot de passe ne correspond pas.',
+        ]);
 
-    // ── Capture old values before update ──
-    $fields = [
-        'telephone', 'ville', 'pays', 'specialite', 'grade',
-        'fonction_actuelle', 'universite_ou_departement_ministeriel',
-        'type_etablissement', 'etablissement', 'diplomes_obtenus',
-        'responsabilite', 'cin_number', 'rib',
-    ];
+        DB::transaction(function () use ($validated, $user, $expert) {
+            $fullName = trim(($validated['prenom'] ?? '') . ' ' . $validated['nom']);
 
-    $labels = [
-        'telephone'                             => 'Téléphone',
-        'ville'                                 => 'Ville',
-        'pays'                                  => 'Pays',
-        'specialite'                            => 'Spécialité',
-        'grade'                                 => 'Grade',
-        'fonction_actuelle'                     => 'Fonction actuelle',
-        'universite_ou_departement_ministeriel' => 'Université / Département',
-        'type_etablissement'                    => 'Type établissement',
-        'etablissement'                         => 'Établissement',
-        'diplomes_obtenus'                      => 'Diplômes',
-        'responsabilite'                        => 'Responsabilité',
-        'cin_number'                            => 'CIN',
-        'rib'                                   => 'RIB',
-    ];
+            $userPayload = [
+                'name' => $fullName ?: $validated['nom'],
+                'email' => $validated['email'],
+            ];
 
-    $changes = [];
-    foreach ($fields as $field) {
-        $oldVal = $expert->$field;
-        $newVal = $request->$field;
-        if ($oldVal !== $newVal) {
-            $changes[] = ($labels[$field] ?? $field) . ': "' . ($oldVal ?: '—') . '" → "' . ($newVal ?: '—') . '"';
+            if (!empty($validated['password'])) {
+                $userPayload['password'] = Hash::make($validated['password']);
+            }
+
+            User::where('id', $user->id)->update($userPayload);
+
+            if ($expert && Schema::hasTable('experts')) {
+                $expertPayload = [];
+
+                $columns = [
+                    'nom',
+                    'prenom',
+                    'email',
+                    'telephone',
+                    'grade',
+                    'specialite',
+                    'etablissement',
+                    'ville',
+                ];
+
+                foreach ($columns as $column) {
+                    if (Schema::hasColumn('experts', $column)) {
+                        $expertPayload[$column] = $validated[$column] ?? null;
+                    }
+                }
+
+                if (Schema::hasColumn('experts', 'name')) {
+                    $expertPayload['name'] = $fullName ?: $validated['nom'];
+                }
+
+                if (Schema::hasColumn('experts', 'user_id')) {
+                    $expertPayload['user_id'] = $user->id;
+                }
+
+                if (!empty($expertPayload)) {
+                    DB::table('experts')
+                        ->where('id', $expert->id)
+                        ->update($expertPayload);
+                }
+            }
+        });
+
+        return redirect('/expert/dashboard')
+            ->with('success', 'Profil expert modifié avec succès.');
+    }
+
+    private function findExpertForUser($user)
+    {
+        if (!$user || !Schema::hasTable('experts')) {
+            return null;
         }
+
+        $query = DB::table('experts');
+
+        $query->where(function ($subQuery) use ($user) {
+            $hasCondition = false;
+
+            if (Schema::hasColumn('experts', 'user_id')) {
+                $subQuery->where('user_id', $user->id);
+                $hasCondition = true;
+            }
+
+            if (Schema::hasColumn('experts', 'email')) {
+                if ($hasCondition) {
+                    $subQuery->orWhere('email', $user->email);
+                } else {
+                    $subQuery->where('email', $user->email);
+                }
+            }
+        });
+
+        return $query->first();
     }
 
-    if ($request->filled('password')) {
-        $changes[] = 'Mot de passe modifié';
+    private function extractPrenom(?string $name): string
+    {
+        if (!$name) {
+            return '';
+        }
+
+        $parts = preg_split('/\s+/', trim($name));
+
+        return $parts[0] ?? '';
     }
 
-    $details = count($changes) > 0
-        ? implode(' | ', $changes)
-        : 'Aucun changement détecté';
+    private function extractNom(?string $name): string
+    {
+        if (!$name) {
+            return '';
+        }
 
-    // ── Update ──
-    $expert->update([
-        'telephone'                             => $request->telephone,
-        'ville'                                 => $request->ville,
-        'pays'                                  => $request->pays,
-        'specialite'                            => $request->specialite,
-        'grade'                                 => $request->grade,
-        'fonction_actuelle'                     => $request->fonction_actuelle,
-        'universite_ou_departement_ministeriel' => $request->universite_ou_departement_ministeriel,
-        'type_etablissement'                    => $request->type_etablissement,
-        'etablissement'                         => $request->etablissement,
-        'diplomes_obtenus'                      => $request->diplomes_obtenus,
-        'responsabilite'                        => $request->responsabilite,
-        'cin_number'                            => $request->cin_number,
-        'rib'                                   => $request->rib,
-    ]);
+        $parts = preg_split('/\s+/', trim($name));
 
-    if ($request->filled('password')) {
-    User::where('id', Auth::id())->update([
-        'password' => Hash::make($request->password),
-    ]);
+        if (count($parts) <= 1) {
+            return $name;
+        }
+
+        array_shift($parts);
+
+        return implode(' ', $parts);
+    }
 }
-
-    $docTypes = [
-        'cin_file'         => 'cin',
-        'contract_file'    => 'contract',
-        'carte_grise_file' => 'carte_grise',
-        'rib_file'         => 'rib',
-    ];
-
-    foreach ($docTypes as $fieldName => $docType) {
-        if ($request->hasFile($fieldName) && $request->file($fieldName)->isValid()) {
-            $file = $request->file($fieldName);
-            $path = $file->store("experts/{$expert->id}/documents", 'local');
-            ExpertDocument::create([
-                'expert_id'     => $expert->id,
-                'type'          => $docType,
-                'file_path'     => $path,
-                'original_name' => $file->getClientOriginalName(),
-                'mime_type'     => $file->getMimeType(),
-                'file_size'     => $file->getSize(),
-            ]);
-        }
-    }
-
-    ActivityLog::create([
-        'user_id'      => Auth::id(),
-        'action'       => 'Compte modifié',
-        'model_type'   => 'Expert',
-        'model_id'     => $expert->id,
-        'model_name'   => $expert->nom . ' ' . $expert->prenom,
-        'performed_by' => $expert->nom . ' ' . $expert->prenom,
-        'role'         => 'expert',
-        'details'      => $details,
-    ]);
-
-    return redirect()->route('expert.profil.show')
-        ->with('success', 'Profil mis à jour avec succès.');
-}}

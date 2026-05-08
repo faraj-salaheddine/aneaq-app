@@ -1,0 +1,30 @@
+sequenceDiagram
+    actor SI as SI (Admin Système)
+    actor DEE as DEE (Admin Eval.)
+    actor EXP as Expert
+    actor ETAB as Etablissement
+    participant MW as Middleware auth + role
+    participant DB as Base de donnees
+    participant React as Inertia React
+
+    Note over SI,React: AUTHENTIFICATION ET ROUTAGE PAR ROLE
+
+    SI->>MW: POST /login { email, password }
+    MW->>DB: SELECT users WHERE email = ? AND role = si
+    DB-->>MW: Authentifie
+    MW-->>React: redirect /si/dashboard
+
+    DEE->>MW: POST /login { email, password }
+    MW->>DB: SELECT users WHERE email = ? AND role = dee.admin
+    DB-->>MW: Authentifie
+    MW-->>React: redirect /dee/dashboard
+
+    EXP->>MW: POST /login { email, password }
+    MW->>DB: SELECT users WHERE email = ? AND role = expert
+    DB-->>MW: Authentifie
+    MW-->>React: redirect /expert/dashboard
+
+    ETAB->>MW: POST /login { email, password }
+    MW->>DB: SELECT users WHERE email = ? AND role = etablissement
+    DB-->>MW: Authentifie
+    MW-->>React: redirect /etablissement/dashboard

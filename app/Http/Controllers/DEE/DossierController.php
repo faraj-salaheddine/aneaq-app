@@ -131,21 +131,27 @@ class DossierController extends Controller
         return back()->with('success', 'Dossier mis à jour avec succès.');
     }
 
-    public function destroy(Dossier $dossier)
+    public function destroy(Request $request, Dossier $dossier)
     {
-        DB::transaction(function () use ($dossier) {
-            if (Schema::hasTable('dossier_experts')) {
-                DossierExpert::where('dossier_id', $dossier->id)->delete();
-            }
+        $request->validate([
+            'delete_password' => ['required', 'string'],
+        ], [
+            'delete_password.required' => 'Le mot de passe de suppression est obligatoire.',
+        ]);
 
-            $this->deleteDossierDocuments($dossier);
+        $expectedPassword = config('app.dee_delete_password');
 
-            $dossier->delete();
-        });
+        if (!$expectedPassword || !hash_equals($expectedPassword, $request->input('delete_password'))) {
+            return back()->withErrors([
+                'delete_password' => 'Mot de passe incorrect.',
+            ]);
+        }
+
+        $dossier->delete();
 
         return redirect()
             ->route('dee.dossiers.index')
-            ->with('success', 'Dossier supprimé avec succès.');
+            ->with('success', 'Le dossier a été supprimé avec succès.');
     }
 
     private function dossierPayload(Dossier $dossier, bool $forIndex = false): array
@@ -471,7 +477,7 @@ class DossierController extends Controller
             return $path;
         }
 
-        return Storage::disk('public')->url($path);
+return response()->json(['url' => asset('storage/' . $path)]);
     }
 
     private function orderLatest(Builder $query, string $table): void
