@@ -14,6 +14,7 @@ class DatabaseSeeder extends Seeder
         $this->call([
             ExpertSeeder::class,
             EtablissementSeeder::class,
+            CriteresSeeder::class,
         ]);
     }
 }

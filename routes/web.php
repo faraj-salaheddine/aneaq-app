@@ -30,6 +30,9 @@ use App\Http\Controllers\Expert\RapportExpertController;
 use App\Http\Controllers\Etablissement\EtablissementDashboardController;
 use App\Http\Controllers\Etablissement\EtablissementProfilController;
 use App\Http\Controllers\Etablissement\EtablissementDocumentController;
+use App\Http\Controllers\Etablissement\AnnexeController;
+use App\Http\Controllers\Etablissement\EtablissementNotificationController;
+use App\Http\Controllers\Etablissement\EtablissementHistoriqueController;
 use App\Models\CampagneEvaluation;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
@@ -384,6 +387,18 @@ Route::middleware(['auth', 'role:etablissement'])
             Route::get('/{document}/telecharger', [EtablissementDocumentController::class, 'telecharger'])
                 ->name('telecharger');
         });
+
+
+        Route::get('/annexes', [AnnexeController::class, 'index'])->name('annexes');
+Route::post('/annexes', [AnnexeController::class, 'store'])->name('annexes.store');
+Route::get('/annexes/{criterePreuve}/download', [AnnexeController::class, 'download'])->name('annexes.download');
+Route::post('/annexes/note', [AnnexeController::class, 'saveNote'])->name('annexes.note');
+
+        Route::get('/notifications',                        [EtablissementNotificationController::class, 'index'])->name('notifications.index');
+Route::patch('/notifications/{notification}/lire',  [EtablissementNotificationController::class, 'marquerLu'])->name('notifications.lire');
+Route::patch('/notifications/tout-lire',            [EtablissementNotificationController::class, 'toutMarquerLu'])->name('notifications.toutLire');
+
+Route::get('/historique', [EtablissementHistoriqueController::class, 'index'])->name('historique.index');
     });
 
 /*

@@ -27,6 +27,12 @@ class Etablissement extends Model
         return $this->hasMany(Dossier::class);
     }
 
+    // Dans Etablissement.php, ajouter parmi les autres relations
+public function criterePreuves()
+{
+    return $this->hasMany(CriterePreuve::class);
+}
+
     public function onboarding()
     {
         return $this->hasOne(EtablissementOnboarding::class);
