@@ -17,6 +17,7 @@ import {
     Send,
     Settings2,
     ShieldCheck,
+    Sparkles,
     Trash2,
     X,
     XCircle,
@@ -138,7 +139,7 @@ function CampagneShow({
         setConfirmTarget(item);
 
         confirmForm.setData({
-            email: '',
+            email: item.email || item.etablissement?.email || '',
             lettre_dee: null,
             message_lettre: '',
         });
@@ -165,6 +166,7 @@ function CampagneShow({
             `/dee/campagnes/${campagne.id}/etablissements/${confirmTarget.id}/confirm`,
             {
                 preserveScroll: true,
+                preserveState: true,
                 forceFormData: true,
                 onSuccess: () => {
                     closeConfirmModal();
@@ -764,9 +766,24 @@ function CampagneShow({
                         </div>
 
                         <div>
-                            <label className="mb-2 block text-sm font-black text-slate-700">
-                                Message lettre DEE
-                            </label>
+                            <div className="mb-2 flex items-center justify-between">
+                                <label className="text-sm font-black text-slate-700">
+                                    Message lettre DEE
+                                </label>
+
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        const nom = getAttachedName(confirmTarget);
+                                        const template = `Nous avons l'honneur de porter à la connaissance de l'établissement "${nom}" qu'il a été retenu pour participer à l'évaluation institutionnelle dans le cadre de la vague ${campagne.reference}.\n\nNous restons à votre disposition pour toute information complémentaire.\n\nLa Direction des Évaluations Externes (DEE)`;
+                                        confirmForm.setData('message_lettre', template);
+                                    }}
+                                    className="inline-flex items-center gap-1.5 rounded-xl bg-violet-50 px-3 py-1.5 text-xs font-black text-violet-700 transition hover:bg-violet-100"
+                                >
+                                    <Sparkles size={13} />
+                                    Lettre automatique
+                                </button>
+                            </div>
 
                             <textarea
                                 rows="6"
@@ -1094,14 +1111,6 @@ function EtablissementRow({ item, onAccept, onRefuse }) {
                         </button>
                     )}
 
-                    <button
-                        type="button"
-                        title="Retirer de la vague"
-                        onClick={onRefuse}
-                        className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-slate-500 transition hover:bg-slate-900 hover:text-white"
-                    >
-                        <Trash2 size={17} />
-                    </button>
                 </div>
             </td>
         </tr>

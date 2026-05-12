@@ -64,10 +64,11 @@ class DossierController extends Controller
     public function show(Dossier $dossier)
     {
         return Inertia::render('DEE/Dossiers/Show', [
-            'dossier' => $this->dossierPayload($dossier, false),
-            'experts' => $this->availableExpertsPayload(),
+            'dossier'       => $this->dossierPayload($dossier, false),
+            'experts'       => $this->availableExpertsPayload($dossier),
+            'allExperts'    => $this->allExpertsPayload(),
             'dossierExperts' => $this->dossierExpertsPayload($dossier),
-            'documents' => $this->documentsPayload($dossier),
+            'documents'     => $this->documentsPayload($dossier),
         ]);
     }
 
@@ -204,21 +205,96 @@ class DossierController extends Controller
         ];
     }
 
-    private function availableExpertsPayload()
+    private function allExpertsPayload()
     {
         if (!Schema::hasTable((new Expert())->getTable())) {
             return collect();
         }
 
         $query = Expert::query();
+        $this->orderExperts($query);
 
+        return $query->get()->map(function (Expert $expert) {
+            $prenom = $this->value($expert, ['prenom', 'first_name'], '');
+            $nom    = $this->value($expert, ['nom', 'last_name', 'name'], '');
+            $fullName = trim($prenom . ' ' . $nom) ?: $this->value($expert, ['name', 'nom'], 'Expert');
+
+            return [
+                'id'            => $expert->id,
+                'prenom'        => $prenom,
+                'nom'           => $nom,
+                'name'          => $fullName,
+                'email'         => $this->value($expert, ['email'], ''),
+                'ville'         => $this->value($expert, ['ville', 'city'], ''),
+                'specialite'    => $this->value($expert, ['specialite', 'specialité', 'domaine', 'discipline'], ''),
+                'etablissement' => $this->value($expert, ['etablissement', 'etablissement_nom', 'institution'], ''),
+            ];
+        })->values();
+    }
+
+    private function availableExpertsPayload(Dossier $dossier)
+    {
+        if (!Schema::hasTable((new Expert())->getTable())) {
+            return collect();
+        }
+
+        // Retrieve the dossier's establishment for filtering
+        $etablissementId = $this->value($dossier, ['etablissement_id']);
+        $domaineEtablissement = null;
+        $etablissementNoms = [];
+
+        if ($etablissementId && Schema::hasTable((new Etablissement())->getTable())) {
+            $etab = Etablissement::find($etablissementId);
+            if ($etab) {
+                $domaineEtablissement = $this->value($etab, ['domaine_connaissances'], null);
+
+                foreach (['etablissement', 'etablissement_2', 'nom', 'name', 'acronyme'] as $col) {
+                    $val = $this->hasColumn('etablissements', $col) ? $etab->getAttribute($col) : null;
+                    if ($val && trim($val) !== '') {
+                        $etablissementNoms[] = strtolower(trim($val));
+                    }
+                }
+            }
+        }
+
+        $query = Expert::query();
         $this->orderExperts($query);
 
         return $query
             ->get()
+            ->filter(function (Expert $expert) use ($domaineEtablissement, $etablissementNoms) {
+                // 1. Match specialite with domaine_connaissances of the establishment
+                if ($domaineEtablissement) {
+                    $specialite = strtolower(trim((string) $this->value($expert, ['specialite', 'domaine', 'discipline'], '')));
+                    $domaine    = strtolower(trim($domaineEtablissement));
+
+                    if ($specialite === '' || $domaine === '') {
+                        return false;
+                    }
+
+                    if (!$this->keywordsMatch($domaine, $specialite)) {
+                        return false;
+                    }
+                }
+
+                // 2. Exclude experts from the same establishment
+                if (!empty($etablissementNoms)) {
+                    $expertEtab = strtolower(trim((string) $this->value($expert, ['etablissement', 'etablissement_nom', 'institution'], '')));
+
+                    if ($expertEtab !== '') {
+                        foreach ($etablissementNoms as $etabNom) {
+                            if (str_contains($expertEtab, $etabNom) || str_contains($etabNom, $expertEtab)) {
+                                return false;
+                            }
+                        }
+                    }
+                }
+
+                return true;
+            })
             ->map(function (Expert $expert) {
                 $prenom = $this->value($expert, ['prenom', 'first_name'], '');
-                $nom = $this->value($expert, ['nom', 'last_name', 'name'], '');
+                $nom    = $this->value($expert, ['nom', 'last_name', 'name'], '');
 
                 $fullName = trim($prenom . ' ' . $nom);
 
@@ -227,13 +303,13 @@ class DossierController extends Controller
                 }
 
                 return [
-                    'id' => $expert->id,
-                    'prenom' => $prenom,
-                    'nom' => $nom,
-                    'name' => $fullName,
-                    'email' => $this->value($expert, ['email'], ''),
-                    'ville' => $this->value($expert, ['ville', 'city'], ''),
-                    'specialite' => $this->value($expert, ['specialite', 'specialité', 'domaine', 'discipline'], ''),
+                    'id'           => $expert->id,
+                    'prenom'       => $prenom,
+                    'nom'          => $nom,
+                    'name'         => $fullName,
+                    'email'        => $this->value($expert, ['email'], ''),
+                    'ville'        => $this->value($expert, ['ville', 'city'], ''),
+                    'specialite'   => $this->value($expert, ['specialite', 'specialité', 'domaine', 'discipline'], ''),
                     'etablissement' => $this->value($expert, ['etablissement', 'etablissement_nom', 'institution'], ''),
                 ];
             })
@@ -379,6 +455,7 @@ class DossierController extends Controller
                 'ville' => $this->value($etablissement, ['ville', 'city'], '—'),
                 'universite' => $this->value($etablissement, ['universite', 'universite_nom', 'university'], '—'),
                 'email' => $this->value($etablissement, ['email'], '—'),
+                'domaine_connaissances' => $this->value($etablissement, ['domaine_connaissances'], null),
             ];
         }
 
@@ -529,6 +606,46 @@ class DossierController extends Controller
         if (!$this->hasColumn($table, 'nom') && $this->hasColumn($table, 'name')) {
             $query->orderBy('name');
         }
+    }
+
+    /**
+     * Check if two specialty strings share at least one significant keyword.
+     * Handles French plural/gender inflections by stripping trailing 's'.
+     */
+    private function keywordsMatch(string $a, string $b): bool
+    {
+        // Extract words >= 7 chars — avoids generic words like "etudes", "sciences", "lettres"
+        $extractWords = function (string $text): array {
+            $clean = preg_replace('/[^a-zàâçéèêëîïôûùüÿæœ\s]/i', ' ', $text);
+            $words = preg_split('/\s+/', strtolower(trim($clean)));
+            return array_filter($words, fn($w) => mb_strlen($w) >= 7);
+        };
+
+        $wordsA = $extractWords($a);
+
+        foreach ($wordsA as $word) {
+            // Try exact match, then without trailing 's' (plural)
+            $stems = array_unique([$word, rtrim($word, 's'), rtrim($word, 'es')]);
+            foreach ($stems as $stem) {
+                if (mb_strlen($stem) >= 4 && str_contains($b, $stem)) {
+                    return true;
+                }
+            }
+        }
+
+        // Also try words from $b in $a (in case domaine is more specific)
+        $wordsB = $extractWords($b);
+
+        foreach ($wordsB as $word) {
+            $stems = array_unique([$word, rtrim($word, 's'), rtrim($word, 'es')]);
+            foreach ($stems as $stem) {
+                if (mb_strlen($stem) >= 4 && str_contains($a, $stem)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     private function hasDossierColumn(string $column): bool

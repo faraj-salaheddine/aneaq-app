@@ -103,6 +103,22 @@ class CampagneEtablissementController extends Controller
 
         $etablissement = Etablissement::findOrFail($campagneEtablissement->etablissement_id);
 
+        // Check if this email is already used by a different establishment
+        if ($this->hasColumn('etablissements', 'email')) {
+            $emailUsedByOther = Etablissement::query()
+                ->where('email', $validated['email'])
+                ->where('id', '!=', $etablissement->id)
+                ->first();
+
+            if ($emailUsedByOther) {
+                $otherName = $this->read($emailUsedByOther, ['nom', 'etablissement_2', 'etablissement', 'name'], 'un autre établissement');
+
+                return back()->withErrors([
+                    'email' => "Cet email est déjà associé à l'établissement « {$otherName} ».",
+                ]);
+            }
+        }
+
         DB::transaction(function () use ($request, $validated, $campagneEvaluation, $campagneEtablissement, $etablissement) {
             $password = Str::random(10);
 

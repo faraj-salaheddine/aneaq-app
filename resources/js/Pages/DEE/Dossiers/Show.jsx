@@ -26,13 +26,14 @@ import {
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
-function Show({ dossier, experts = [], dossierExperts = [], documents = [] }) {
+function Show({ dossier, experts = [], allExperts = [], dossierExperts = [], documents = [] }) {
     const { props } = usePage();
     const flash = props.flash || {};
 
     const [activeTab, setActiveTab] = useState('pilotage');
     const [expertSearch, setExpertSearch] = useState('');
     const [selectedExpert, setSelectedExpert] = useState(null);
+    const [expertFilterActive, setExpertFilterActive] = useState(true);
 
     const [deleteModal, setDeleteModal] = useState({
         open: false,
@@ -205,13 +206,12 @@ function Show({ dossier, experts = [], dossierExperts = [], documents = [] }) {
 
     const filteredExperts = useMemo(() => {
         const search = expertSearch.toLowerCase().trim();
+        const source = expertFilterActive ? experts : allExperts;
 
-        return experts
+        return source
             .filter((expert) => !assignedExpertIds.has(expert.id))
             .filter((expert) => {
-                if (!search) {
-                    return true;
-                }
+                if (!search) return true;
 
                 const text = [
                     expert.nom,
@@ -228,7 +228,7 @@ function Show({ dossier, experts = [], dossierExperts = [], documents = [] }) {
 
                 return text.includes(search);
             });
-    }, [experts, assignedExpertIds, expertSearch]);
+    }, [experts, allExperts, assignedExpertIds, expertSearch, expertFilterActive]);
 
     const etablissement = dossier.etablissement || {};
 
@@ -581,6 +581,36 @@ function Show({ dossier, experts = [], dossierExperts = [], documents = [] }) {
                                             className="h-14 w-full rounded-2xl border border-slate-200 bg-white pl-12 pr-4 text-sm font-medium text-slate-700 outline-none transition focus:border-blue-500"
                                         />
                                     </div>
+
+                                    {etablissement.domaine_connaissances && (
+                                        expertFilterActive ? (
+                                            <div className="mt-3 flex items-center gap-2 rounded-xl bg-violet-50 px-3 py-2 text-xs font-bold text-violet-700">
+                                                <span className="shrink-0">Filtre actif :</span>
+                                                <span className="font-black">{etablissement.domaine_connaissances}</span>
+                                                <span className="text-violet-400">— même spécialité, établissement différent</span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setExpertFilterActive(false)}
+                                                    className="ml-auto flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-violet-200 text-violet-700 transition hover:bg-red-200 hover:text-red-600"
+                                                    title="Désactiver le filtre"
+                                                >
+                                                    <X size={11} />
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <div className="mt-3 flex items-center gap-2 rounded-xl bg-slate-100 px-3 py-2 text-xs font-bold text-slate-500">
+                                                <span className="shrink-0">Filtre désactivé</span>
+                                                <span className="text-slate-400">— tous les experts</span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setExpertFilterActive(true)}
+                                                    className="ml-auto rounded-lg bg-slate-200 px-2 py-0.5 text-xs font-black text-slate-600 transition hover:bg-violet-100 hover:text-violet-700"
+                                                >
+                                                    Réactiver
+                                                </button>
+                                            </div>
+                                        )
+                                    )}
 
                                     <div className="mt-5 max-h-[28rem] space-y-3 overflow-y-auto pr-1">
                                         {filteredExperts.length > 0 ? (
