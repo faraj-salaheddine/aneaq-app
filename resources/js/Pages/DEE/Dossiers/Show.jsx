@@ -5,12 +5,14 @@ import {
     BadgeCheck,
     Building2,
     CalendarDays,
+    Camera,
     CheckCircle2,
     ClipboardCheck,
     Clock3,
     Eye,
     FileText,
     FolderKanban,
+    Image,
     LockKeyhole,
     Mail,
     MapPin,
@@ -19,6 +21,7 @@ import {
     Send,
     ShieldCheck,
     Trash2,
+    Upload,
     UserCheck,
     Users,
     X,
@@ -26,13 +29,15 @@ import {
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
-function Show({ dossier, experts = [], dossierExperts = [], documents = [] }) {
+function Show({ dossier, experts = [], allExperts = [], dossierExperts = [], documents = [], photos = [] }) {
     const { props } = usePage();
     const flash = props.flash || {};
 
     const [activeTab, setActiveTab] = useState('pilotage');
     const [expertSearch, setExpertSearch] = useState('');
     const [selectedExpert, setSelectedExpert] = useState(null);
+    const [expertFilterActive, setExpertFilterActive] = useState(true);
+    const [photoPreviews, setPhotoPreviews] = useState([]);
 
     const [deleteModal, setDeleteModal] = useState({
         open: false,
@@ -57,6 +62,22 @@ function Show({ dossier, experts = [], dossierExperts = [], documents = [] }) {
         expert_id: '',
         role_expert: 'expert',
     });
+
+    const handlePhotoChange = (e) => {
+        const file = e.target.files[0] || null;
+        if (!file) return;
+        setPhotoPreviews([URL.createObjectURL(file)]);
+        const data = new FormData();
+        data.append('photo', file);
+        router.post(`/dee/dossiers/${dossier.id}/photos`, data, {
+            preserveScroll: true,
+            forceFormData: true,
+            onSuccess: () => {
+                setPhotoPreviews([]);
+                e.target.value = '';
+            },
+        });
+    };
 
     const submitUpdate = (e) => {
         e.preventDefault();
@@ -160,6 +181,10 @@ function Show({ dossier, experts = [], dossierExperts = [], documents = [] }) {
         openSecureDeleteModal('document', item);
     };
 
+    const deletePhoto = (photo) => {
+        openSecureDeleteModal('photo', photo);
+    };
+
     const submitSecureDelete = (e) => {
         e.preventDefault();
 
@@ -178,7 +203,9 @@ function Show({ dossier, experts = [], dossierExperts = [], documents = [] }) {
         const url =
             deleteModal.type === 'document'
                 ? `/dee/dossiers/${dossier.id}/documents/${deleteModal.item.id}`
-                : `/dee/dossiers/${dossier.id}/experts/${deleteModal.item.id}`;
+                : deleteModal.type === 'photo'
+                  ? `/dee/dossiers/${dossier.id}/photos/${deleteModal.item.id}`
+                  : `/dee/dossiers/${dossier.id}/experts/${deleteModal.item.id}`;
 
         secureDeleteForm.delete(url, {
             preserveScroll: true,
@@ -205,13 +232,12 @@ function Show({ dossier, experts = [], dossierExperts = [], documents = [] }) {
 
     const filteredExperts = useMemo(() => {
         const search = expertSearch.toLowerCase().trim();
+        const source = expertFilterActive ? experts : allExperts;
 
-        return experts
+        return source
             .filter((expert) => !assignedExpertIds.has(expert.id))
             .filter((expert) => {
-                if (!search) {
-                    return true;
-                }
+                if (!search) return true;
 
                 const text = [
                     expert.nom,
@@ -228,7 +254,7 @@ function Show({ dossier, experts = [], dossierExperts = [], documents = [] }) {
 
                 return text.includes(search);
             });
-    }, [experts, assignedExpertIds, expertSearch]);
+    }, [experts, allExperts, assignedExpertIds, expertSearch, expertFilterActive]);
 
     const etablissement = dossier.etablissement || {};
 
@@ -295,7 +321,7 @@ function Show({ dossier, experts = [], dossierExperts = [], documents = [] }) {
                     <div className="grid gap-6 p-8 lg:grid-cols-[1.2fr_0.8fr] lg:p-10">
                         <div>
                             <p className="text-sm font-bold uppercase tracking-[0.28em] text-blue-100">
-                                Dossier d’évaluation
+                                Dossier d'évaluation
                             </p>
 
                             <h2 className="mt-3 text-4xl font-black tracking-tight">
@@ -402,6 +428,19 @@ function Show({ dossier, experts = [], dossierExperts = [], documents = [] }) {
                         }`}
                     >
                         Date de visite
+                    </button>
+
+                    <button
+                        type="button"
+                        onClick={() => setActiveTab('photos')}
+                        className={`inline-flex items-center gap-2 rounded-2xl px-5 py-3 text-sm font-black transition ${
+                            activeTab === 'photos'
+                                ? 'bg-violet-600 text-white shadow-lg shadow-violet-600/20'
+                                : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                        }`}
+                    >
+                        <Camera size={16} />
+                        Photos de visite
                     </button>
                 </div>
 
@@ -542,6 +581,141 @@ function Show({ dossier, experts = [], dossierExperts = [], documents = [] }) {
                             </div>
                         )}
 
+                        {activeTab === 'photos' && (
+                            <div className="space-y-7">
+                                <div className="rounded-[2rem] border border-slate-200 bg-white p-7 shadow-sm">
+                                    <div className="flex items-start gap-4">
+                                        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-violet-50 text-violet-600">
+                                            <Camera size={24} />
+                                        </div>
+
+                                        <div>
+                                            <h3 className="text-2xl font-black text-slate-900">
+                                                Photos de visite
+                                            </h3>
+
+                                            <p className="mt-1 text-sm font-medium text-slate-500">
+                                                Ajoutez des photos de l'établissement prises lors de la visite.
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <div className="mt-7">
+                                        <label
+                                            htmlFor="photo-upload"
+                                            className={`flex cursor-pointer flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed px-6 py-10 transition ${
+                                                photoPreviews.length > 0
+                                                    ? 'border-violet-400 bg-violet-50/60'
+                                                    : 'border-slate-300 bg-slate-50 hover:border-violet-400 hover:bg-violet-50/40'
+                                            }`}
+                                        >
+                                            {photoPreviews.length > 0 ? (
+                                                <div className="flex flex-col items-center gap-3">
+                                                    <img
+                                                        src={photoPreviews[0]}
+                                                        alt="Envoi en cours..."
+                                                        className="h-28 w-28 rounded-xl object-cover ring-2 ring-violet-400"
+                                                    />
+                                                    <p className="text-sm font-bold text-violet-600">
+                                                        Envoi en cours...
+                                                    </p>
+                                                </div>
+                                            ) : (
+                                                <>
+                                                    <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-violet-100 text-violet-600">
+                                                        <Upload size={26} />
+                                                    </div>
+
+                                                    <div className="text-center">
+                                                        <p className="font-black text-slate-900">
+                                                            Cliquez pour sélectionner une photo
+                                                        </p>
+
+                                                        <p className="mt-1 text-sm font-medium text-slate-500">
+                                                            La photo est envoyée automatiquement · JPG, JPEG ou PNG · 10 Mo max
+                                                        </p>
+                                                    </div>
+                                                </>
+                                            )}
+                                        </label>
+
+                                        <input
+                                            id="photo-upload"
+                                            type="file"
+                                            accept="image/jpeg,image/jpg,image/png"
+                                            className="hidden"
+                                            onChange={handlePhotoChange}
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="rounded-[2rem] border border-slate-200 bg-white p-7 shadow-sm">
+                                    <div className="flex items-start gap-4">
+                                        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-50 text-slate-600">
+                                            <Image size={24} />
+                                        </div>
+
+                                        <div>
+                                            <h3 className="text-2xl font-black text-slate-900">
+                                                Galerie
+                                            </h3>
+
+                                            <p className="mt-1 text-sm font-medium text-slate-500">
+                                                {photos.length} photo(s) déposée(s)
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    {photos.length > 0 ? (
+                                        <div className="mt-7 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+                                            {photos.map((photo) => (
+                                                    <div key={photo.id} className="group relative overflow-hidden rounded-2xl bg-slate-100">
+                                                        <img
+                                                            src={photo.url}
+                                                            alt={photo.original_name || 'Photo de visite'}
+                                                            className="h-40 w-full object-cover transition group-hover:scale-105"
+                                                        />
+
+                                                        <div className="absolute inset-x-0 bottom-0 flex justify-between gap-2 bg-gradient-to-t from-slate-900/70 p-3 opacity-0 transition group-hover:opacity-100">
+                                                            <a
+                                                                href={photo.url}
+                                                                target="_blank"
+                                                                rel="noopener noreferrer"
+                                                                className="inline-flex items-center gap-1 rounded-lg bg-white/20 px-3 py-1.5 text-xs font-black text-white backdrop-blur-sm transition hover:bg-white/40"
+                                                            >
+                                                                <Eye size={13} />
+                                                                Voir
+                                                            </a>
+
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => deletePhoto(photo)}
+                                                                className="inline-flex items-center gap-1 rounded-lg bg-red-600/80 px-3 py-1.5 text-xs font-black text-white backdrop-blur-sm transition hover:bg-red-600"
+                                                            >
+                                                                <Trash2 size={13} />
+                                                                Supprimer
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                        </div>
+                                    ) : (
+                                        <div className="mt-7 rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-10 text-center">
+                                            <Camera className="mx-auto text-slate-300" size={36} />
+
+                                            <p className="mt-3 font-black text-slate-900">
+                                                Aucune photo pour l'instant
+                                            </p>
+
+                                            <p className="mt-1 text-sm font-medium text-slate-500">
+                                                Ajoutez des photos prises lors de la visite de l'établissement.
+                                            </p>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
                         <div className="rounded-[2rem] border border-slate-200 bg-white shadow-sm">
                             <div className="border-b border-slate-100 p-7">
                                 <div className="flex items-start gap-4">
@@ -581,6 +755,36 @@ function Show({ dossier, experts = [], dossierExperts = [], documents = [] }) {
                                             className="h-14 w-full rounded-2xl border border-slate-200 bg-white pl-12 pr-4 text-sm font-medium text-slate-700 outline-none transition focus:border-blue-500"
                                         />
                                     </div>
+
+                                    {etablissement.domaine_connaissances && (
+                                        expertFilterActive ? (
+                                            <div className="mt-3 flex items-center gap-2 rounded-xl bg-violet-50 px-3 py-2 text-xs font-bold text-violet-700">
+                                                <span className="shrink-0">Filtre actif :</span>
+                                                <span className="font-black">{etablissement.domaine_connaissances}</span>
+                                                <span className="text-violet-400">— même spécialité, établissement différent</span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setExpertFilterActive(false)}
+                                                    className="ml-auto flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-violet-200 text-violet-700 transition hover:bg-red-200 hover:text-red-600"
+                                                    title="Désactiver le filtre"
+                                                >
+                                                    <X size={11} />
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <div className="mt-3 flex items-center gap-2 rounded-xl bg-slate-100 px-3 py-2 text-xs font-bold text-slate-500">
+                                                <span className="shrink-0">Filtre désactivé</span>
+                                                <span className="text-slate-400">— tous les experts</span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setExpertFilterActive(true)}
+                                                    className="ml-auto rounded-lg bg-slate-200 px-2 py-0.5 text-xs font-black text-slate-600 transition hover:bg-violet-100 hover:text-violet-700"
+                                                >
+                                                    Réactiver
+                                                </button>
+                                            </div>
+                                        )
+                                    )}
 
                                     <div className="mt-5 max-h-[28rem] space-y-3 overflow-y-auto pr-1">
                                         {filteredExperts.length > 0 ? (
@@ -720,7 +924,7 @@ function Show({ dossier, experts = [], dossierExperts = [], documents = [] }) {
                                             </p>
 
                                             <p className="mt-1 text-sm text-slate-500">
-                                                Ajoute un expert pour commencer l’affectation.
+                                                Ajoute un expert pour commencer l'affectation.
                                             </p>
                                         </div>
                                     )}
@@ -791,7 +995,7 @@ function Show({ dossier, experts = [], dossierExperts = [], documents = [] }) {
                                         <FileText className="mx-auto text-slate-300" size={34} />
 
                                         <p className="mt-3 font-black text-slate-900">
-                                            Aucun document n’a encore été déposé.
+                                            Aucun document n'a encore été déposé.
                                         </p>
                                     </div>
                                 )}
@@ -812,7 +1016,7 @@ function Show({ dossier, experts = [], dossierExperts = [], documents = [] }) {
                                     </h3>
 
                                     <p className="mt-1 text-sm font-medium text-slate-500">
-                                        Informations générales de l’établissement concerné.
+                                        Informations générales de l'établissement concerné.
                                     </p>
                                 </div>
                             </div>
@@ -846,7 +1050,7 @@ function Show({ dossier, experts = [], dossierExperts = [], documents = [] }) {
 
                             <div className="mt-7 space-y-3">
                                 <ExpectedDocument label="Formulaire ajouté" documents={documents} keywords={['formulaire']} />
-                                <ExpectedDocument label="Rapport d’autoévaluation" documents={documents} keywords={['auto', 'autoevaluation', 'autoévaluation']} />
+                                <ExpectedDocument label="Rapport d'autoévaluation" documents={documents} keywords={['auto', 'autoevaluation', 'autoévaluation']} />
                                 <ExpectedDocument label="Annexes" documents={documents} keywords={['annexe']} />
                                 <ExpectedDocument label="Rapport expert" documents={documents} keywords={['rapport expert']} />
                             </div>
@@ -866,13 +1070,13 @@ function Show({ dossier, experts = [], dossierExperts = [], documents = [] }) {
                             </h3>
 
                             <p className="mt-4 text-sm leading-7 text-blue-50/80">
-                                Le statut change selon les documents déposés par l’établissement ou les experts,
+                                Le statut change selon les documents déposés par l'établissement ou les experts,
                                 et selon la date de visite planifiée.
                             </p>
 
                             <div className="mt-6 space-y-3">
                                 <WorkflowItem text="Formulaire rempli" />
-                                <WorkflowItem text="Rapport d’autoévaluation ajouté" />
+                                <WorkflowItem text="Rapport d'autoévaluation ajouté" />
                                 <WorkflowItem text="Annexes ajoutées" />
                                 <WorkflowItem text="Rapport expert ajouté" />
                                 <WorkflowItem text="Date de visite planifiée" />
@@ -894,19 +1098,27 @@ function Show({ dossier, experts = [], dossierExperts = [], documents = [] }) {
                                 <h3 className="mt-2 text-2xl font-black text-slate-950">
                                     {deleteModal.type === 'document'
                                         ? 'Confirmer la suppression du document'
-                                        : 'Confirmer la suppression de l’expert'}
+                                        : deleteModal.type === 'photo'
+                                          ? 'Confirmer la suppression de la photo'
+                                          : "Confirmer la suppression de l'expert"}
                                 </h3>
 
                                 <p className="mt-2 text-sm font-medium leading-7 text-slate-500">
                                     Pour supprimer{' '}
-                                    {deleteModal.type === 'document' ? 'le document' : 'l’expert'}{' '}
+                                    {deleteModal.type === 'document'
+                                        ? 'le document'
+                                        : deleteModal.type === 'photo'
+                                          ? 'la photo'
+                                          : "l'expert"}{' '}
                                     <strong>
                                         {deleteModal.type === 'document'
                                             ? deleteModal.item.nom ||
                                               deleteModal.item.name ||
                                               deleteModal.item.filename ||
                                               'Document'
-                                            : expertFullName(deleteModal.item.expert || deleteModal.item)}
+                                            : deleteModal.type === 'photo'
+                                              ? deleteModal.item.original_name || 'Photo'
+                                              : expertFullName(deleteModal.item.expert || deleteModal.item)}
                                     </strong>
                                     , saisissez le mot de passe unique administrateur DEE.
                                 </p>
@@ -1205,14 +1417,14 @@ function formatDossierStatus(status) {
         compte_etablissement_cree: 'Compte établissement créé',
         en_attente_formulaire: 'En attente formulaire',
         formulaire_rempli: 'Formulaire rempli',
-        rapport_autoevaluation_ajoute: "Rapport d’autoévaluation ajouté",
+        rapport_autoevaluation_ajoute: "Rapport d'autoévaluation ajouté",
         annexe_ajoutee: 'Annexe ajoutée',
         rapport_expert_ajoute: 'Rapport expert ajouté',
         date_visite_planifiee: 'Date de visite planifiée',
         'Établissement sélectionné': 'Établissement sélectionné',
         'Compte établissement créé': 'Compte établissement créé',
         'Formulaire rempli': 'Formulaire rempli',
-        "Rapport d’autoévaluation ajouté": "Rapport d’autoévaluation ajouté",
+        "Rapport d'autoévaluation ajouté": "Rapport d'autoévaluation ajouté",
         'Annexe ajoutée': 'Annexe ajoutée',
         'Rapport expert ajouté': 'Rapport expert ajouté',
         'Date de visite planifiée': 'Date de visite planifiée',

@@ -7,6 +7,7 @@ use App\Http\Controllers\DEE\CampagneEvaluationController;
 use App\Http\Controllers\DEE\DossierController;
 use App\Http\Controllers\DEE\DossierDocumentController;
 use App\Http\Controllers\DEE\DossierExpertController;
+use App\Http\Controllers\DEE\DossierPhotoController;
 use App\Http\Controllers\DEE\EtablissementController;
 use App\Http\Controllers\DEE\ExpertController;
 use App\Http\Controllers\DEE\ExpertInvitationController;
@@ -209,6 +210,11 @@ Route::middleware(['auth', 'dee.admin'])
                 ->name('experts.refuse');
             Route::delete('/{dossier}/experts/{dossierExpert}', [DossierExpertController::class, 'destroy'])
                 ->name('experts.destroy');
+
+            Route::post('/{dossier}/photos', [DossierPhotoController::class, 'store'])
+                ->name('photos.store');
+            Route::delete('/{dossier}/photos/{photo}', [DossierPhotoController::class, 'destroy'])
+                ->name('photos.destroy');
         });
 
         // Workflow DEE
