@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 
 use App\Models\Dossier;
 use App\Models\DossierExpert;
+use App\Models\DossierPhoto;
 use App\Models\Etablissement;
 use App\Models\Expert;
 use App\Models\User;
@@ -69,6 +70,7 @@ class DossierController extends Controller
             'allExperts'    => $this->allExpertsPayload(),
             'dossierExperts' => $this->dossierExpertsPayload($dossier),
             'documents'     => $this->documentsPayload($dossier),
+            'photos'        => $this->photosPayload($dossier),
         ]);
     }
 
@@ -431,6 +433,25 @@ class DossierController extends Controller
                 ];
             })
             ->values();
+    }
+
+    private function photosPayload(Dossier $dossier)
+    {
+        if (!Schema::hasTable('dossier_photos')) {
+            return collect();
+        }
+
+        return DossierPhoto::where('dossier_id', $dossier->id)
+            ->latest()
+            ->get()
+            ->map(fn ($photo) => [
+                'id'            => $photo->id,
+                'url'           => Storage::disk('public')->url($photo->file_path),
+                'original_name' => $photo->original_name,
+                'mime_type'     => $photo->mime_type,
+                'size'          => $photo->size,
+                'created_at'    => $photo->created_at?->format('d/m/Y H:i'),
+            ]);
     }
 
     private function etablissementPayload(Dossier $dossier): array
