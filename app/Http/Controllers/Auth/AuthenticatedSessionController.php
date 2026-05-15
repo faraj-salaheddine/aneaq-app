@@ -32,14 +32,14 @@ class AuthenticatedSessionController extends Controller
         $request->authenticate();
         $request->session()->regenerate();
 
-        $role = $request->user()?->role;
+        $user = Auth::user();
 
-        return match($role) {
-            'admin_dee'     => redirect(route('dee.dashboard')),
-            'si'            => redirect(route('si.dashboard')),
-            'expert'        => redirect(route('expert.dashboard')),
-            'etablissement' => redirect(route('etablissement.dashboard')),
-            default         => redirect(route('home')),
+        return match($user->role ?? null) {
+            'admin_dee'     => redirect()->route('dee.dashboard'),
+            'si'            => redirect()->route('si.dashboard'),
+            'expert'        => redirect()->route('expert.dashboard'),
+            'etablissement' => redirect()->route('etablissement.dashboard'),
+            default         => redirect()->route('home'),
         };
     }
 

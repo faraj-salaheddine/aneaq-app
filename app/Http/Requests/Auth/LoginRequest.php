@@ -6,6 +6,7 @@ use Illuminate\Auth\Events\Lockout;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -42,11 +43,30 @@ class LoginRequest extends FormRequest
     {
         $this->ensureIsNotRateLimited();
 
-        if (! Auth::attempt($this->only('email', 'password'), $this->boolean('remember'))) {
+        $credentials = $this->only('email', 'password');
+
+        // Check if the email exists first to give precise field errors
+        $userExists = \Illuminate\Support\Facades\DB::table('users')
+            ->where('email', $credentials['email'])
+            ->exists();
+
+        if (! Auth::attempt($credentials, $this->boolean('remember'))) {
             RateLimiter::hit($this->throttleKey());
 
+            throw ValidationException::withMessages(
+                $userExists
+                    ? ['password' => 'Le mot de passe est incorrect.']
+                    : ['email'    => 'Aucun compte trouvé avec cette adresse email.']
+            );
+        }
+
+        $user = Auth::user();
+
+        if (! ($user->is_active ?? true)) {
+            Auth::logout();
+            RateLimiter::hit($this->throttleKey());
             throw ValidationException::withMessages([
-                'email' => trans('auth.failed'),
+                'email' => 'Ce compte a été désactivé. Contactez l\'administrateur.',
             ]);
         }
 

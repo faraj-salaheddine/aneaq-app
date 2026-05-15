@@ -12,6 +12,12 @@ use App\Http\Controllers\DEE\EtablissementController;
 use App\Http\Controllers\DEE\ExpertController;
 use App\Http\Controllers\DEE\ExpertInvitationController;
 use App\Http\Controllers\DEE\ProfileController;
+use App\Http\Controllers\DEE\AuditTrailController;
+use App\Http\Controllers\QuestionsReponsesController;
+use App\Http\Controllers\DEE\CritereEvaluationController;
+use App\Http\Controllers\DEE\SuiviAvancementController;
+use App\Http\Controllers\DEE\ExportPdfController;
+use App\Http\Controllers\DEE\CalendrierVisitesController;
 use App\Http\Controllers\DEE\WorkflowController;
 use App\Http\Controllers\SI\SIDashboardController;
 use App\Http\Controllers\SI\UtilisateursDEEController;
@@ -19,6 +25,7 @@ use App\Http\Controllers\SI\EtablissementController as SIEtablissementController
 use App\Http\Controllers\SI\UniversiteController as SIUniversiteController;
 use App\Http\Controllers\SI\ExpertController as SIExpertController;
 use App\Http\Controllers\SI\HistoriqueController as SIHistoriqueController;
+use App\Http\Controllers\SI\GestionUsersController;
 use App\Http\Controllers\Expert\ExpertDashboardController;
 use App\Http\Controllers\Expert\ExpertProfilController;
 use App\Http\Controllers\Expert\DossierExpertController as ExpertDossierController;
@@ -26,8 +33,10 @@ use App\Http\Controllers\Expert\EvaluationQuantitativeController;
 use App\Http\Controllers\Expert\HistoriqueParticipationController;
 use App\Http\Controllers\Expert\MatriceRecommandationController;
 use App\Http\Controllers\Expert\NotificationExpertController;
+use App\Http\Controllers\Expert\RecommandationDomaineController;
 use App\Http\Controllers\Expert\ParticipationController;
 use App\Http\Controllers\Expert\RapportExpertController;
+use App\Http\Controllers\Expert\ExpertCalendrierController;
 use App\Http\Controllers\Etablissement\EtablissementDashboardController;
 use App\Http\Controllers\Etablissement\EtablissementProfilController;
 use App\Http\Controllers\Etablissement\EtablissementDocumentController;
@@ -67,6 +76,21 @@ Route::post('/language/{locale}', function (string $locale) {
 | Route /dashboard — redirection selon rôle
 |--------------------------------------------------------------------------
 */
+
+// Messagerie interne par dossier
+Route::middleware(['auth'])->prefix('api/messagerie')->name('messagerie.')->group(function () {
+    Route::get('/dossier/{dossier}',       [\App\Http\Controllers\MessagerieController::class, 'index'])  ->name('index');
+    Route::post('/dossier/{dossier}',      [\App\Http\Controllers\MessagerieController::class, 'store'])  ->name('store');
+    Route::get('/dossier/{dossier}/nonlus',[\App\Http\Controllers\MessagerieController::class, 'nonLus']) ->name('nonlus');
+});
+
+// Badge notifications (polling AJAX — léger)
+Route::middleware(['auth'])->get('/api/notifications/count', function () {
+    $count = \App\Models\NotificationAneaq::where('user_id', Auth::id())
+        ->where('lu', false)
+        ->count();
+    return response()->json(['count' => $count]);
+})->name('notifications.count');
 
 Route::middleware(['auth'])->get('/dashboard', function () {
     $user = Auth::user();
@@ -221,6 +245,33 @@ Route::middleware(['auth', 'dee.admin'])
         Route::prefix('workflow')->name('workflow.')->group(function () {
             Route::get('/visites', [WorkflowController::class, 'visites'])->name('visites');
         });
+
+        // Audit Trail
+        Route::get('/audit', [AuditTrailController::class, 'index'])->name('audit.index');
+
+        // Suivi d'avancement
+        Route::get('/suivi-avancement', [SuiviAvancementController::class, 'index'])->name('suivi-avancement.index');
+
+        // Export PDF
+        Route::get('/dossiers/{dossier}/export/matrice', [ExportPdfController::class, 'matrice'])->name('dossiers.export.matrice');
+        Route::get('/dossiers/{dossier}/export/rapport', [ExportPdfController::class, 'rapport'])->name('dossiers.export.rapport');
+
+        // Calendrier des visites
+        Route::get('/calendrier-visites', [CalendrierVisitesController::class, 'index'])->name('calendrier-visites.index');
+
+        // Paramétrage critères d'évaluation
+        Route::prefix('criteres')->name('criteres.')->group(function () {
+            Route::get('/', [CritereEvaluationController::class, 'index'])->name('index');
+            Route::post('/', [CritereEvaluationController::class, 'store'])->name('store');
+            Route::patch('/{critere}', [CritereEvaluationController::class, 'update'])->name('update');
+            Route::delete('/{critere}', [CritereEvaluationController::class, 'destroy'])->name('destroy');
+        });
+
+        // Espace Q&R (DEE)
+        Route::prefix('questions-reponses')->name('questions-reponses.')->group(function () {
+            Route::get('/', [QuestionsReponsesController::class, 'indexDee'])->name('index');
+            Route::post('/{question}/repondre', [QuestionsReponsesController::class, 'repondre'])->name('repondre');
+        });
     });
 
 /*
@@ -276,6 +327,13 @@ Route::middleware(['auth', 'role:si'])
 
         // Historique SI
         Route::get('/historique', [SIHistoriqueController::class, 'index'])->name('historique.index');
+
+        // Gestion utilisateurs (activer/désactiver/reset password)
+        Route::prefix('users')->name('users.')->group(function () {
+            Route::get('/', [GestionUsersController::class, 'index'])->name('index');
+            Route::patch('/{user}/toggle', [GestionUsersController::class, 'toggle'])->name('toggle');
+            Route::post('/{user}/reset-password', [GestionUsersController::class, 'resetPassword'])->name('reset-password');
+        });
     });
 
 /*
@@ -307,6 +365,8 @@ Route::middleware(['auth', 'role:expert'])
                 ->name('index');
             Route::get('/{dossier}', [ExpertDossierController::class, 'show'])
                 ->name('show');
+            Route::get('/{dossier}/documents/{document}', [ExpertDossierController::class, 'openDocument'])
+                ->name('documents.open');
         });
 
         // Participations
@@ -351,6 +411,14 @@ Route::middleware(['auth', 'role:expert'])
                 ->name('soumettre');
         });
 
+        // Recommandations par domaine
+        Route::prefix('recommandations-domaine')->name('recommandations-domaine.')->group(function () {
+            Route::get('/{dossier}', [RecommandationDomaineController::class, 'index'])->name('index');
+            Route::post('/{dossier}', [RecommandationDomaineController::class, 'store'])->name('store');
+            Route::patch('/{dossier}/{recommandation}', [RecommandationDomaineController::class, 'update'])->name('update');
+            Route::delete('/{dossier}/{recommandation}', [RecommandationDomaineController::class, 'destroy'])->name('destroy');
+        });
+
         // Historique participations
         Route::get('/historique', [HistoriqueParticipationController::class, 'index'])
             ->name('historique.index');
@@ -359,9 +427,14 @@ Route::middleware(['auth', 'role:expert'])
         Route::prefix('notifications')->name('notifications.')->group(function () {
             Route::get('/', [NotificationExpertController::class, 'index'])
                 ->name('index');
+            Route::patch('/tout-lire', [NotificationExpertController::class, 'toutMarquerLu'])
+                ->name('toutLire');
             Route::patch('/{notification}/lire', [NotificationExpertController::class, 'marquerLu'])
                 ->name('lire');
         });
+
+        // Calendrier visites expert
+        Route::get('/calendrier', [ExpertCalendrierController::class, 'index'])->name('calendrier.index');
     });
 
 /*
@@ -415,6 +488,12 @@ Route::patch('/notifications/{notification}/lire',  [EtablissementNotificationCo
 Route::patch('/notifications/tout-lire',            [EtablissementNotificationController::class, 'toutMarquerLu'])->name('notifications.toutLire');
 
 Route::get('/historique', [EtablissementHistoriqueController::class, 'index'])->name('historique.index');
+
+        // Espace Q&R (Établissement)
+        Route::prefix('questions-reponses')->name('questions-reponses.')->group(function () {
+            Route::get('/{dossier}', [QuestionsReponsesController::class, 'indexEtablissement'])->name('index');
+            Route::post('/{dossier}', [QuestionsReponsesController::class, 'poserQuestion'])->name('store');
+        });
     });
 
 /*

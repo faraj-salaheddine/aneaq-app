@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\Dossier;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -29,6 +30,11 @@ class HandleInertiaRequests extends Middleware
             ],
 
             'locale' => session('locale', 'fr'),
+
+            'etablissement_dossier_id' => function () use ($user) {
+                if ($user?->role !== 'etablissement' || !$user->etablissement_id) return null;
+                return Dossier::where('etablissement_id', $user->etablissement_id)->latest()->value('id');
+            },
 
             'flash' => [
                 'success' => fn () => $request->session()->get('success'),

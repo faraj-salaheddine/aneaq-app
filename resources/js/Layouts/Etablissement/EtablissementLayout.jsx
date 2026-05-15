@@ -1,4 +1,4 @@
-import { router } from "@inertiajs/react";
+import { router, usePage } from "@inertiajs/react";
 import { useEffect, useState } from "react";
 
 const NAV = [
@@ -10,6 +10,7 @@ const NAV = [
     { key: "rapport-aneaq",           label: "Rapport ANEAQ",            icon: "award",         route: "etablissement.rapport.aneaq" },
     { key: "notifications", label: "Notifications",    icon: "bell",          route: "etablissement.notifications.index" },
     { key: "historique",    label: "Historique",       icon: "clock",         route: "etablissement.historique.index" },
+    { key: "qr",            label: "Questions & Réponses", icon: "help-circle", route: null },
 ];
 
 const CSS = `
@@ -119,7 +120,8 @@ function Icon({ name, cls = "el-nav-icon" }) {
         home:           "M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2V9zm6 11V12h6v8",
         logout:         "M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1",
             paperclip:      "M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48",
-    award:          "M12 15a7 7 0 100-14 7 7 0 000 14zM8.21 13.89L7 23l5-3 5 3-1.21-9.12",
+    award:           "M12 15a7 7 0 100-14 7 7 0 000 14zM8.21 13.89L7 23l5-3 5 3-1.21-9.12",
+    "help-circle":   "M12 22a10 10 0 100-20 10 10 0 000 20zM12 8v.01M12 16v-4",
     };
     const d = paths[name] || "";
     return (
@@ -130,6 +132,17 @@ function Icon({ name, cls = "el-nav-icon" }) {
 }
 
 export default function EtablissementLayout({ children, active }) {
+    const { props } = usePage();
+    const dossierId = props.etablissement_dossier_id;
+
+    const handleNavClick = (item) => {
+        if (item.key === 'qr') {
+            if (dossierId) router.visit(`/etablissement/questions-reponses/${dossierId}`);
+            return;
+        }
+        router.visit(route(item.route));
+    };
+
     return (
         <>
             <Inject/>
@@ -152,7 +165,7 @@ export default function EtablissementLayout({ children, active }) {
                             <button
                                 key={item.key}
                                 className={`el-nav-btn ${active === item.key ? "active" : ""}`}
-                                onClick={() => router.visit(route(item.route))}
+                                onClick={() => handleNavClick(item)}
                             >
                                 <Icon name={item.icon}/>
                                 <span className="el-nav-label">{item.label}</span>

@@ -4,6 +4,7 @@ import { Head, router } from "@inertiajs/react";
 import { useState } from "react";
 import axios from "axios";
 import ExpertLayout from "@/Layouts/Expert/ExpertLayout";
+import ConfirmModal from "@/Components/ConfirmModal";
 
 const BLUE = "#0C447C", GREEN = "#1D9E75";
 
@@ -32,6 +33,7 @@ export default function EvaluationsIndex({ expert, dossier, axes = [], evaluatio
     const [saved, setSaved]       = useState(false);
     const [saving, setSaving]     = useState(false);
     const [submitted, setSubmitted] = useState(dejaSoumis);
+    const [dialog, setDialog]       = useState(null);
 
     const update = (id, field, val) => { setEvals(p => ({ ...p, [id]: { ...(p[id] ?? {}), [field]: val } })); setSaved(false); };
     const totalNotes = Object.values(evals).filter(e => e.note).length;
@@ -40,19 +42,33 @@ export default function EvaluationsIndex({ expert, dossier, axes = [], evaluatio
         setSaving(true);
         const payload = Object.entries(evals).map(([critere_id, v]) => ({ critere_id: parseInt(critere_id), ...v }));
         try {
-            await axios.post(route("expert.evaluation.sauvegarder", dossier.id), { evaluations: payload });
+            await axios.post(route("expert.evaluations.sauvegarder", dossier.id), { evaluations: payload });
             setSaved(true);
         } finally { setSaving(false); }
     };
 
     const soumettre = () => {
-        if (!confirm("Confirmer la soumission ? Les notes seront verrouillées et consultables par la DEE.")) return;
-        router.post(route("expert.evaluation.soumettre", dossier.id), {}, { onSuccess: () => setSubmitted(true) });
+        setDialog({
+            message: "Les notes seront verrouillées et consultables par la DEE.",
+            onConfirm: () => {
+                setDialog(null);
+                router.post(route("expert.evaluations.soumettre", dossier.id), {}, { onSuccess: () => setSubmitted(true) });
+            },
+        });
     };
 
     return (
         <>
             <Head title="Évaluation quantitative" />
+            {dialog && (
+                <ConfirmModal
+                    title="Soumettre les évaluations"
+                    message={dialog.message}
+                    confirmLabel="Soumettre"
+                    onConfirm={dialog.onConfirm}
+                    onCancel={() => setDialog(null)}
+                />
+            )}
             <style>{`
                 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
                 .expert-root * { font-family: 'DM Sans', sans-serif; box-sizing: border-box; }

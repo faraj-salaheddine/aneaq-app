@@ -3,6 +3,7 @@
 import { useState, useRef } from "react";
 import { Head, router } from "@inertiajs/react";
 import DashboardLayout from "@/Layouts/SI/DashboardLayout";
+import ConfirmModal from "@/Components/ConfirmModal";
 
 const BLUE   = "#0C447C";
 const GREEN  = "#1D9E75";
@@ -13,7 +14,7 @@ const generatePassword = () => {
     return Array.from({ length: 16 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
 };
 
-const DocumentManager = ({ label, type, existing, file, onChange, color = BLUE }) => {
+const DocumentManager = ({ label, type, existing, file, onChange, color = BLUE, onDeleteDoc }) => {
     const ref = useRef();
     return (
         <div>
@@ -36,12 +37,7 @@ const DocumentManager = ({ label, type, existing, file, onChange, color = BLUE }
                             </span>
                             <button
                                 type="button"
-                                onClick={() => {
-                                    if (!confirm(`Supprimer "${doc.original_name}" ?`)) return;
-                                    router.delete(`/si/experts/${doc.expert_id}/documents/${doc.id}`, {
-                                        preserveScroll: true,
-                                    });
-                                }}
+                                onClick={() => onDeleteDoc && onDeleteDoc(doc)}
                                 style={{ background: "#fef2f2", border: "none", borderRadius: 6, padding: "4px 7px", cursor: "pointer", color: "#ef4444", flexShrink: 0, display: "flex", alignItems: "center" }}
                             >
                                 <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -183,6 +179,7 @@ export default function Edit({ expert, documents = {} }) {
     const [errors, setErrors]             = useState({});
     const [processing, setProcessing]     = useState(false);
     const [showPassword, setShowPassword] = useState(false);
+    const [dialog, setDialog]             = useState(null);
 
     const set     = (k, v) => setForm(f => ({ ...f, [k]: v }));
     const setFile = (k, v) => setFiles(f => ({ ...f, [k]: v }));
@@ -205,7 +202,7 @@ export default function Edit({ expert, documents = {} }) {
     const handleSubmit = () => {
         setProcessing(true);
         const data = new FormData();
-        data.append("_method", "PUT");
+        data.append("_method", "PATCH");
         Object.entries(form).forEach(([k, v]) => { if (v !== "") data.append(k, v); });
         Object.entries(files).forEach(([k, v]) => { if (v) data.append(k, v); });
         router.post(`/si/experts/${expert.id}`, data, {
@@ -218,6 +215,20 @@ export default function Edit({ expert, documents = {} }) {
     return (
         <>
             <Head title={`Modifier — ${expert.nom} ${expert.prenom}`} />
+            {dialog?.doc && (
+                <ConfirmModal
+                    title="Supprimer le document"
+                    message={`Supprimer "${dialog.doc.original_name}" ?`}
+                    danger
+                    confirmLabel="Supprimer"
+                    onConfirm={() => {
+                        const doc = dialog.doc;
+                        setDialog(null);
+                        router.delete(`/si/experts/${doc.expert_id}/documents/${doc.id}`, { preserveScroll: true });
+                    }}
+                    onCancel={() => setDialog(null)}
+                />
+            )}
             <style>{`
                 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@500&display=swap');
                 .edit-root * { font-family: 'DM Sans', sans-serif; box-sizing: border-box; }
@@ -374,7 +385,7 @@ export default function Edit({ expert, documents = {} }) {
                                 <Field label="Numéro CIN" optional error={errors.cin_number}>
                                     <input className="field-input" style={{ ...inputStyle(errors.cin_number), fontFamily: "'DM Mono', monospace", letterSpacing: "0.05em" }} type="text" placeholder="AB123456" value={form.cin_number} onChange={e => set("cin_number", e.target.value)} />
                                 </Field>
-                                <DocumentManager label="Photo / Scan CIN" type="cin" existing={existingDocs.cin} file={files.cin_file} onChange={v => setFile("cin_file", v)} color={BLUE} />
+                                <DocumentManager label="Photo / Scan CIN" type="cin" existing={existingDocs.cin} file={files.cin_file} onChange={v => setFile("cin_file", v)} color={BLUE} onDeleteDoc={d => setDialog({ doc: d })} />
                             </div>
 
                             {/* RIB field */}
@@ -449,7 +460,7 @@ export default function Edit({ expert, documents = {} }) {
                             </div>
 
                             <div style={{ marginTop: 16 }}>
-    <DocumentManager label="Document RIB bancaire" type="rib" existing={existingDocs.rib} file={files.rib_file} onChange={v => setFile("rib_file", v)} color={BLUE} />
+    <DocumentManager label="Document RIB bancaire" type="rib" existing={existingDocs.rib} file={files.rib_file} onChange={v => setFile("rib_file", v)} color={BLUE} onDeleteDoc={d => setDialog({ doc: d })} />
 </div>
                         </div>
 
@@ -470,7 +481,7 @@ export default function Edit({ expert, documents = {} }) {
                                     <input className="field-input" style={{ ...inputStyle(errors.contract_renewals), fontFamily: "'DM Mono', monospace" }} type="number" min="0" placeholder="0" value={form.contract_renewals} onChange={e => set("contract_renewals", e.target.value)} />
                                 </Field>
                             </div>
-                            <DocumentManager label="Document du contrat" type="contract" existing={existingDocs.contract} file={files.contract_file} onChange={v => setFile("contract_file", v)} color="#7e22ce" />
+                            <DocumentManager label="Document du contrat" type="contract" existing={existingDocs.contract} file={files.contract_file} onChange={v => setFile("contract_file", v)} color="#7e22ce" onDeleteDoc={d => setDialog({ doc: d })} />
                         </div>
 
                         {/* Section 5 — Voiture */}
@@ -486,7 +497,7 @@ export default function Edit({ expert, documents = {} }) {
                                         <span style={{ position: "absolute", right: 14, top: "50%", transform: "translateY(-50%)", fontSize: 11, color: "#94a3b8", fontWeight: 700 }}>CV</span>
                                     </div>
                                 </Field>
-                                <DocumentManager label="Carte grise" type="carte_grise" existing={existingDocs.carte_grise} file={files.carte_grise_file} onChange={v => setFile("carte_grise_file", v)} color="#c2410c" />
+                                <DocumentManager label="Carte grise" type="carte_grise" existing={existingDocs.carte_grise} file={files.carte_grise_file} onChange={v => setFile("carte_grise_file", v)} color="#c2410c" onDeleteDoc={d => setDialog({ doc: d })} />
                             </div>
                         </div>
                     </div>

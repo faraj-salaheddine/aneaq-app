@@ -14,6 +14,11 @@ use Inertia\Inertia;
 
 class ExpertProfilController extends Controller
 {
+    public function show()
+    {
+        return $this->edit();
+    }
+
     public function edit()
     {
         $user = Auth::user();

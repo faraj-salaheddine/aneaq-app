@@ -1,4 +1,6 @@
 import { Link, usePage, router } from '@inertiajs/react';
+import { useState, useEffect } from 'react';
+import axios from 'axios';
 import {
     Activity,
     BarChart2,
@@ -36,15 +38,38 @@ const NAV_GROUPS = [
             { label: 'Visites',         href: '/dee/workflow/visites',       icon: CalendarCheck, color: '#ec4899' },
             { label: 'Comités',         href: '/dee/workflow/comites',       icon: BarChart2,     color: '#f97316' },
             { label: 'Recommandations', href: '/dee/workflow/recommandations', icon: FileText,    color: '#84cc16' },
+            { label: 'Journal audit',   href: '/dee/audit',                  icon: FileText,      color: '#64748b' },
+            { label: 'Suivi avancement',  href: '/dee/suivi-avancement',      icon: Activity,      color: '#10b981' },
+            { label: 'Calendrier',       href: '/dee/calendrier-visites',    icon: CalendarCheck, color: '#ec4899' },
+            { label: 'Q&R',              href: '/dee/questions-reponses',    icon: FileText,      color: '#f97316' },
+        ],
+    },
+    {
+        group: 'Paramétrage',
+        items: [
+            { label: 'Critères',         href: '/dee/criteres',              icon: ClipboardCheck, color: '#6366f1' },
         ],
     },
 ];
 
 export default function DashboardShell({ children }) {
     const { url, props } = usePage();
-    const user  = props?.auth?.user || null;
-    const locale = props?.locale || 'fr';
+    const user     = props?.auth?.user || null;
+    const locale   = props?.locale || 'fr';
     const isArabic = locale === 'ar';
+
+    const [notifCount, setNotifCount] = useState(0);
+
+    useEffect(() => {
+        const fetchCount = () => {
+            axios.get('/api/notifications/count')
+                .then(r => setNotifCount(r.data.count ?? 0))
+                .catch(() => {});
+        };
+        fetchCount();
+        const interval = setInterval(fetchCount, 30000);
+        return () => clearInterval(interval);
+    }, []);
 
     const isActive = (href) => {
         if (href === '/dee/dashboard') return url === '/dee/dashboard';
@@ -68,6 +93,8 @@ export default function DashboardShell({ children }) {
                 @keyframes dee-slideIn { from { opacity:0; transform:translateX(-8px); } to { opacity:1; transform:translateX(0); } }
                 .dee-nav-link { animation: dee-slideIn 0.2s ease both; }
                 .dee-user-pill:hover { background: rgba(255,255,255,0.12) !important; }
+                .dee-sidebar-nav { scrollbar-width: none; -ms-overflow-style: none; }
+                .dee-sidebar-nav::-webkit-scrollbar { display: none; }
             `}</style>
 
             <div
@@ -133,7 +160,7 @@ export default function DashboardShell({ children }) {
                     </div>
 
                     {/* ── Nav ── */}
-                    <nav style={{ flex: 1, padding: '16px 12px', display: 'flex', flexDirection: 'column', gap: 0, overflowY: 'auto' }}>
+                    <nav className="dee-sidebar-nav" style={{ flex: 1, padding: '16px 12px', display: 'flex', flexDirection: 'column', gap: 0, overflowY: 'auto' }}>
                         {NAV_GROUPS.map(({ group, items }, gi) => (
                             <div key={group} style={{ marginBottom: gi < NAV_GROUPS.length - 1 ? 20 : 0 }}>
                                 <p style={{ fontSize: 9, fontWeight: 700, color: 'rgba(255,255,255,0.3)', letterSpacing: '0.1em', textTransform: 'uppercase', padding: '0 8px', marginBottom: 8, marginTop: 0 }}>

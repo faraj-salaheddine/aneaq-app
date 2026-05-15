@@ -10,6 +10,7 @@ use App\Models\MatriceRecommandation;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -109,11 +110,19 @@ class MatriceRecommandationController extends Controller
 
     private function autoriser(Expert $expert, Dossier $dossier): void
     {
-        $ok = DB::table('expert_dossier')
+        $ok = DB::table('dossier_experts')
             ->where('expert_id', $expert->id)
             ->where('dossier_id', $dossier->id)
-            ->where('statut_participation', 'confirme')
+            ->whereIn('status', ['confirme_par_expert', 'comite_confirme'])
             ->exists();
+
+        if (!$ok && Schema::hasTable('expert_dossier')) {
+            $ok = DB::table('expert_dossier')
+                ->where('expert_id', $expert->id)
+                ->where('dossier_id', $dossier->id)
+                ->where('statut_participation', 'confirme')
+                ->exists();
+        }
 
         abort_unless($ok, 403);
     }

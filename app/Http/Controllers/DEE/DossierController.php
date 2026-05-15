@@ -10,6 +10,7 @@ use App\Models\DossierPhoto;
 use App\Models\Etablissement;
 use App\Models\Expert;
 use App\Models\User;
+use App\Services\ActivityLogger;
 use App\Services\DossierStatusService;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
@@ -125,6 +126,7 @@ class DossierController extends Controller
 
         if ($hasChanges) {
             $dossier->save();
+            ActivityLogger::log('dossier_mis_a_jour', "Dossier {$dossier->reference} mis à jour", $dossier);
         }
 
         if (class_exists(DossierStatusService::class)) {
@@ -150,6 +152,7 @@ class DossierController extends Controller
             ]);
         }
 
+        ActivityLogger::log('dossier_supprime', "Dossier {$dossier->reference} supprimé", $dossier);
         $dossier->delete();
 
         return redirect()

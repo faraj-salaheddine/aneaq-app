@@ -1,5 +1,7 @@
 import { Head, useForm, usePage } from '@inertiajs/react';
+import { useState } from 'react';
 import DashboardShell from '@/Layouts/DashboardShell';
+import ConfirmModal from '@/Components/ConfirmModal';
 
 const ACCENT = "#2563eb";
 const GREEN  = "#1D9E75";
@@ -12,6 +14,7 @@ function initials(name) {
 export default function Edit({ status }) {
     const { props } = usePage();
     const user = props?.auth?.user || {};
+    const [dialog, setDialog] = useState(null);
 
     const profileForm = useForm({
         name:  user.name  || '',
@@ -41,13 +44,25 @@ export default function Edit({ status }) {
 
     const submitDelete = (e) => {
         e.preventDefault();
-        if (!window.confirm('Voulez-vous vraiment supprimer ce compte ?')) return;
-        deleteForm.delete('/profile', { preserveScroll: true });
+        setDialog({
+            message: 'Voulez-vous vraiment supprimer ce compte ? Cette action est irréversible.',
+            onConfirm: () => { setDialog(null); deleteForm.delete('/profile', { preserveScroll: true }); },
+        });
     };
 
     return (
         <>
             <Head title="Mon profil — DEE ANEAQ" />
+            {dialog && (
+                <ConfirmModal
+                    title="Supprimer le compte"
+                    message={dialog.message}
+                    danger
+                    confirmLabel="Supprimer définitivement"
+                    onConfirm={dialog.onConfirm}
+                    onCancel={() => setDialog(null)}
+                />
+            )}
             <style>{`
                 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap');
                 .dee-profile * { font-family: 'DM Sans', sans-serif; box-sizing: border-box; }

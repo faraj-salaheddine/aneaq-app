@@ -8,49 +8,88 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 
 class RapportExpertController extends Controller
 {
     public function index()
     {
-        $user = Auth::user();
+        $user   = Auth::user();
         $expert = $this->findExpertForUser($user);
 
         if (!$expert) {
             return Inertia::render('Expert/Rapports/Index', [
-                'rapports' => [],
+                'rapports'          => [],
+                'dossiersEnAttente' => [],
             ]);
         }
 
-        $dossiers = DB::table('dossier_experts')
+        $assignments = DB::table('dossier_experts')
             ->where('expert_id', $expert->id)
-            ->where('status', 'confirme_par_expert')
-            ->get()
-            ->map(function ($assignment) use ($expert) {
-                $dossier = DB::table('dossiers')->where('id', $assignment->dossier_id)->first();
+            ->whereIn('status', ['accepte_par_expert', 'confirme_par_expert', 'comite_confirme'])
+            ->get();
 
-                if (!$dossier) {
-                    return null;
-                }
+        $rapports          = collect();
+        $dossiersEnAttente = collect();
 
-                $rapport = $this->findRapport($expert->id, $dossier->id);
+        foreach ($assignments as $assignment) {
+            $dossier = DB::table('dossiers')->where('id', $assignment->dossier_id)->first();
+            if (!$dossier) continue;
 
-                return [
-                    'id' => $dossier->id,
-                    'reference' => $dossier->reference ?? '—',
-                    'statut' => $dossier->statut ?? $dossier->status ?? '—',
-                    'rapport' => $rapport,
-                    'url_depot' => "/expert/rapports/{$dossier->id}/deposer",
-                ];
-            })
-            ->filter()
-            ->values();
+            $etab  = $this->findEtablissement($dossier);
+            $vague = $dossier->campagne ?? $dossier->campagne_reference ?? $dossier->vague ?? '—';
+
+            $rapport = $this->findRapport($expert->id, $dossier->id);
+
+            if ($rapport) {
+                $rapports->push([
+                    'id'            => $rapport->id,
+                    'dossier_id'    => $dossier->id,
+                    'acronyme'      => $etab->acronyme ?? '—',
+                    'ville'         => $etab->ville    ?? '—',
+                    'vague'         => $vague,
+                    'original_name' => $rapport->fichier ? basename($rapport->fichier) : '—',
+                    'file_size'     => $rapport->fichier && file_exists(storage_path('app/public/' . $rapport->fichier))
+                        ? filesize(storage_path('app/public/' . $rapport->fichier))
+                        : null,
+                    'statut'        => $rapport->statut ?? 'depose',
+                    'created_at'    => $rapport->created_at,
+                ]);
+            } else {
+                $dossiersEnAttente->push([
+                    'id'      => $dossier->id,
+                    'acronyme' => $etab->acronyme ?? '—',
+                    'ville'    => $etab->ville    ?? '—',
+                    'vague'    => $vague,
+                ]);
+            }
+        }
 
         return Inertia::render('Expert/Rapports/Index', [
-            'rapports' => $dossiers,
+            'rapports'          => $rapports->values(),
+            'dossiersEnAttente' => $dossiersEnAttente->values(),
         ]);
+    }
+
+    private function findEtablissement($dossier)
+    {
+        if (!$dossier || !Schema::hasTable('etablissements')) {
+            return null;
+        }
+
+        if (!empty($dossier->etablissement_id)) {
+            return DB::table('etablissements')->where('id', $dossier->etablissement_id)->first();
+        }
+
+        if (!empty($dossier->campagne_etablissement_id) && Schema::hasTable('campagne_etablissements')) {
+            $rattachement = DB::table('campagne_etablissements')
+                ->where('id', $dossier->campagne_etablissement_id)->first();
+            if ($rattachement && !empty($rattachement->etablissement_id)) {
+                return DB::table('etablissements')->where('id', $rattachement->etablissement_id)->first();
+            }
+        }
+
+        return null;
     }
 
     public function create(Dossier $dossier)

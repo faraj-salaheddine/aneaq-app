@@ -78,7 +78,7 @@ class WorkflowController extends Controller
             })->values();
 
             $etablissementNom = $etablissement
-                ? ($etablissement->nom ?? $etablissement->etablissement_2 ?? $etablissement->etablissement ?? '—')
+                ? ($etablissement->etablissement_2 ?? $etablissement->etablissement ?? $etablissement->acronyme ?? '—')
                 : $this->read($dossier, ['etablissement_nom', 'etablissement'], '—');
 
             return [
@@ -169,7 +169,7 @@ class WorkflowController extends Controller
             })->sortByDesc(fn($e) => $e['role'] === 'chef_comite' ? 1 : 0)->values();
 
             $etablissementNom = $etablissement
-                ? ($etablissement->nom ?? $etablissement->etablissement_2 ?? $etablissement->etablissement ?? '—')
+                ? ($etablissement->etablissement_2 ?? $etablissement->etablissement ?? $etablissement->acronyme ?? '—')
                 : $this->read($dossier, ['etablissement_nom', 'etablissement'], '—');
 
             $universiteNom = $etablissement

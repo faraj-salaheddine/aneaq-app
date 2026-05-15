@@ -66,6 +66,28 @@ class HistoriqueParticipationController extends Controller
                         $this->rowValue($assignment, ['expert_confirmed_at', 'expert_refused_at', 'date_reponse', 'updated_at'], null)
                     ),
 
+                    'timeline' => [
+                        [
+                            'event'     => 'invitation_envoyee',
+                            'label'     => 'Invitation envoyée par la DEE',
+                            'date'      => $this->formatDate($this->rowValue($assignment, ['invitation_sent_at', 'access_sent_at', 'created_at'], null)),
+                            'done'      => true,
+                        ],
+                        [
+                            'event'     => 'expert_accepte',
+                            'label'     => 'Invitation acceptée par l\'expert',
+                            'date'      => $this->formatDate($this->rowValue($assignment, ['accepte_par_expert_at', 'expert_confirmed_at'], null)),
+                            'done'      => !empty($assignment->accepte_par_expert_at ?? $assignment->expert_confirmed_at ?? null),
+                        ],
+                        [
+                            'event'     => 'dee_confirme',
+                            'label'     => 'Confirmation définitive par la DEE',
+                            'date'      => $this->formatDate($this->rowValue($assignment, ['dee_confirmed_at', 'validated_by_dee_at', 'confirmed_at'], null)),
+                            'done'      => !empty($assignment->dee_confirmed_at ?? $assignment->validated_by_dee_at ?? $assignment->confirmed_at ?? null),
+                        ],
+                    ],
+                    'motif_refus' => $assignment->motif_refus ?? null,
+
                     'rapport_id' => $rapport->id ?? null,
                     'rapport_statut' => $this->rowValue($rapport, ['statut', 'status'], null),
                     'rapport_statut_label' => $this->rapportStatusLabel($this->rowValue($rapport, ['statut', 'status'], null)),
@@ -349,7 +371,7 @@ class HistoriqueParticipationController extends Controller
     private function roleLabel(?string $role): string
     {
         return match ($role) {
-            'chef_comite' => 'Chef de comité',
+            'chef_comite' => 'Coordinateur',
             'expert' => 'Expert',
             default => $role ?: 'Expert',
         };

@@ -1,313 +1,641 @@
-import { Head, Link, useForm } from '@inertiajs/react';
-import ExpertLayout from '@/Layouts/Expert/ExpertLayout';
-import {
-    ArrowLeft,
-    Building2,
-    LockKeyhole,
-    Mail,
-    MapPin,
-    Phone,
-    Save,
-    ShieldCheck,
-    User,
-    UserRound,
-} from 'lucide-react';
+import { useState, useRef } from "react";
+import { Head, router } from "@inertiajs/react";
+import ExpertLayout from "@/Layouts/Expert/ExpertLayout";
+import ConfirmDialog from "@/Components/ConfirmDialog";
 
-export default function Edit({ user = {}, expert = {} }) {
-    const form = useForm({
-        nom: expert.nom || '',
-        prenom: expert.prenom || '',
-        email: expert.email || user.email || '',
-        telephone: expert.telephone || '',
-        grade: expert.grade || '',
-        specialite: expert.specialite || '',
-        etablissement: expert.etablissement || '',
-        ville: expert.ville || '',
-        password: '',
-        password_confirmation: '',
+const BLUE   = "#0C447C";
+const GREEN  = "#1D9E75";
+const ORANGE = "#EF9F27";
+
+const generatePassword = () => {
+    const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*";
+    return Array.from({ length: 16 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
+};
+
+const DocumentManager = ({ label, type, existing, file, onChange, color = BLUE, onConfirmDelete }) => {
+    const ref = useRef();
+    return (
+        <div>
+            <label style={{ fontSize: 13, fontWeight: 600, color: "#374151", display: "block", marginBottom: 8 }}>{label}</label>
+
+            {existing && existing.length > 0 && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 10 }}>
+                    {existing.map(doc => (
+                        <div key={doc.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", background: `${color}06`, border: `1px solid ${color}20`, borderRadius: 9 }}>
+                            <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                                <polyline points="14 2 14 8 20 8"/>
+                            </svg>
+                            <span style={{ fontSize: 12, color: "#374151", fontWeight: 500, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                {doc.original_name}
+                            </span>
+                            <span style={{ fontSize: 11, color: "#94a3b8", fontFamily: "'DM Mono', monospace" }}>
+                                {(doc.file_size / 1024).toFixed(0)} KB
+                            </span>
+                            <button
+                                type="button"
+                                onClick={() => onConfirmDelete(doc)}
+                                style={{ background: "#fef2f2", border: "none", borderRadius: 6, padding: "4px 7px", cursor: "pointer", color: "#ef4444", flexShrink: 0, display: "flex", alignItems: "center" }}
+                            >
+                                <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                                    <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/>
+                                    <path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
+                                </svg>
+                            </button>
+                        </div>
+                    ))}
+                </div>
+            )}
+
+            <div
+                onClick={() => ref.current.click()}
+                style={{
+                    border: `2px dashed ${file ? GREEN : "#e2e8f0"}`,
+                    borderRadius: 10, padding: "1rem",
+                    background: file ? `${GREEN}06` : "#fafbfc",
+                    cursor: "pointer", transition: "all 0.2s",
+                    display: "flex", alignItems: "center", gap: 10,
+                }}
+                onMouseEnter={e => { if (!file) e.currentTarget.style.borderColor = "#94a3b8"; }}
+                onMouseLeave={e => { if (!file) e.currentTarget.style.borderColor = "#e2e8f0"; }}
+            >
+                <div style={{ width: 34, height: 34, borderRadius: 8, background: file ? `${GREEN}15` : "#f1f5f9", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                    {file ? (
+                        <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke={GREEN} strokeWidth="2"><polyline points="20 6 9 17 4 12"/></svg>
+                    ) : (
+                        <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2">
+                            <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+                        </svg>
+                    )}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                    {file ? (
+                        <>
+                            <p style={{ fontSize: 12, fontWeight: 600, color: GREEN, margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{file.name}</p>
+                            <p style={{ fontSize: 11, color: "#9ca3af", margin: "2px 0 0" }}>{(file.size / 1024).toFixed(1)} KB · Cliquer pour changer</p>
+                        </>
+                    ) : (
+                        <>
+                            <p style={{ fontSize: 12, fontWeight: 600, color: "#374151", margin: 0 }}>Ajouter un nouveau document</p>
+                            <p style={{ fontSize: 11, color: "#9ca3af", margin: "2px 0 0" }}>JPG, PNG ou PDF — max 5 MB</p>
+                        </>
+                    )}
+                </div>
+                {file && (
+                    <button type="button" onClick={e => { e.stopPropagation(); onChange(null); }}
+                        style={{ background: "#fef2f2", border: "none", borderRadius: 6, padding: "4px 7px", cursor: "pointer", color: "#ef4444", flexShrink: 0 }}
+                    >
+                        <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                        </svg>
+                    </button>
+                )}
+            </div>
+            <input ref={ref} type="file" accept="image/*,.pdf" style={{ display: "none" }} onChange={e => onChange(e.target.files[0] || null)} />
+        </div>
+    );
+};
+
+const Field = ({ label, required, optional, error, children }) => (
+    <div>
+        <label style={{ fontSize: 13, fontWeight: 600, color: "#374151", display: "block", marginBottom: 8 }}>
+            {label}
+            {required && <span style={{ color: "#ef4444", marginLeft: 3 }}>*</span>}
+            {optional && <span style={{ fontSize: 11, color: "#9ca3af", fontWeight: 400, marginLeft: 6 }}>(optionnel)</span>}
+        </label>
+        {children}
+        {error && (
+            <span style={{ fontSize: 11, color: "#ef4444", marginTop: 5, display: "flex", alignItems: "center", gap: 4 }}>
+                <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                {error}
+            </span>
+        )}
+    </div>
+);
+
+const inputStyle = (hasError) => ({
+    width: "100%", boxSizing: "border-box",
+    padding: "10px 14px",
+    border: hasError ? "1.5px solid #ef4444" : "1px solid #e2e8f0",
+    borderRadius: 10, fontSize: 14, color: "#0f172a",
+    background: "#fafbfc", outline: "none",
+    transition: "border-color 0.15s, box-shadow 0.15s",
+    fontFamily: "'DM Sans', sans-serif",
+});
+
+const SectionHeader = ({ icon, title, subtitle, color = BLUE }) => (
+    <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: "1.5rem" }}>
+        <div style={{ width: 40, height: 40, borderRadius: 11, background: `${color}12`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <svg width={19} height={19} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2">{icon}</svg>
+        </div>
+        <div>
+            <h3 style={{ fontSize: 15, fontWeight: 700, color: "#0f172a", margin: 0 }}>{title}</h3>
+            {subtitle && <p style={{ fontSize: 12, color: "#94a3b8", margin: "2px 0 0", fontWeight: 500 }}>{subtitle}</p>}
+        </div>
+    </div>
+);
+
+export default function Edit({ expert = {}, documents = {} }) {
+    const existingDocs = {
+        cin:         documents.cin         || [],
+        contract:    documents.contract    || [],
+        carte_grise: documents.carte_grise || [],
+        rib:         documents.rib         || [],
+    };
+
+    const [form, setForm] = useState({
+        nom:                                   expert.nom                                   || "",
+        prenom:                                expert.prenom                                || "",
+        email:                                 expert.email                                 || "",
+        password:                              "",
+        telephone:                             expert.telephone                             || "",
+        specialite:                            expert.specialite                            || "",
+        ville:                                 expert.ville                                 || "",
+        pays:                                  expert.pays                                  || "",
+        cin_number:                            expert.cin_number                            || "",
+        rib:                                   expert.rib                                   || "",
+        contract_start:                        expert.contract_start                        || "",
+        contract_end:                          expert.contract_end                          || "",
+        contract_renewals:                     expert.contract_renewals                     ?? "",
+        car_horsepower:                        expert.car_horsepower                        || "",
+        date_naissance:                        expert.date_naissance                        || "",
+        diplomes_obtenus:                      expert.diplomes_obtenus                      || "",
+        annee:                                 expert.annee                                 || "",
+        fonction_actuelle:                     expert.fonction_actuelle                     || "",
+        universite_ou_departement_ministeriel: expert.universite_ou_departement_ministeriel || "",
+        type_etablissement:                    expert.type_etablissement                    || "",
+        etablissement:                         expert.etablissement                         || "",
+        date_recrutement:                      expert.date_recrutement                      || "",
+        grade:                                 expert.grade                                 || "",
+        responsabilite:                        expert.responsabilite                        || "",
+        etablissement_et_annee_responsabilite: expert.etablissement_et_annee_responsabilite || "",
     });
 
-    const submit = (e) => {
-        e.preventDefault();
+    const [files, setFiles]               = useState({ cin_file: null, rib_file: null, contract_file: null, carte_grise_file: null });
+    const [errors, setErrors]             = useState({});
+    const [processing, setProcessing]     = useState(false);
+    const [showPassword, setShowPassword] = useState(false);
+    const [confirmDlg, setConfirmDlg]     = useState({ open: false });
 
-        form.put('/expert/profil', {
-            preserveScroll: true,
+    const confirmDeleteDoc = (doc) => {
+        setConfirmDlg({
+            open: true,
+            title: "Supprimer le document",
+            message: `Voulez-vous vraiment supprimer "${doc.original_name}" ? Cette action est irréversible.`,
+            confirmLabel: "Supprimer",
+            type: "danger",
+            onConfirm: () => {
+                setConfirmDlg({ open: false });
+                router.delete(`/expert/documents/${doc.id}`, { preserveScroll: true });
+            },
+        });
+    };
+
+    const set     = (k, v) => setForm(f => ({ ...f, [k]: v }));
+    const setFile = (k, v) => setFiles(f => ({ ...f, [k]: v }));
+
+    const handleGenerate = () => {
+        const pwd = generatePassword();
+        set("password", pwd);
+        setShowPassword(true);
+    };
+
+    const handleRIB = (val) => {
+        const clean = val.replace(/\D/g, "").slice(0, 24);
+        set("rib", clean);
+    };
+
+    const ribLength   = form.rib.length;
+    const ribComplete = ribLength === 24;
+    const ribHasInput = ribLength > 0;
+
+    const handleSubmit = () => {
+        setProcessing(true);
+        const data = new FormData();
+        data.append("_method", "PATCH");
+        Object.entries(form).forEach(([k, v]) => { if (v !== "") data.append(k, v); });
+        Object.entries(files).forEach(([k, v]) => { if (v) data.append(k, v); });
+        router.post("/expert/profil", data, {
+            forceFormData: true,
+            onSuccess: () => setProcessing(false),
+            onError: (e) => { setErrors(e); setProcessing(false); },
         });
     };
 
     return (
         <>
-            <Head title="Modifier mon profil — Expert" />
+            <Head title="Modifier mon profil" />
+            <style>{`
+                @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@500&display=swap');
+                .exp-root * { font-family: 'DM Sans', sans-serif; box-sizing: border-box; }
+                .field-input:focus { border-color: ${BLUE} !important; box-shadow: 0 0 0 3px rgba(12,68,124,0.1) !important; }
+                .section-card { transition: box-shadow 0.2s; }
+                .section-card:hover { box-shadow: 0 4px 20px rgba(0,0,0,0.07) !important; }
+                @keyframes fadeUp { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
+                .fade-up { animation: fadeUp .45s cubic-bezier(.22,1,.36,1) both; }
+                @keyframes spin { to { transform: rotate(360deg); } }
+            `}</style>
 
-            <div className="min-h-screen bg-[#f6f8fc] px-6 py-8 lg:px-10">
-                <div className="mx-auto max-w-6xl">
-                    <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                        <div>
-                            <p className="text-sm font-black uppercase tracking-[0.28em] text-blue-600">
-                                Profil expert
-                            </p>
+            <div className="exp-root fade-up" style={{ padding: "2.5rem 3rem", minHeight: "100vh", background: "linear-gradient(160deg, #f8fafc 0%, #f1f5f9 100%)" }}>
 
-                            <h1 className="mt-3 text-4xl font-black text-slate-950">
-                                Modifier mon compte
-                            </h1>
-
-                            <p className="mt-2 text-sm font-semibold text-slate-500">
-                                Gérez vos informations personnelles et professionnelles.
-                            </p>
-                        </div>
-
-                        <Link
-                            href="/expert/dashboard"
-                            className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-black text-slate-700 shadow-sm transition hover:bg-slate-50"
+                {/* ── Header ── */}
+                <div style={{ marginBottom: "2.5rem" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
+                        <button onClick={() => router.visit("/expert/profil")}
+                            style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 5, color: "#94a3b8", fontSize: 12, fontWeight: 500, padding: 0 }}
+                            onMouseEnter={e => e.currentTarget.style.color = GREEN}
+                            onMouseLeave={e => e.currentTarget.style.color = "#94a3b8"}
                         >
-                            <ArrowLeft size={18} />
-                            Retour
-                        </Link>
+                            <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="15 18 9 12 15 6"/></svg>
+                            Mon profil
+                        </button>
+                        <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" strokeWidth="2"><polyline points="9 18 15 12 9 6"/></svg>
+                        <span style={{ fontSize: 12, color: GREEN, fontWeight: 600 }}>Modifier</span>
                     </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                        <div style={{ width: 48, height: 48, borderRadius: 14, background: `linear-gradient(135deg, ${GREEN}, #178a63)`, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 6px 16px rgba(29,158,117,0.3)` }}>
+                            <svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2">
+                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <h1 style={{ fontSize: 24, fontWeight: 700, margin: 0, color: "#0f172a", letterSpacing: "-0.02em" }}>
+                                Modifier mon profil
+                            </h1>
+                            <p style={{ fontSize: 13, color: "#94a3b8", margin: "3px 0 0", fontWeight: 500 }}>
+                                {[form.prenom, form.nom].filter(Boolean).join(" ") || "Expert"} · {form.email}
+                            </p>
+                        </div>
+                    </div>
+                </div>
 
-                    <div className="mb-8 overflow-hidden rounded-[2rem] bg-gradient-to-br from-[#1d2b9f] via-[#2563eb] to-[#0891b2] p-8 text-white shadow-2xl shadow-blue-900/20">
-                        <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
-                            <div className="flex items-center gap-5">
-                                <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-white/15 text-white backdrop-blur ring-1 ring-white/20">
-                                    <UserRound size={42} strokeWidth={2.3} />
-                                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 380px", gap: 24, alignItems: "start" }}>
 
-                                <div>
-                                    <p className="text-xs font-black uppercase tracking-[0.28em] text-blue-100">
-                                        Compte expert
-                                    </p>
+                    {/* ── Left column ── */}
+                    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
 
-                                    <h2 className="mt-2 text-3xl font-black">
-                                        {`${form.data.prenom} ${form.data.nom}`.trim() || 'Expert'}
-                                    </h2>
+                        {/* Section 1 — Identité */}
+                        <div className="section-card" style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 18, padding: "2rem", boxShadow: "0 1px 6px rgba(0,0,0,0.05)" }}>
+                            <SectionHeader color={GREEN}
+                                icon={<><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></>}
+                                title="Identité de l'expert" subtitle="Informations personnelles"
+                            />
+                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                                <Field label="Nom" required error={errors.nom}>
+                                    <input className="field-input" style={inputStyle(errors.nom)} type="text" value={form.nom} onChange={e => set("nom", e.target.value)} />
+                                </Field>
+                                <Field label="Prénom" optional error={errors.prenom}>
+                                    <input className="field-input" style={inputStyle(errors.prenom)} type="text" value={form.prenom} onChange={e => set("prenom", e.target.value)} />
+                                </Field>
+                            </div>
+                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginTop: 16 }}>
+                                <Field label="Email" required error={errors.email}>
+                                    <input className="field-input" style={inputStyle(errors.email)} type="email" value={form.email} onChange={e => set("email", e.target.value)} />
+                                </Field>
+                                <Field label="Téléphone" optional error={errors.telephone}>
+                                    <input className="field-input" style={inputStyle(errors.telephone)} type="tel" placeholder="+212 6XX XXX XXX" value={form.telephone} onChange={e => set("telephone", e.target.value)} />
+                                </Field>
+                            </div>
+                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginTop: 16 }}>
+                                <Field label="Date de naissance" optional error={errors.date_naissance}>
+                                    <input className="field-input" style={inputStyle(errors.date_naissance)} type="date" value={form.date_naissance} onChange={e => set("date_naissance", e.target.value)} />
+                                </Field>
+                                <Field label="Ville" optional error={errors.ville}>
+                                    <input className="field-input" style={inputStyle(errors.ville)} type="text" placeholder="Ex: Rabat" value={form.ville} onChange={e => set("ville", e.target.value)} />
+                                </Field>
+                            </div>
+                            <div style={{ marginTop: 16 }}>
+                                <Field label="Pays" optional error={errors.pays}>
+                                    <input className="field-input" style={inputStyle(errors.pays)} type="text" placeholder="Ex: Maroc" value={form.pays} onChange={e => set("pays", e.target.value)} />
+                                </Field>
+                            </div>
+                        </div>
 
-                                    <p className="mt-2 text-sm font-semibold text-blue-50">
-                                        {form.data.email || 'Email non renseigné'}
-                                    </p>
-                                </div>
+                        {/* Section 2 — Profil académique */}
+                        <div className="section-card" style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 18, padding: "2rem", boxShadow: "0 1px 6px rgba(0,0,0,0.05)" }}>
+                            <SectionHeader color="#7e22ce"
+                                icon={<><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></>}
+                                title="Profil académique" subtitle="Informations professionnelles et académiques"
+                            />
+                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                                <Field label="Spécialité" optional error={errors.specialite}>
+                                    <input className="field-input" style={inputStyle(errors.specialite)} type="text" placeholder="Ex: Informatique" value={form.specialite} onChange={e => set("specialite", e.target.value)} />
+                                </Field>
+                                <Field label="Grade" optional error={errors.grade}>
+                                    <input className="field-input" style={inputStyle(errors.grade)} type="text" placeholder="Ex: Professeur" value={form.grade} onChange={e => set("grade", e.target.value)} />
+                                </Field>
+                            </div>
+                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginTop: 16 }}>
+                                <Field label="Fonction actuelle" optional error={errors.fonction_actuelle}>
+                                    <input className="field-input" style={inputStyle(errors.fonction_actuelle)} type="text" value={form.fonction_actuelle} onChange={e => set("fonction_actuelle", e.target.value)} />
+                                </Field>
+                                <Field label="Année" optional error={errors.annee}>
+                                    <input className="field-input" style={inputStyle(errors.annee)} type="text" placeholder="Ex: 2024" value={form.annee} onChange={e => set("annee", e.target.value)} />
+                                </Field>
+                            </div>
+                            <div style={{ marginTop: 16 }}>
+                                <Field label="Université / Département ministériel" optional error={errors.universite_ou_departement_ministeriel}>
+                                    <input className="field-input" style={inputStyle(errors.universite_ou_departement_ministeriel)} type="text" value={form.universite_ou_departement_ministeriel} onChange={e => set("universite_ou_departement_ministeriel", e.target.value)} />
+                                </Field>
+                            </div>
+                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginTop: 16 }}>
+                                <Field label="Type d'établissement" optional error={errors.type_etablissement}>
+                                    <select className="field-input" style={{ ...inputStyle(errors.type_etablissement), cursor: "pointer" }} value={form.type_etablissement} onChange={e => set("type_etablissement", e.target.value)}>
+                                        <option value="">Sélectionner...</option>
+                                        <option>Etablissement public</option>
+                                        <option>Etablissements publics ne relevant pas des universités</option>
+                                        <option>Etablissement universitaire Privé</option>
+                                        <option>Etablissements privés ne relevant pas des universités</option>
+                                    </select>
+                                </Field>
+                                <Field label="Établissement" optional error={errors.etablissement}>
+                                    <input className="field-input" style={inputStyle(errors.etablissement)} type="text" value={form.etablissement} onChange={e => set("etablissement", e.target.value)} />
+                                </Field>
+                            </div>
+                            <div style={{ marginTop: 16 }}>
+                                <Field label="Diplômes obtenus" optional error={errors.diplomes_obtenus}>
+                                    <textarea className="field-input" style={{ ...inputStyle(errors.diplomes_obtenus), resize: "vertical", minHeight: 80 }} value={form.diplomes_obtenus} onChange={e => set("diplomes_obtenus", e.target.value)} />
+                                </Field>
+                            </div>
+                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginTop: 16 }}>
+                                <Field label="Responsabilité" optional error={errors.responsabilite}>
+                                    <input className="field-input" style={inputStyle(errors.responsabilite)} type="text" value={form.responsabilite} onChange={e => set("responsabilite", e.target.value)} />
+                                </Field>
+                                <Field label="Date de recrutement" optional error={errors.date_recrutement}>
+                                    <input className="field-input" style={inputStyle(errors.date_recrutement)} type="date" value={form.date_recrutement} onChange={e => set("date_recrutement", e.target.value)} />
+                                </Field>
+                            </div>
+                            <div style={{ marginTop: 16 }}>
+                                <Field label="Établissement et année de responsabilité" optional error={errors.etablissement_et_annee_responsabilite}>
+                                    <input className="field-input" style={inputStyle(errors.etablissement_et_annee_responsabilite)} type="text" value={form.etablissement_et_annee_responsabilite} onChange={e => set("etablissement_et_annee_responsabilite", e.target.value)} />
+                                </Field>
+                            </div>
+                        </div>
+
+                        {/* Section 3 — CIN + RIB */}
+                        <div className="section-card" style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 18, padding: "2rem", boxShadow: "0 1px 6px rgba(0,0,0,0.05)" }}>
+                            <SectionHeader color={BLUE}
+                                icon={<><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></>}
+                                title="Identité & Informations bancaires" subtitle="Optionnel — CIN et RIB de l'expert"
+                            />
+                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                                <Field label="Numéro CIN" optional error={errors.cin_number}>
+                                    <input className="field-input" style={{ ...inputStyle(errors.cin_number), fontFamily: "'DM Mono', monospace", letterSpacing: "0.05em" }} type="text" placeholder="AB123456" value={form.cin_number} onChange={e => set("cin_number", e.target.value)} />
+                                </Field>
+                                <DocumentManager label="Photo / Scan CIN" type="cin" existing={existingDocs.cin} file={files.cin_file} onChange={v => setFile("cin_file", v)} color={BLUE} onConfirmDelete={confirmDeleteDoc} />
                             </div>
 
-                            <div className="inline-flex w-fit items-center gap-2 rounded-full border border-emerald-200/40 bg-emerald-400/15 px-5 py-3 text-sm font-black text-emerald-50 backdrop-blur">
-                                <span className="h-2 w-2 rounded-full bg-emerald-300" />
-                                Expert évaluateur
+                            <div style={{ marginTop: 16 }}>
+                                <Field label="RIB Bancaire" optional error={errors.rib}>
+                                    <div style={{ position: "relative" }}>
+                                        <div style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}>
+                                            <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke={ribComplete ? GREEN : "#94a3b8"} strokeWidth="2">
+                                                <rect x="1" y="4" width="22" height="16" rx="2" ry="2"/>
+                                                <line x1="1" y1="10" x2="23" y2="10"/>
+                                            </svg>
+                                        </div>
+                                        <input
+                                            className="field-input"
+                                            style={{
+                                                ...inputStyle(errors.rib || (ribHasInput && !ribComplete)),
+                                                paddingLeft: 36,
+                                                paddingRight: 64,
+                                                fontFamily: "'DM Mono', monospace",
+                                                letterSpacing: "0.08em",
+                                                border: ribComplete
+                                                    ? `1.5px solid ${GREEN}`
+                                                    : ribHasInput && !ribComplete
+                                                    ? `1.5px solid ${ORANGE}`
+                                                    : "1px solid #e2e8f0",
+                                                background: ribComplete ? `${GREEN}04` : "#fafbfc",
+                                            }}
+                                            type="text"
+                                            placeholder="007780000012345678901234"
+                                            maxLength={24}
+                                            value={form.rib}
+                                            onChange={e => handleRIB(e.target.value)}
+                                        />
+                                        <div style={{
+                                            position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)",
+                                            display: "flex", alignItems: "center", gap: 4,
+                                            padding: "3px 8px", borderRadius: 99,
+                                            background: ribComplete ? `${GREEN}15` : ribHasInput ? `${ORANGE}15` : "#f1f5f9",
+                                            transition: "all 0.2s",
+                                        }}>
+                                            {ribComplete && (
+                                                <svg width={10} height={10} viewBox="0 0 24 24" fill="none" stroke={GREEN} strokeWidth="3">
+                                                    <polyline points="20 6 9 17 4 12"/>
+                                                </svg>
+                                            )}
+                                            <span style={{ fontSize: 11, fontWeight: 700, fontFamily: "'DM Mono', monospace", color: ribComplete ? GREEN : ribHasInput ? ORANGE : "#94a3b8" }}>
+                                                {ribLength}/24
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    {ribHasInput && (
+                                        <div style={{ marginTop: 6, height: 3, borderRadius: 99, background: "#f1f5f9", overflow: "hidden" }}>
+                                            <div style={{ height: "100%", borderRadius: 99, width: `${(ribLength / 24) * 100}%`, background: ribComplete ? GREEN : ORANGE, transition: "width 0.2s ease, background 0.2s" }} />
+                                        </div>
+                                    )}
+
+                                    {ribHasInput && !ribComplete && (
+                                        <span style={{ fontSize: 11, color: ORANGE, marginTop: 4, display: "flex", alignItems: "center", gap: 4 }}>
+                                            <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                                            {24 - ribLength} chiffre{24 - ribLength > 1 ? "s" : ""} manquant{24 - ribLength > 1 ? "s" : ""}
+                                        </span>
+                                    )}
+                                    {ribComplete && (
+                                        <span style={{ fontSize: 11, color: GREEN, marginTop: 4, display: "flex", alignItems: "center", gap: 4 }}>
+                                            <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                                            RIB valide — 24 chiffres
+                                        </span>
+                                    )}
+                                </Field>
+                            </div>
+
+                            <div style={{ marginTop: 16 }}>
+                                <DocumentManager label="Document RIB bancaire" type="rib" existing={existingDocs.rib} file={files.rib_file} onChange={v => setFile("rib_file", v)} color={BLUE} onConfirmDelete={confirmDeleteDoc} />
+                            </div>
+                        </div>
+
+                        {/* Section 4 — Contrat */}
+                        <div className="section-card" style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 18, padding: "2rem", boxShadow: "0 1px 6px rgba(0,0,0,0.05)" }}>
+                            <SectionHeader color="#7e22ce"
+                                icon={<><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></>}
+                                title="Informations contractuelles" subtitle="Optionnel — Détails du contrat"
+                            />
+                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16, marginBottom: 16 }}>
+                                <Field label="Date de début" optional error={errors.contract_start}>
+                                    <input className="field-input" style={inputStyle(errors.contract_start)} type="date" value={form.contract_start} onChange={e => set("contract_start", e.target.value)} />
+                                </Field>
+                                <Field label="Date de fin" optional error={errors.contract_end}>
+                                    <input className="field-input" style={inputStyle(errors.contract_end)} type="date" value={form.contract_end} onChange={e => set("contract_end", e.target.value)} />
+                                </Field>
+                                <Field label="Nombre de renouvellements" optional error={errors.contract_renewals}>
+                                    <input className="field-input" style={{ ...inputStyle(errors.contract_renewals), fontFamily: "'DM Mono', monospace" }} type="number" min="0" placeholder="0" value={form.contract_renewals} onChange={e => set("contract_renewals", e.target.value)} />
+                                </Field>
+                            </div>
+                            <DocumentManager label="Document du contrat" type="contract" existing={existingDocs.contract} file={files.contract_file} onChange={v => setFile("contract_file", v)} color="#7e22ce" onConfirmDelete={confirmDeleteDoc} />
+                        </div>
+
+                        {/* Section 5 — Carte grise */}
+                        <div className="section-card" style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 18, padding: "2rem", boxShadow: "0 1px 6px rgba(0,0,0,0.05)" }}>
+                            <SectionHeader color="#c2410c"
+                                icon={<><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h4l3 5v3h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></>}
+                                title="Carte grise du véhicule" subtitle="Optionnel — Informations du véhicule"
+                            />
+                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                                <Field label="Puissance fiscale (CV)" optional error={errors.car_horsepower}>
+                                    <div style={{ position: "relative" }}>
+                                        <input className="field-input" style={{ ...inputStyle(errors.car_horsepower), paddingRight: 48, fontFamily: "'DM Mono', monospace" }} type="number" min="0" max="9999" placeholder="Ex: 7" value={form.car_horsepower} onChange={e => set("car_horsepower", e.target.value)} />
+                                        <span style={{ position: "absolute", right: 14, top: "50%", transform: "translateY(-50%)", fontSize: 11, color: "#94a3b8", fontWeight: 700 }}>CV</span>
+                                    </div>
+                                </Field>
+                                <DocumentManager label="Carte grise" type="carte_grise" existing={existingDocs.carte_grise} file={files.carte_grise_file} onChange={v => setFile("carte_grise_file", v)} color="#c2410c" onConfirmDelete={confirmDeleteDoc} />
                             </div>
                         </div>
                     </div>
 
-                    <form onSubmit={submit} className="space-y-8">
-                        <section className="overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-sm">
-                            <SectionHeader
-                                icon={User}
-                                title="Informations personnelles"
-                                description="Nom, prénom, email et téléphone."
-                                color="blue"
+                    {/* ── Right column ── */}
+                    <div style={{ display: "flex", flexDirection: "column", gap: 20, position: "sticky", top: "2rem" }}>
+
+                        {/* Password card */}
+                        <div className="section-card" style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 18, padding: "1.75rem", boxShadow: "0 1px 6px rgba(0,0,0,0.05)" }}>
+                            <SectionHeader color={BLUE}
+                                icon={<><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></>}
+                                title="Mot de passe" subtitle="Laisser vide pour ne pas modifier"
                             />
-
-                            <div className="grid gap-5 p-6 md:grid-cols-2">
-                                <Input
-                                    label="Nom"
-                                    value={form.data.nom}
-                                    onChange={(value) => form.setData('nom', value)}
-                                    error={form.errors.nom}
-                                    required
-                                    icon={User}
-                                    placeholder="Ex : Alaoui"
-                                />
-
-                                <Input
-                                    label="Prénom"
-                                    value={form.data.prenom}
-                                    onChange={(value) => form.setData('prenom', value)}
-                                    error={form.errors.prenom}
-                                    icon={User}
-                                    placeholder="Ex : Mohamed"
-                                />
-
-                                <Input
-                                    label="Email"
-                                    type="email"
-                                    value={form.data.email}
-                                    onChange={(value) => form.setData('email', value)}
-                                    error={form.errors.email}
-                                    required
-                                    icon={Mail}
-                                    placeholder="Ex : expert@universite.ma"
-                                />
-
-                                <Input
-                                    label="Téléphone"
-                                    value={form.data.telephone}
-                                    onChange={(value) => form.setData('telephone', value)}
-                                    error={form.errors.telephone}
-                                    icon={Phone}
-                                    placeholder="Ex : +212 6 12 34 56 78"
-                                />
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                                <label style={{ fontSize: 13, fontWeight: 600, color: "#374151" }}>Nouveau mot de passe</label>
+                                <button type="button" onClick={handleGenerate}
+                                    style={{ display: "flex", alignItems: "center", gap: 5, padding: "4px 10px", borderRadius: 7, border: `1px solid ${BLUE}30`, background: `${BLUE}08`, color: BLUE, fontSize: 11, fontWeight: 700, cursor: "pointer", transition: "all 0.15s" }}
+                                    onMouseEnter={e => { e.currentTarget.style.background = BLUE; e.currentTarget.style.color = "#fff"; }}
+                                    onMouseLeave={e => { e.currentTarget.style.background = `${BLUE}08`; e.currentTarget.style.color = BLUE; }}
+                                >
+                                    <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                                        <path d="M23 4v6h-6"/><path d="M1 20v-6h6"/>
+                                        <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+                                    </svg>
+                                    Générer (16 car.)
+                                </button>
                             </div>
-                        </section>
-
-                        <section className="overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-sm">
-                            <SectionHeader
-                                icon={ShieldCheck}
-                                title="Informations professionnelles"
-                                description="Grade, spécialité, établissement et ville."
-                                color="emerald"
-                            />
-
-                            <div className="grid gap-5 p-6 md:grid-cols-2">
-                                <Input
-                                    label="Grade"
-                                    value={form.data.grade}
-                                    onChange={(value) => form.setData('grade', value)}
-                                    error={form.errors.grade}
-                                    icon={ShieldCheck}
-                                    placeholder="Ex : Professeur de l’enseignement supérieur"
+                            <div style={{ position: "relative" }}>
+                                <input
+                                    type="text"
+                                    placeholder="••••••••"
+                                    value={form.password}
+                                    onChange={e => set("password", e.target.value)}
+                                    onFocus={e => { e.target.style.borderColor = BLUE; e.target.style.boxShadow = "0 0 0 3px rgba(12,68,124,0.1)"; }}
+                                    onBlur={e => { e.target.style.borderColor = "#e2e8f0"; e.target.style.boxShadow = "none"; }}
+                                    style={{
+                                        width: "100%", boxSizing: "border-box",
+                                        padding: "10px 14px", paddingRight: 40,
+                                        border: "1px solid #e2e8f0", borderRadius: 10,
+                                        fontSize: 14, color: "#0f172a", background: "#fafbfc", outline: "none",
+                                        fontFamily: "'DM Mono', monospace",
+                                        letterSpacing: showPassword ? "0.05em" : "0.2em",
+                                        WebkitTextSecurity: showPassword ? "none" : "disc",
+                                        textSecurity: showPassword ? "none" : "disc",
+                                    }}
                                 />
-
-                                <Input
-                                    label="Spécialité"
-                                    value={form.data.specialite}
-                                    onChange={(value) => form.setData('specialite', value)}
-                                    error={form.errors.specialite}
-                                    icon={ShieldCheck}
-                                    placeholder="Ex : Intelligence artificielle"
-                                />
-
-                                <Input
-                                    label="Établissement"
-                                    value={form.data.etablissement}
-                                    onChange={(value) => form.setData('etablissement', value)}
-                                    error={form.errors.etablissement}
-                                    icon={Building2}
-                                    placeholder="Ex : ENSA Rabat"
-                                />
-
-                                <Input
-                                    label="Ville"
-                                    value={form.data.ville}
-                                    onChange={(value) => form.setData('ville', value)}
-                                    error={form.errors.ville}
-                                    icon={MapPin}
-                                    placeholder="Ex : Rabat"
-                                />
+                                <button type="button" onClick={() => setShowPassword(s => !s)}
+                                    style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: showPassword ? BLUE : "#94a3b8", padding: 2 }}
+                                >
+                                    <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                        {showPassword
+                                            ? <><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></>
+                                            : <><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></>
+                                        }
+                                    </svg>
+                                </button>
                             </div>
-                        </section>
+                            {showPassword && form.password && (
+                                <div style={{ marginTop: 8, padding: "8px 12px", borderRadius: 8, background: `${BLUE}08`, border: `1px solid ${BLUE}20`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                                    <span style={{ fontSize: 12, fontFamily: "'DM Mono', monospace", color: BLUE, fontWeight: 600, letterSpacing: "0.05em", wordBreak: "break-all" }}>{form.password}</span>
+                                    <button type="button" onClick={() => navigator.clipboard.writeText(form.password)}
+                                        style={{ background: "none", border: "none", cursor: "pointer", color: BLUE, fontSize: 11, fontWeight: 700, padding: "0 0 0 8px", whiteSpace: "nowrap" }}
+                                    >Copier</button>
+                                </div>
+                            )}
+                            {errors.password && <span style={{ fontSize: 11, color: "#ef4444", marginTop: 5, display: "block" }}>{errors.password}</span>}
+                        </div>
 
-                        <section className="overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-sm">
-                            <SectionHeader
-                                icon={LockKeyhole}
-                                title="Mot de passe"
-                                description="Laissez vide si vous ne voulez pas changer le mot de passe."
-                                color="amber"
-                            />
+                        {/* Summary card */}
+                        <div style={{ background: `linear-gradient(135deg, ${BLUE}08, ${GREEN}06)`, border: `1px solid ${BLUE}15`, borderRadius: 18, padding: "1.5rem" }}>
+                            <p style={{ fontSize: 12, fontWeight: 700, color: "#64748b", letterSpacing: "0.08em", textTransform: "uppercase", margin: "0 0 1rem" }}>Résumé</p>
+                            {[
+                                { label: "Nom complet",     value: form.nom && form.prenom ? `${form.prenom} ${form.nom}` : form.nom || null },
+                                { label: "Email",           value: form.email || null },
+                                { label: "Téléphone",       value: form.telephone || null },
+                                { label: "Spécialité",      value: form.specialite || null },
+                                { label: "Établissement",   value: form.etablissement || null },
+                                { label: "CIN",             value: form.cin_number || null },
+                                { label: "RIB",             value: ribComplete ? form.rib : null },
+                                { label: "Contrat",         value: form.contract_start ? `${form.contract_start} → ${form.contract_end || "?"}` : null },
+                                { label: "Renouvellements", value: form.contract_renewals !== "" ? `${form.contract_renewals}x` : null },
+                                { label: "Puissance",       value: form.car_horsepower ? `${form.car_horsepower} CV` : null },
+                            ].map(({ label, value }) => value && (
+                                <div key={label} style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8, gap: 8 }}>
+                                    <span style={{ fontSize: 12, color: "#94a3b8", fontWeight: 500, flexShrink: 0 }}>{label}</span>
+                                    <span style={{ fontSize: 12, color: "#374151", fontWeight: 600, textAlign: "right", wordBreak: "break-all", fontFamily: label === "RIB" ? "'DM Mono', monospace" : "inherit" }}>{value}</span>
+                                </div>
+                            ))}
+                            {[
+                                { label: "CIN", key: "cin_file" },
+                                { label: "Contrat", key: "contract_file" },
+                                { label: "Carte grise", key: "carte_grise_file" },
+                            ].map(({ label, key }) => files[key] && (
+                                <div key={key} style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
+                                    <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke={GREEN} strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                                    <span style={{ fontSize: 12, color: "#374151", fontWeight: 500 }}>Nouveau fichier {label}</span>
+                                </div>
+                            ))}
+                        </div>
 
-                            <div className="grid gap-5 p-6 md:grid-cols-2">
-                                <Input
-                                    label="Nouveau mot de passe"
-                                    type="password"
-                                    value={form.data.password}
-                                    onChange={(value) => form.setData('password', value)}
-                                    error={form.errors.password}
-                                    icon={LockKeyhole}
-                                    placeholder="Minimum 8 caractères"
-                                />
-
-                                <Input
-                                    label="Confirmer le mot de passe"
-                                    type="password"
-                                    value={form.data.password_confirmation}
-                                    onChange={(value) => form.setData('password_confirmation', value)}
-                                    error={form.errors.password_confirmation}
-                                    icon={LockKeyhole}
-                                    placeholder="Retapez le même mot de passe"
-                                />
-                            </div>
-                        </section>
-
-                        <div className="flex justify-end">
-                            <button
-                                type="submit"
-                                disabled={form.processing}
-                                className="inline-flex h-14 items-center gap-2 rounded-2xl bg-blue-600 px-7 text-sm font-black text-white shadow-lg shadow-blue-600/20 transition hover:bg-blue-700 disabled:opacity-60"
+                        {/* Action buttons */}
+                        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                            <button onClick={handleSubmit} disabled={processing}
+                                style={{ width: "100%", padding: "13px", borderRadius: 12, border: "none", background: processing ? "#6b9fd4" : `linear-gradient(135deg, ${GREEN}, #178a63)`, color: "#fff", fontSize: 15, fontWeight: 700, cursor: processing ? "not-allowed" : "pointer", boxShadow: processing ? "none" : `0 4px 14px rgba(29,158,117,0.4)`, transition: "all 0.2s", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
                             >
-                                <Save size={18} />
-                                {form.processing ? 'Enregistrement...' : 'Enregistrer les modifications'}
+                                {processing ? (
+                                    <>
+                                        <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ animation: "spin 1s linear infinite" }}>
+                                            <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+                                        </svg>
+                                        Enregistrement...
+                                    </>
+                                ) : (
+                                    <>
+                                        <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                                        Enregistrer les modifications
+                                    </>
+                                )}
+                            </button>
+                            <button onClick={() => router.visit("/expert/profil")}
+                                style={{ width: "100%", padding: "12px", borderRadius: 12, border: "1px solid #e2e8f0", background: "#fff", color: "#475569", fontSize: 14, fontWeight: 600, cursor: "pointer", transition: "all 0.15s" }}
+                                onMouseEnter={e => e.currentTarget.style.background = "#f8fafc"}
+                                onMouseLeave={e => e.currentTarget.style.background = "#fff"}
+                            >
+                                Annuler
                             </button>
                         </div>
-                    </form>
+                    </div>
                 </div>
             </div>
+
+            <ConfirmDialog
+                open={confirmDlg.open}
+                title={confirmDlg.title}
+                message={confirmDlg.message}
+                confirmLabel={confirmDlg.confirmLabel}
+                type={confirmDlg.type}
+                onConfirm={confirmDlg.onConfirm}
+                onCancel={() => setConfirmDlg({ open: false })}
+            />
         </>
     );
 }
 
-function SectionHeader({ icon: Icon, title, description, color = 'blue' }) {
-    const colors = {
-        blue: 'bg-blue-50 text-blue-600',
-        emerald: 'bg-emerald-50 text-emerald-600',
-        amber: 'bg-amber-50 text-amber-600',
-    };
-
-    return (
-        <div className="flex items-center gap-4 border-b border-slate-100 p-6">
-            <div className={`flex h-14 w-14 items-center justify-center rounded-2xl ${colors[color]}`}>
-                <Icon size={26} />
-            </div>
-
-            <div>
-                <h2 className="text-2xl font-black text-slate-950">
-                    {title}
-                </h2>
-
-                <p className="mt-1 text-sm font-semibold text-slate-400">
-                    {description}
-                </p>
-            </div>
-        </div>
-    );
-}
-
-function Input({
-    label,
-    value,
-    onChange,
-    error,
-    type = 'text',
-    required = false,
-    icon: Icon,
-    placeholder = '',
-}) {
-    return (
-        <div>
-            <label className="mb-2 block text-sm font-black text-slate-700">
-                {label}
-                {required && <span className="text-red-500"> *</span>}
-            </label>
-
-            <div className="relative">
-                {Icon && (
-                    <div className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
-                        <Icon size={18} />
-                    </div>
-                )}
-
-                <input
-                    type={type}
-                    value={value}
-                    placeholder={placeholder}
-                    onChange={(e) => onChange(e.target.value)}
-                    className={`h-14 w-full rounded-2xl border border-slate-200 bg-slate-50 ${
-                        Icon ? 'pl-12' : 'pl-4'
-                    } pr-4 text-sm font-bold text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100`}
-                />
-            </div>
-
-            {error && (
-                <p className="mt-2 text-sm font-bold text-red-600">
-                    {error}
-                </p>
-            )}
-        </div>
-    );
-}
-
-Edit.layout = (page) => <ExpertLayout>{page}</ExpertLayout>;
+Edit.layout = page => <ExpertLayout>{page}</ExpertLayout>;

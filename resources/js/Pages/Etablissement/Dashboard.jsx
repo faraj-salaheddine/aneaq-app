@@ -1,5 +1,6 @@
 import { Head, router } from "@inertiajs/react";
 import EtablissementLayout from "@/Layouts/Etablissement/EtablissementLayout";
+import MessageriePanel from "@/Components/MessageriePanel";
 
 const BLUE = "#0C447C", GREEN = "#1D9E75", ORANGE = "#EF9F27";
 
@@ -16,7 +17,7 @@ const STATUT_META = {
 export default function EtablissementDashboard({
     etablissement, dossier, onboarding,
     notifications = [], notificationsNonLues = 0,
-    taches = [], timeline = []
+    taches = [], timeline = [], documentsManquants = [], dossierId = null
 }) {
     const nom = etablissement.etablissement_2 || etablissement.etablissement || etablissement.acronyme || "Établissement";
     const sm  = dossier ? (STATUT_META[dossier.statut] ?? { label: dossier.statut, color: "#64748b", bg: "#f1f5f9" }) : null;
@@ -99,6 +100,57 @@ export default function EtablissementDashboard({
                     </div>
                 )}
 
+                {/* Documents manquants */}
+                {documentsManquants.length > 0 && (
+                    <div className="fade-up" style={{ background: "#fff7ed", border: "1.5px solid #fed7aa", borderRadius: 16, padding: "1.5rem", marginBottom: "1.5rem", boxShadow: "0 2px 10px rgba(0,0,0,0.04)", animationDelay: "0.12s" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+                            <div style={{ width: 36, height: 36, borderRadius: 9, background: "#fef3c7", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>⚠️</div>
+                            <div>
+                                <div style={{ fontWeight: 700, fontSize: 14, color: "#92400e" }}>Documents manquants</div>
+                                <div style={{ fontSize: 12, color: "#b45309" }}>{documentsManquants.length} document{documentsManquants.length !== 1 ? 's' : ''} requis non déposé{documentsManquants.length !== 1 ? 's' : ''}</div>
+                            </div>
+                        </div>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                            {documentsManquants.map((doc, i) => (
+                                <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", background: "#fff", borderRadius: 10, border: "1px solid #fed7aa" }}>
+                                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                                        <div style={{ width: 28, height: 28, borderRadius: 7, background: "#fee2e2", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                            <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2">
+                                                <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+                                                <polyline points="14 2 14 8 20 8"/>
+                                            </svg>
+                                        </div>
+                                        <span style={{ fontSize: 13, fontWeight: 600, color: "#374151" }}>{doc.label}</span>
+                                    </div>
+                                    <button
+                                        onClick={() => router.visit("/etablissement/documents")}
+                                        style={{ padding: "5px 14px", background: ORANGE, border: "none", borderRadius: 7, color: "#fff", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
+                                        Déposer →
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {/* Q&R quick access */}
+                {dossierId && (
+                    <div className="fade-up" style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 16, padding: "1.25rem 1.5rem", marginBottom: "1.5rem", display: "flex", alignItems: "center", justifyContent: "space-between", animationDelay: "0.13s" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                            <div style={{ width: 36, height: 36, borderRadius: 9, background: "#dbeafe", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>💬</div>
+                            <div>
+                                <div style={{ fontWeight: 700, fontSize: 14, color: "#1d4ed8" }}>Questions & Réponses</div>
+                                <div style={{ fontSize: 12, color: "#3b82f6" }}>Posez vos questions à la DEE concernant votre dossier</div>
+                            </div>
+                        </div>
+                        <button
+                            onClick={() => router.visit(`/etablissement/questions-reponses/${dossierId}`)}
+                            style={{ padding: "7px 18px", background: BLUE, border: "none", borderRadius: 9, color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", flexShrink: 0 }}>
+                            Accéder →
+                        </button>
+                    </div>
+                )}
+
                 {/* Notifications */}
                 <div className="fade-up" style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 16, overflow: "hidden", boxShadow: "0 2px 10px rgba(0,0,0,0.04)", animationDelay: "0.15s" }}>
                     <div style={{ padding: "1.25rem 1.5rem", borderBottom: "1px solid #f1f5f9", display: "flex", alignItems: "center", gap: 10 }}>
@@ -126,6 +178,10 @@ export default function EtablissementDashboard({
                 </div>
 
             </div>
+
+            {dossierId && (
+                <MessageriePanel dossierId={dossierId} currentRole="etablissement" />
+            )}
         </>
     );
 }

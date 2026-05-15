@@ -1,186 +1,270 @@
-import { Head, Link, useForm } from '@inertiajs/react';
+import { Head, router } from '@inertiajs/react';
+import { useState, useRef } from 'react';
+import { useForm } from '@inertiajs/react';
 import ExpertLayout from '@/Layouts/Expert/ExpertLayout';
-import {
-    ArrowLeft,
-    FileText,
-    UploadCloud,
-    CheckCircle2,
-} from 'lucide-react';
+
+const BLUE   = "#0C447C";
+const GREEN  = "#1D9E75";
+const ORANGE = "#EF9F27";
+const RED    = "#e03131";
 
 export default function Deposer({ dossier = {}, rapport = null }) {
     const form = useForm({
-        titre: rapport?.titre || 'Rapport expert',
+        titre:       rapport?.titre || 'Rapport expert',
         commentaire: rapport?.commentaire || '',
-        rapport: null,
+        rapport:     null,
     });
+
+    const fileRef   = useRef();
+    const [dragOver, setDragOver] = useState(false);
 
     const submit = (e) => {
         e.preventDefault();
-
         form.post(`/expert/rapports/${dossier.id}`, {
             forceFormData: true,
             preserveScroll: true,
         });
     };
 
+    const handleFileDrop = (e) => {
+        e.preventDefault();
+        setDragOver(false);
+        const file = e.dataTransfer.files?.[0];
+        if (file) form.setData('rapport', file);
+    };
+
+    const etab = dossier.etablissement || dossier;
+
     return (
         <>
             <Head title="Déposer rapport — Expert" />
+            <style>{`
+                @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@500&display=swap');
+                .exp-root * { font-family: 'DM Sans', sans-serif; box-sizing: border-box; }
+                @keyframes fadeUp { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
+                .fu { animation: fadeUp .45s cubic-bezier(.22,1,.36,1) both; }
+                .field-input:focus { border-color: ${BLUE} !important; box-shadow: 0 0 0 3px rgba(12,68,124,.1) !important; }
+                .drop-zone { transition: border-color .2s, background .2s; }
+                .drop-zone:hover { border-color: ${BLUE} !important; background: rgba(12,68,124,.03) !important; }
+                .btn-primary { transition: opacity .15s, box-shadow .15s; }
+                .btn-primary:hover:not(:disabled) { opacity: .9; box-shadow: 0 8px 24px rgba(29,158,117,.35) !important; }
+                .btn-secondary { transition: background .15s; }
+                .btn-secondary:hover { background: #f1f5f9 !important; }
+            `}</style>
 
-            <div className="min-h-screen bg-[#f6f8fc] px-6 py-8 lg:px-10">
-                <div className="mx-auto max-w-5xl">
-                    <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                        <div>
-                            <p className="text-sm font-black uppercase tracking-[0.28em] text-blue-600">
-                                Rapport expert
-                            </p>
+            <div className="exp-root" style={{ padding: "2.5rem 3rem", minHeight: "100vh", background: "linear-gradient(160deg, #f8fafc 0%, #f1f5f9 100%)" }}>
 
-                            <h1 className="mt-3 text-4xl font-black text-slate-950">
-                                Déposer un rapport
-                            </h1>
-
-                            <p className="mt-2 text-sm font-semibold text-slate-500">
-                                Dossier : {dossier.reference || '—'}
-                            </p>
-                        </div>
-
-                        <Link
-                            href={`/expert/dossiers/${dossier.id}`}
-                            className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-black text-slate-700 shadow-sm transition hover:bg-slate-50"
-                        >
-                            <ArrowLeft size={18} />
-                            Retour au dossier
-                        </Link>
+                {/* Breadcrumb + Header */}
+                <div className="fu" style={{ marginBottom: "2rem" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 16 }}>
+                        <a href="/expert/dashboard" style={{ fontSize: 12, color: "#94a3b8", fontWeight: 500, textDecoration: "none" }}>Espace Expert</a>
+                        <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" strokeWidth="2"><polyline points="9 18 15 12 9 6"/></svg>
+                        <a href="/expert/rapports" style={{ fontSize: 12, color: "#94a3b8", fontWeight: 500, textDecoration: "none" }}>Mes rapports</a>
+                        <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" strokeWidth="2"><polyline points="9 18 15 12 9 6"/></svg>
+                        <span style={{ fontSize: 12, color: GREEN, fontWeight: 600 }}>Déposer</span>
                     </div>
 
-                    {rapport && (
-                        <div className="mb-6 rounded-[2rem] border border-emerald-100 bg-emerald-50 p-5">
-                            <div className="flex items-center gap-3">
-                                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-700">
-                                    <CheckCircle2 size={24} />
-                                </div>
-
-                                <div>
-                                    <p className="font-black text-emerald-800">
-                                        Un rapport existe déjà pour ce dossier.
-                                    </p>
-
-                                    <p className="mt-1 text-sm font-semibold text-emerald-600">
-                                        Tu peux déposer un nouveau fichier pour le remplacer.
-                                    </p>
-                                </div>
+                    <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                            <div style={{ width: 48, height: 48, borderRadius: 14, background: GREEN, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 8px 24px ${GREEN}30`, flexShrink: 0 }}>
+                                <svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2">
+                                    <polyline points="16 16 12 12 8 16"/>
+                                    <line x1="12" y1="12" x2="12" y2="21"/>
+                                    <path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/>
+                                </svg>
                             </div>
-                        </div>
-                    )}
-
-                    <section className="overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-sm">
-                        <div className="flex items-center gap-4 border-b border-slate-100 p-6">
-                            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
-                                <FileText size={26} />
-                            </div>
-
                             <div>
-                                <h2 className="text-2xl font-black text-slate-950">
-                                    Fichier du rapport
-                                </h2>
-
-                                <p className="mt-1 text-sm font-semibold text-slate-400">
-                                    Formats acceptés : PDF, DOC, DOCX.
+                                <h1 style={{ fontSize: 28, fontWeight: 800, color: "#0f172a", margin: "0 0 4px", letterSpacing: "-0.02em" }}>Déposer un rapport</h1>
+                                <p style={{ fontSize: 13, color: "#64748b", margin: 0 }}>
+                                    {etab.acronyme || etab.nom || 'Dossier'} — {etab.ville || ''}
+                                    {dossier.reference && <span style={{ fontFamily: "'DM Mono', monospace", color: "#94a3b8", marginLeft: 8 }}>{dossier.reference}</span>}
                                 </p>
                             </div>
                         </div>
 
-                        <form onSubmit={submit} className="space-y-6 p-6">
+                        <a href={`/expert/dossiers/${dossier.id}`}
+                            style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "10px 18px", borderRadius: 10, border: "1px solid #e2e8f0", background: "#fff", color: "#64748b", fontSize: 13, fontWeight: 600, textDecoration: "none", boxShadow: "0 1px 4px rgba(0,0,0,0.05)", flexShrink: 0 }}>
+                            <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="15 18 9 12 15 6"/></svg>
+                            Retour au dossier
+                        </a>
+                    </div>
+                </div>
+
+                {/* Existing rapport banner */}
+                {rapport && (
+                    <div className="fu" style={{ marginBottom: 20, border: `1px solid ${GREEN}30`, borderRadius: 14, padding: "14px 20px", background: "#f0fdf4", display: "flex", alignItems: "center", gap: 12, animationDelay: "0.05s" }}>
+                        <div style={{ width: 36, height: 36, borderRadius: 10, background: `${GREEN}20`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                            <svg width={17} height={17} viewBox="0 0 24 24" fill="none" stroke={GREEN} strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                        </div>
+                        <div>
+                            <p style={{ fontSize: 14, fontWeight: 700, color: "#065f46", margin: 0 }}>Un rapport a déjà été déposé pour ce dossier.</p>
+                            <p style={{ fontSize: 12, color: "#16a34a", margin: "2px 0 0" }}>Vous pouvez déposer un nouveau fichier pour le remplacer.</p>
+                        </div>
+                    </div>
+                )}
+
+                {/* Form card */}
+                <div className="fu" style={{ background: "#fff", border: "1px solid #e8edf3", borderRadius: 18, boxShadow: "0 2px 16px rgba(12,68,124,.06)", overflow: "hidden", animationDelay: "0.1s" }}>
+
+                    {/* Card header */}
+                    <div style={{ padding: "1.25rem 1.75rem", borderBottom: "1px solid #f1f5f9", background: "#fafbfc", display: "flex", alignItems: "center", gap: 12 }}>
+                        <div style={{ width: 40, height: 40, borderRadius: 11, background: `${GREEN}12`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                            <svg width={19} height={19} viewBox="0 0 24 24" fill="none" stroke={GREEN} strokeWidth="2">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                                <polyline points="14 2 14 8 20 8"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <h2 style={{ fontSize: 15, fontWeight: 700, color: "#0f172a", margin: 0 }}>Fichier du rapport</h2>
+                            <p style={{ fontSize: 11, color: "#94a3b8", margin: "2px 0 0" }}>Formats acceptés : PDF, DOC, DOCX — max 10 Mo</p>
+                        </div>
+                    </div>
+
+                    <form onSubmit={submit} style={{ padding: "1.75rem" }}>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+
+                            {/* Titre */}
                             <div>
-                                <label className="mb-2 block text-sm font-black text-slate-700">
-                                    Titre
+                                <label style={{ fontSize: 13, fontWeight: 600, color: "#374151", display: "block", marginBottom: 8 }}>
+                                    Titre du rapport
                                 </label>
-
                                 <input
+                                    className="field-input"
                                     value={form.data.titre}
-                                    onChange={(e) => form.setData('titre', e.target.value)}
-                                    className="h-14 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-bold text-slate-700 outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                                    onChange={e => form.setData('titre', e.target.value)}
                                     placeholder="Titre du rapport"
+                                    style={{ width: "100%", padding: "11px 14px", border: form.errors.titre ? `1.5px solid ${RED}` : "1px solid #e2e8f0", borderRadius: 10, fontSize: 14, color: "#0f172a", background: "#fafbfc", outline: "none" }}
                                 />
-
                                 {form.errors.titre && (
-                                    <p className="mt-2 text-sm font-bold text-red-600">
+                                    <p style={{ fontSize: 11, color: RED, margin: "5px 0 0", display: "flex", alignItems: "center", gap: 4 }}>
+                                        <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
                                         {form.errors.titre}
                                     </p>
                                 )}
                             </div>
 
+                            {/* Commentaire */}
                             <div>
-                                <label className="mb-2 block text-sm font-black text-slate-700">
+                                <label style={{ fontSize: 13, fontWeight: 600, color: "#374151", display: "block", marginBottom: 8 }}>
                                     Commentaire
+                                    <span style={{ fontSize: 11, color: "#9ca3af", fontWeight: 400, marginLeft: 6 }}>(optionnel)</span>
                                 </label>
-
                                 <textarea
+                                    className="field-input"
                                     value={form.data.commentaire}
-                                    onChange={(e) => form.setData('commentaire', e.target.value)}
-                                    rows={5}
-                                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm font-bold text-slate-700 outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
-                                    placeholder="Commentaire optionnel..."
+                                    onChange={e => form.setData('commentaire', e.target.value)}
+                                    rows={4}
+                                    placeholder="Commentaire ou observations complémentaires..."
+                                    style={{ width: "100%", padding: "11px 14px", border: "1px solid #e2e8f0", borderRadius: 10, fontSize: 14, color: "#0f172a", background: "#fafbfc", outline: "none", resize: "vertical", lineHeight: 1.6 }}
                                 />
-
                                 {form.errors.commentaire && (
-                                    <p className="mt-2 text-sm font-bold text-red-600">
-                                        {form.errors.commentaire}
-                                    </p>
+                                    <p style={{ fontSize: 11, color: RED, margin: "5px 0 0" }}>{form.errors.commentaire}</p>
                                 )}
                             </div>
 
+                            {/* File upload */}
                             <div>
-                                <label className="mb-2 block text-sm font-black text-slate-700">
-                                    Rapport
+                                <label style={{ fontSize: 13, fontWeight: 600, color: "#374151", display: "block", marginBottom: 8 }}>
+                                    Fichier du rapport
+                                    <span style={{ fontSize: 11, color: RED, marginLeft: 3 }}>*</span>
                                 </label>
 
-                                <label className="flex cursor-pointer flex-col items-center justify-center rounded-[2rem] border-2 border-dashed border-slate-200 bg-slate-50 p-10 text-center transition hover:border-blue-400 hover:bg-blue-50">
-                                    <UploadCloud size={42} className="text-blue-600" />
-
-                                    <p className="mt-4 text-sm font-black text-slate-800">
-                                        Cliquez pour choisir un fichier
-                                    </p>
-
-                                    <p className="mt-1 text-xs font-semibold text-slate-400">
-                                        PDF, DOC, DOCX — max 10 Mo
-                                    </p>
-
+                                <div
+                                    className="drop-zone"
+                                    onClick={() => fileRef.current.click()}
+                                    onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+                                    onDragLeave={() => setDragOver(false)}
+                                    onDrop={handleFileDrop}
+                                    style={{
+                                        border: `2px dashed ${form.data.rapport ? GREEN : dragOver ? BLUE : "#e2e8f0"}`,
+                                        borderRadius: 14,
+                                        padding: "2.5rem 1.5rem",
+                                        textAlign: "center",
+                                        cursor: "pointer",
+                                        background: form.data.rapport ? `${GREEN}04` : dragOver ? `${BLUE}04` : "#fafbfc",
+                                        transition: "all .2s",
+                                    }}
+                                >
+                                    {form.data.rapport ? (
+                                        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
+                                            <div style={{ width: 52, height: 52, borderRadius: 14, background: `${GREEN}12`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                                <svg width={24} height={24} viewBox="0 0 24 24" fill="none" stroke={GREEN} strokeWidth="2"><polyline points="20 6 9 17 4 12"/></svg>
+                                            </div>
+                                            <div>
+                                                <p style={{ fontSize: 14, fontWeight: 700, color: GREEN, margin: 0 }}>{form.data.rapport.name}</p>
+                                                <p style={{ fontSize: 12, color: "#94a3b8", margin: "4px 0 0" }}>
+                                                    {(form.data.rapport.size / 1024).toFixed(1)} Ko — Cliquer pour changer
+                                                </p>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
+                                            <div style={{ width: 56, height: 56, borderRadius: 16, background: `${BLUE}10`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                                <svg width={26} height={26} viewBox="0 0 24 24" fill="none" stroke={BLUE} strokeWidth="1.75">
+                                                    <polyline points="16 16 12 12 8 16"/>
+                                                    <line x1="12" y1="12" x2="12" y2="21"/>
+                                                    <path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/>
+                                                </svg>
+                                            </div>
+                                            <div>
+                                                <p style={{ fontSize: 14, fontWeight: 700, color: "#374151", margin: 0 }}>Glissez votre fichier ici ou cliquez pour parcourir</p>
+                                                <p style={{ fontSize: 12, color: "#94a3b8", margin: "4px 0 0" }}>PDF, DOC, DOCX — max 10 Mo</p>
+                                            </div>
+                                        </div>
+                                    )}
                                     <input
+                                        ref={fileRef}
                                         type="file"
                                         accept=".pdf,.doc,.docx"
-                                        className="hidden"
-                                        onChange={(e) => form.setData('rapport', e.target.files[0])}
+                                        style={{ display: "none" }}
+                                        onChange={e => form.setData('rapport', e.target.files[0])}
                                     />
-                                </label>
-
-                                {form.data.rapport && (
-                                    <p className="mt-3 text-sm font-black text-emerald-600">
-                                        Fichier choisi : {form.data.rapport.name}
-                                    </p>
-                                )}
+                                </div>
 
                                 {form.errors.rapport && (
-                                    <p className="mt-2 text-sm font-bold text-red-600">
+                                    <p style={{ fontSize: 11, color: RED, margin: "5px 0 0", display: "flex", alignItems: "center", gap: 4 }}>
+                                        <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
                                         {form.errors.rapport}
                                     </p>
                                 )}
                             </div>
 
-                            <div className="flex justify-end">
-                                <button
-                                    type="submit"
-                                    disabled={form.processing}
-                                    className="inline-flex h-14 items-center gap-2 rounded-2xl bg-blue-600 px-6 text-sm font-black text-white shadow-lg shadow-blue-600/20 transition hover:bg-blue-700 disabled:opacity-60"
-                                >
-                                    <UploadCloud size={18} />
-                                    {form.processing ? 'Dépôt...' : 'Déposer le rapport'}
-                                </button>
-                            </div>
-                        </form>
-                    </section>
+                        </div>
+
+                        {/* Actions */}
+                        <div style={{ display: "flex", justifyContent: "flex-end", gap: 12, marginTop: 28, paddingTop: 20, borderTop: "1px solid #f1f5f9" }}>
+                            <a href="/expert/rapports"
+                                className="btn-secondary"
+                                style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "11px 22px", borderRadius: 10, border: "1px solid #e2e8f0", background: "#fff", color: "#64748b", fontSize: 14, fontWeight: 600, textDecoration: "none" }}>
+                                Annuler
+                            </a>
+                            <button
+                                type="submit"
+                                disabled={form.processing}
+                                className="btn-primary"
+                                style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "11px 28px", borderRadius: 10, border: "none", background: form.processing ? "#94a3b8" : `linear-gradient(135deg, ${GREEN}, #178a63)`, color: "#fff", fontSize: 14, fontWeight: 700, cursor: form.processing ? "not-allowed" : "pointer", boxShadow: `0 4px 14px rgba(29,158,117,.4)` }}>
+                                {form.processing ? (
+                                    <>
+                                        <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ animation: "spin 1s linear infinite" }}><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+                                        Dépôt en cours...
+                                    </>
+                                ) : (
+                                    <>
+                                        <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                                            <polyline points="16 16 12 12 8 16"/>
+                                            <line x1="12" y1="12" x2="12" y2="21"/>
+                                            <path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/>
+                                        </svg>
+                                        Déposer le rapport
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    </form>
                 </div>
             </div>
+
+            <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
         </>
     );
 }

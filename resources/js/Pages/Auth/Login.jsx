@@ -59,6 +59,14 @@ export default function Login({ status, canResetPassword }) {
                 {/* Message de statut (ex: mot de passe réinitialisé avec succès) */}
                 {status && <div className="mb-6 font-medium text-sm text-green-600 bg-green-50 p-3 rounded-lg text-center">{status}</div>}
 
+                {/* Bannière erreur compte désactivé */}
+                {errors.email && !errors.password && (
+                    <div className="mb-4 flex items-start gap-3 p-3 bg-red-50 border border-red-200 rounded-xl">
+                        <svg className="shrink-0 mt-0.5" width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                        <p className="text-red-600 text-sm font-medium">{errors.email}</p>
+                    </div>
+                )}
+
                 <form onSubmit={submit} className="space-y-6">
                     {/* Champ Email */}
                     <div>
@@ -70,13 +78,15 @@ export default function Login({ status, canResetPassword }) {
                             type="email"
                             name="email"
                             value={data.email}
-                            className={`w-full px-4 py-3 rounded-xl border ${errors.email ? 'border-red-500 focus:ring-red-200' : 'border-slate-200 focus:border-blue-500 focus:ring-blue-200'} focus:ring transition-all bg-slate-50 focus:bg-white`}
+                            className={`w-full px-4 py-3 rounded-xl border ${errors.email ? 'border-red-400 focus:ring-red-200' : 'border-slate-200 focus:border-blue-500 focus:ring-blue-200'} focus:ring transition-all bg-slate-50 focus:bg-white`}
                             placeholder="nom@exemple.com"
                             autoComplete="username"
-                            isFocused={true}
+                            autoFocus
                             onChange={(e) => setData('email', e.target.value)}
                         />
-                        {errors.email && <p className="text-red-500 text-xs font-semibold mt-2">{errors.email}</p>}
+                        {errors.email && !errors.password && (
+                            <p className="text-red-500 text-xs font-semibold mt-1.5">{errors.email}</p>
+                        )}
                     </div>
 
                     {/* Champ Mot de passe */}
@@ -99,12 +109,14 @@ export default function Login({ status, canResetPassword }) {
                             type="password"
                             name="password"
                             value={data.password}
-                            className={`w-full px-4 py-3 rounded-xl border ${errors.password ? 'border-red-500 focus:ring-red-200' : 'border-slate-200 focus:border-blue-500 focus:ring-blue-200'} focus:ring transition-all bg-slate-50 focus:bg-white`}
+                            className={`w-full px-4 py-3 rounded-xl border ${errors.password ? 'border-red-400 focus:ring-red-200' : 'border-slate-200 focus:border-blue-500 focus:ring-blue-200'} focus:ring transition-all bg-slate-50 focus:bg-white`}
                             placeholder="••••••••"
                             autoComplete="current-password"
                             onChange={(e) => setData('password', e.target.value)}
                         />
-                        {errors.password && <p className="text-red-500 text-xs font-semibold mt-2">{errors.password}</p>}
+                        {errors.password && (
+                            <p className="text-red-500 text-xs font-semibold mt-1.5">{errors.password}</p>
+                        )}
                     </div>
 
                     {/* Se souvenir de moi + CAPTCHA Visuel */}

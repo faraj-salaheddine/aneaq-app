@@ -1,5 +1,7 @@
 import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
 import DashboardShell from '@/Layouts/DashboardShell';
+import MessageriePanel from '@/Components/MessageriePanel';
+import ConfirmModal from '@/Components/ConfirmModal';
 import {
     ArrowLeft,
     BadgeCheck,
@@ -38,6 +40,7 @@ function Show({ dossier, experts = [], allExperts = [], dossierExperts = [], doc
     const [selectedExpert, setSelectedExpert] = useState(null);
     const [expertFilterActive, setExpertFilterActive] = useState(true);
     const [photoPreviews, setPhotoPreviews] = useState([]);
+    const [dialog, setDialog] = useState(null);
 
     const [deleteModal, setDeleteModal] = useState({
         open: false,
@@ -124,12 +127,12 @@ function Show({ dossier, experts = [], allExperts = [], dossierExperts = [], doc
     };
 
     const refuseExpert = (dossierExpertId) => {
-        if (!confirm('Voulez-vous vraiment refuser cet expert ?')) {
-            return;
-        }
-
-        router.delete(`/dee/dossiers/${dossier.id}/experts/${dossierExpertId}/refuse`, {
-            preserveScroll: true,
+        setDialog({
+            message: 'Voulez-vous vraiment refuser cet expert ?',
+            onConfirm: () => {
+                setDialog(null);
+                router.delete(`/dee/dossiers/${dossier.id}/experts/${dossierExpertId}/refuse`, { preserveScroll: true });
+            },
         });
     };
 
@@ -271,6 +274,17 @@ function Show({ dossier, experts = [], allExperts = [], dossierExperts = [], doc
     return (
         <>
             <Head title={dossier.nom || dossier.reference || 'Dossier'} />
+            {dialog && (
+                <ConfirmModal
+                    title="Refuser l'expert"
+                    message={dialog.message}
+                    danger
+                    confirmLabel="Refuser"
+                    onConfirm={dialog.onConfirm}
+                    onCancel={() => setDialog(null)}
+                />
+            )}
+            <MessageriePanel dossierId={dossier.id} currentRole="admin_dee" />
 
             <div className="mx-auto max-w-[98rem] px-4 py-10 sm:px-6 lg:px-8">
                 <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -302,6 +316,24 @@ function Show({ dossier, experts = [], allExperts = [], dossierExperts = [], doc
                                 Voir la vague
                             </Link>
                         )}
+
+                        <a
+                            href={`/dee/dossiers/${dossier.id}/export/matrice`}
+                            target="_blank"
+                            className="inline-flex items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-3 text-sm font-black text-emerald-700 shadow-sm transition hover:bg-emerald-100"
+                        >
+                            <FileText size={17} />
+                            Export matrice PDF
+                        </a>
+
+                        <a
+                            href={`/dee/dossiers/${dossier.id}/export/rapport`}
+                            target="_blank"
+                            className="inline-flex items-center gap-2 rounded-2xl border border-purple-200 bg-purple-50 px-5 py-3 text-sm font-black text-purple-700 shadow-sm transition hover:bg-purple-100"
+                        >
+                            <FileText size={17} />
+                            Export rapport PDF
+                        </a>
                     </div>
                 </div>
 

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Head, router } from "@inertiajs/react";
 import DashboardLayout from "@/Layouts/SI/DashboardLayout";
+import ConfirmModal from "@/Components/ConfirmModal";
 
 const BLUE   = "#0C447C";
 const GREEN  = "#1D9E75";
@@ -55,6 +56,7 @@ export default function Index({ experts = [] }) {
     const [filters, setFilters]         = useState({ nom: "", prenom: "", email: "", telephone: "", type_etablissement: "" });
     const [page, setPage]               = useState(1);
     const [pageSize, setPageSize]       = useState(25);
+    const [dialog, setDialog]           = useState(null);
 
     const setFilter  = (k, v) => { setFilters(f => ({ ...f, [k]: v })); setPage(1); };
     const toggleCol  = key    => setVisibleCols(p => p.includes(key) ? p.filter(k => k !== key) : [...p, key]);
@@ -76,8 +78,10 @@ export default function Index({ experts = [] }) {
     const paginated  = filtered.slice((page - 1) * pageSize, page * pageSize);
 
     const handleDelete = expert => {
-        if (!confirm(`Supprimer ${expert.nom} ${expert.prenom} ?`)) return;
-        router.delete(`/si/experts/${expert.id}`);
+        setDialog({
+            message: `Supprimer ${expert.nom} ${expert.prenom} ?`,
+            onConfirm: () => { setDialog(null); router.delete(`/si/experts/${expert.id}`); },
+        });
     };
 
     const resetAll = () => {
@@ -92,6 +96,16 @@ export default function Index({ experts = [] }) {
     return (
         <>
             <Head title="Experts — ANEAQ" />
+            {dialog && (
+                <ConfirmModal
+                    title="Supprimer l'expert"
+                    message={dialog.message}
+                    danger
+                    confirmLabel="Supprimer"
+                    onConfirm={dialog.onConfirm}
+                    onCancel={() => setDialog(null)}
+                />
+            )}
             <style>{`
                 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
                 .experts-root * { font-family: 'DM Sans', sans-serif; box-sizing: border-box; }

@@ -54,6 +54,21 @@ class ExpertController extends Controller
         ]);
     }
 
+    public function show(Expert $expert)
+    {
+        return redirect()->route('dee.experts.index');
+    }
+
+    public function create()
+    {
+        return redirect()->route('dee.experts.index');
+    }
+
+    public function edit(Expert $expert)
+    {
+        return redirect()->route('dee.experts.index');
+    }
+
     public function store(Request $request)
     {
         $validated = $request->validate([

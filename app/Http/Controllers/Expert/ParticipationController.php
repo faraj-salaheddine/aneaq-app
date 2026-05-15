@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Expert;
 
 use App\Http\Controllers\Controller;
+use App\Models\Dossier;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -88,6 +90,8 @@ class ParticipationController extends Controller
                         'acces_envoye',
                     ], true),
 
+                    'is_waiting_dee' => $status === 'accepte_par_expert',
+
                     'is_confirmed' => in_array($status, [
                         'confirme_par_expert',
                         'comite_confirme',
@@ -111,12 +115,69 @@ class ParticipationController extends Controller
             ],
             'participations' => $participations,
             'stats' => [
-                'total' => $participations->count(),
-                'en_attente' => $participations->where('is_pending', true)->count(),
-                'confirmees' => $participations->where('is_confirmed', true)->count(),
-                'refusees' => $participations->where('is_refused', true)->count(),
+                'total'        => $participations->count(),
+                'en_attente'   => $participations->where('is_pending', true)->count(),
+                'attente_dee'  => $participations->where('is_waiting_dee', true)->count(),
+                'confirmees'   => $participations->where('is_confirmed', true)->count(),
+                'refusees'     => $participations->where('is_refused', true)->count(),
             ],
         ]);
+    }
+
+    public function confirmer(Dossier $dossier)
+    {
+        $user   = Auth::user();
+        $expert = $this->findExpertForUser($user);
+
+        if (!$expert) {
+            return back()->with('error', 'Expert introuvable.');
+        }
+
+        $updated = DB::table('dossier_experts')
+            ->where('expert_id', $expert->id)
+            ->where('dossier_id', $dossier->id)
+            ->update([
+                'status'               => 'confirme_par_expert',
+                'expert_confirmed_at'  => now(),
+                'updated_at'           => now(),
+            ]);
+
+        if (!$updated) {
+            return back()->with('error', 'Affectation introuvable.');
+        }
+
+        return back()->with('success', 'Participation confirmée avec succès.');
+    }
+
+    public function refuser(Request $request, Dossier $dossier)
+    {
+        $user   = Auth::user();
+        $expert = $this->findExpertForUser($user);
+
+        if (!$expert) {
+            return back()->with('error', 'Expert introuvable.');
+        }
+
+        $payload = [
+            'status'              => 'refuse_par_expert',
+            'expert_refused_at'   => now(),
+            'updated_at'          => now(),
+        ];
+
+        if ($request->filled('motif_refus') && Schema::hasColumn('dossier_experts', 'motif_refus')) {
+            $payload['motif_refus'] = $request->input('motif_refus');
+        }
+
+        $updated = DB::table('dossier_experts')
+            ->where('expert_id', $expert->id)
+            ->where('dossier_id', $dossier->id)
+            ->update($payload);
+
+        if (!$updated) {
+            return back()->with('error', 'Affectation introuvable.');
+        }
+
+        return back()->with('success', 'Participation refusée.');
     }
 
     private function findExpertForUser($user)
@@ -343,14 +404,15 @@ class ParticipationController extends Controller
     private function statusLabel(?string $status): string
     {
         return match ($status) {
-            'en_attente_confirmation_dee' => 'En attente DEE',
-            'en_attente_confirmation_expert' => 'À confirmer',
-            'acces_envoye' => 'À confirmer',
-            'confirme_par_expert' => 'Confirmée',
-            'comite_confirme' => 'Comité confirmé',
-            'refuse_par_expert' => 'Refusée',
-            'confirme' => 'Confirmée',
-            'refuse' => 'Refusée',
+            'en_attente_confirmation_dee'    => 'En attente DEE',
+            'en_attente_confirmation_expert' => 'Invitation reçue',
+            'acces_envoye'                   => 'Invitation reçue',
+            'accepte_par_expert'             => 'Acceptée — en attente DEE',
+            'confirme_par_expert'            => 'Affectation confirmée',
+            'comite_confirme'                => 'Comité confirmé',
+            'refuse_par_expert'              => 'Refusée',
+            'confirme'                       => 'Confirmée',
+            'refuse'                         => 'Refusée',
             default => $status ?: '—',
         };
     }

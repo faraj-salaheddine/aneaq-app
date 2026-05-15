@@ -30,6 +30,8 @@ class EtablissementDashboardController extends Controller
 
         $taches  = $this->buildTaches($etablissement, $dossier, $onboarding);
         $timeline = $this->buildTimeline($dossier);
+        $documentsManquants = $this->buildDocumentsManquants($dossier);
+        $dossierId = $dossier?->id;
 
         return Inertia::render('Etablissement/Dashboard', [
             'etablissement'        => $etablissement,
@@ -39,6 +41,8 @@ class EtablissementDashboardController extends Controller
             'notificationsNonLues' => $notificationsNonLues,
             'taches'               => $taches,
             'timeline'             => $timeline,
+            'documentsManquants'   => $documentsManquants,
+            'dossierId'            => $dossierId,
         ]);
     }
 
@@ -70,6 +74,31 @@ class EtablissementDashboardController extends Controller
         }
 
         return $taches;
+    }
+
+    private function buildDocumentsManquants(?Dossier $dossier): array
+    {
+        if (!$dossier) return [];
+
+        $typesRequis = [
+            'rapport_autoevaluation' => "Rapport d'autoévaluation",
+            'plan_developpement'     => 'Plan de développement',
+            'statuts'                => 'Statuts de l\'établissement',
+        ];
+
+        $deposes = DB::table('dossier_documents')
+            ->where('dossier_id', $dossier->id)
+            ->pluck('type_document')
+            ->toArray();
+
+        $manquants = [];
+        foreach ($typesRequis as $type => $label) {
+            if (!in_array($type, $deposes)) {
+                $manquants[] = ['type' => $type, 'label' => $label];
+            }
+        }
+
+        return $manquants;
     }
 
     private function buildTimeline(?Dossier $dossier): array

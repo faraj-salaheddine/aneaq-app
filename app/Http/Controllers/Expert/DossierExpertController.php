@@ -8,6 +8,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -117,6 +118,12 @@ class DossierExpertController extends Controller
             ],
         ]);
 
+        $assignment = DB::table('dossier_experts')
+            ->where('expert_id', $expert->id)
+            ->where('dossier_id', $dossier->id)
+            ->orderByDesc('id')
+            ->first();
+
         return Inertia::render('Expert/Dossiers/Show', [
             'expert' => [
                 'id' => $expert->id,
@@ -129,7 +136,55 @@ class DossierExpertController extends Controller
             'progression' => $progression,
             'rapport' => $rapport,
             'nbRecommandations' => $nbRecommandations,
+            'documents' => $this->loadDocuments($dossier),
+            'assignmentStatus' => $assignment->status ?? null,
         ]);
+    }
+
+    public function openDocument(Dossier $dossier, $document)
+    {
+        $user   = Auth::user();
+        $expert = $this->findExpertForUser($user);
+
+        abort_if(!$expert, 403, 'Expert introuvable.');
+
+        $this->authorizeDossier($expert->id, $dossier->id);
+
+        $table = null;
+        foreach (['dossier_documents', 'documents'] as $t) {
+            if (Schema::hasTable($t)) {
+                $table = $t;
+                break;
+            }
+        }
+
+        abort_if(!$table, 404);
+
+        $doc = DB::table($table)
+            ->where('id', $document)
+            ->where('dossier_id', $dossier->id)
+            ->first();
+
+        abort_if(!$doc, 404);
+
+        $path = $doc->path ?? $doc->file_path ?? $doc->fichier ?? null;
+
+        abort_if(!$path, 404);
+
+        $originalName = $doc->original_name ?? $doc->filename ?? basename($path);
+
+        foreach (['public', 'local'] as $disk) {
+            if (Storage::disk($disk)->exists($path)) {
+                $fullPath = Storage::disk($disk)->path($path);
+                $mime     = $doc->mime_type ?? mime_content_type($fullPath);
+                return response()->file($fullPath, [
+                    'Content-Type'        => $mime,
+                    'Content-Disposition' => 'inline; filename="' . $originalName . '"',
+                ]);
+            }
+        }
+
+        abort(404);
     }
 
     private function findExpertForUser($user)
@@ -175,6 +230,7 @@ class DossierExpertController extends Controller
             ->where(function ($query) {
                 if (Schema::hasColumn('dossier_experts', 'status')) {
                     $query->whereIn('status', [
+                        'accepte_par_expert',
                         'confirme_par_expert',
                         'comite_confirme',
                     ]);
@@ -199,6 +255,7 @@ class DossierExpertController extends Controller
 
             if (Schema::hasColumn('dossier_experts', 'status')) {
                 $query->whereIn('status', [
+                    'accepte_par_expert',
                     'confirme_par_expert',
                     'comite_confirme',
                 ]);
@@ -354,6 +411,43 @@ class DossierExpertController extends Controller
             ->first();
     }
 
+    private function loadDocuments(Dossier $dossier): array
+    {
+        $table = null;
+        foreach (['dossier_documents', 'documents'] as $t) {
+            if (Schema::hasTable($t)) {
+                $table = $t;
+                break;
+            }
+        }
+
+        if (!$table) {
+            return [];
+        }
+
+        return DB::table($table)
+            ->where('dossier_id', $dossier->id)
+            ->orderByDesc('id')
+            ->get()
+            ->map(function ($doc) use ($dossier) {
+                $path = $doc->path ?? $doc->file_path ?? $doc->fichier ?? null;
+                return [
+                    'id'            => $doc->id,
+                    'type'          => $doc->type ?? $doc->document_type ?? 'document',
+                    'titre'         => $doc->titre ?? $doc->nom ?? $doc->name ?? 'Document',
+                    'original_name' => $doc->original_name ?? $doc->filename ?? basename($path ?? ''),
+                    'size'          => $doc->size ?? $doc->file_size ?? null,
+                    'created_at'    => $doc->created_at ?? null,
+                    'url'           => $path ? route('expert.dossiers.documents.open', [
+                        'dossier'  => $dossier->id,
+                        'document' => $doc->id,
+                    ]) : null,
+                ];
+            })
+            ->values()
+            ->toArray();
+    }
+
     private function countRecommandations($expertId, $dossierId): int
     {
         if (!Schema::hasTable('matrices_recommandations')) {
@@ -441,7 +535,7 @@ class DossierExpertController extends Controller
     private function roleLabel(?string $role): string
     {
         return match ($role) {
-            'chef_comite' => 'Chef de comité',
+            'chef_comite' => 'Coordinateur',
             'expert' => 'Expert',
             default => $role ?: 'Expert',
         };

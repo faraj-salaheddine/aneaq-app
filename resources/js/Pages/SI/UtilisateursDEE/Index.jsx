@@ -1,8 +1,9 @@
-// resources/js/Pages/SI/UtilisateursDEE/Index.jsx
+f// resources/js/Pages/SI/UtilisateursDEE/Index.jsx
 
 import { useState, useEffect } from "react";
 import { Head, router, usePage } from "@inertiajs/react";
 import DashboardLayout from "@/Layouts/SI/DashboardLayout";
+import ConfirmModal from "@/Components/ConfirmModal";
 
 const BLUE   = "#0C447C";
 const GREEN  = "#1D9E75";
@@ -30,6 +31,7 @@ export default function Index({ dee = [] }) {
     const [search, setSearch]         = useState("");
     const [roleFilter, setRoleFilter] = useState("");
     const [toast, setToast]           = useState(flash?.success || null);
+    const [dialog, setDialog]         = useState(null);
 
     useEffect(() => {
         if (flash?.success) setToast(flash.success);
@@ -54,8 +56,10 @@ export default function Index({ dee = [] }) {
     });
 
     const handleDelete = u => {
-        if (!confirm(`Supprimer ${u.nom} ${u.prenom} ?`)) return;
-        router.delete(`/si/utilisateurs-dee/${u.id}`);
+        setDialog({
+            message: `Supprimer ${u.nom} ${u.prenom} ?`,
+            onConfirm: () => { setDialog(null); router.delete(`/si/utilisateurs-dee/${u.id}`); },
+        });
     };
 
     const totalDEE     = dee.filter(u => u.role === "dee").length;
@@ -64,6 +68,16 @@ export default function Index({ dee = [] }) {
     return (
         <>
             <Head title="Utilisateurs DEE" />
+            {dialog && (
+                <ConfirmModal
+                    message={dialog.message}
+                    title="Confirmation"
+                    danger
+                    confirmLabel="Supprimer"
+                    onConfirm={dialog.onConfirm}
+                    onCancel={() => setDialog(null)}
+                />
+            )}
             <style>{`
                 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@500&display=swap');
                 .dee-root * { font-family: 'DM Sans', sans-serif; box-sizing: border-box; }

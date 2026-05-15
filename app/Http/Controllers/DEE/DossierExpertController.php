@@ -5,6 +5,7 @@ namespace App\Http\Controllers\DEE;
 use App\Http\Controllers\Controller;
 use App\Mail\ExpertAccountCreatedMail;
 use App\Models\Dossier;
+use App\Services\ActivityLogger;
 use App\Models\DossierExpert;
 use App\Models\Expert;
 use App\Models\User;
@@ -74,6 +75,7 @@ class DossierExpertController extends Controller
         }
 
         DossierExpert::create($payload);
+        ActivityLogger::log('expert_affecte', "Expert {$expert->prenom} {$expert->nom} affecté au dossier {$dossier->reference}", $dossier);
 
         return back()->with('success', 'Expert ajouté en attente de confirmation DEE.');
     }
@@ -175,6 +177,7 @@ class DossierExpertController extends Controller
                 )
             );
 
+            ActivityLogger::log('expert_confirme', "Expert {$expertName} confirmé pour le dossier {$dossier->reference}", $dossier);
             return back()->with('success', 'Expert accepté, compte créé et email envoyé avec succès.');
         } catch (\Throwable $e) {
             return back()->with(
@@ -190,6 +193,8 @@ class DossierExpertController extends Controller
             abort(404);
         }
 
+        $expert = $dossierExpert->expert;
+        ActivityLogger::log('expert_refuse', "Expert refusé sur le dossier {$dossier->reference}", $dossier);
         $dossierExpert->delete();
 
         return back()->with('success', 'Expert refusé et supprimé du dossier.');
