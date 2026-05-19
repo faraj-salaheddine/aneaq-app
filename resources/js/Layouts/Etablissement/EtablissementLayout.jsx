@@ -1,5 +1,5 @@
 import { router, usePage } from "@inertiajs/react";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 
 const NAV = [
     { key: "dashboard",     label: "Tableau de bord", icon: "grid",          route: "etablissement.dashboard" },
@@ -133,11 +133,15 @@ function Icon({ name, cls = "el-nav-icon" }) {
 
 export default function EtablissementLayout({ children, active }) {
     const { props } = usePage();
-    const dossierId = props.etablissement_dossier_id;
+    const dossierId    = props.etablissement_dossier_id;
+    const notifsCount  = props.notifs_non_lues ?? 0;
+
+    const DOSSIER_REQUIRED = ['qr', 'documents', 'complementaires', 'rapport-aneaq', 'annexes'];
 
     const handleNavClick = (item) => {
         if (item.key === 'qr') {
             if (dossierId) router.visit(`/etablissement/questions-reponses/${dossierId}`);
+            else router.visit('/etablissement/sans-dossier');
             return;
         }
         router.visit(route(item.route));
@@ -169,6 +173,17 @@ export default function EtablissementLayout({ children, active }) {
                             >
                                 <Icon name={item.icon}/>
                                 <span className="el-nav-label">{item.label}</span>
+                                {item.key === 'notifications' && notifsCount > 0 && (
+                                    <span style={{
+                                        marginLeft: 'auto', minWidth: 18, height: 18,
+                                        borderRadius: 99, background: '#e11d48',
+                                        color: '#fff', fontSize: 10, fontWeight: 700,
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                        padding: '0 5px', flexShrink: 0,
+                                    }}>
+                                        {notifsCount > 99 ? '99+' : notifsCount}
+                                    </span>
+                                )}
                             </button>
                         ))}
                     </nav>

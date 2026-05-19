@@ -23,22 +23,45 @@ class EtablissementDashboardController extends Controller
         $onboarding = EtablissementOnboarding::where('etablissement_id', $etablissement->id)->first();
 
         $notifications = NotificationAneaq::where('user_id', Auth::id())
-            ->latest()->take(5)->get();
+            ->latest()->take(5)->get()
+            ->map(fn($n) => [
+                'id'         => $n->id,
+                'titre'      => $n->titre,
+                'message'    => $n->message,
+                'type'       => $n->type ?? 'info',
+                'lu'         => $n->lu,
+                'created_at' => $n->created_at->diffForHumans(),
+            ]);
 
         $notificationsNonLues = NotificationAneaq::where('user_id', Auth::id())
             ->where('lu', false)->count();
 
-        $taches  = $this->buildTaches($etablissement, $dossier, $onboarding);
+        $derniereNotif = NotificationAneaq::where('user_id', Auth::id())
+            ->where('lu', false)
+            ->latest()
+            ->first();
+
+        $derniereNotif = $derniereNotif ? [
+            'id'      => $derniereNotif->id,
+            'titre'   => $derniereNotif->titre,
+            'message' => $derniereNotif->message,
+            'type'    => $derniereNotif->type ?? 'info',
+        ] : null;
+
+        $taches  = $this->buildTaches($dossier, $onboarding);
         $timeline = $this->buildTimeline($dossier);
         $documentsManquants = $this->buildDocumentsManquants($dossier);
         $dossierId = $dossier?->id;
 
         return Inertia::render('Etablissement/Dashboard', [
             'etablissement'        => $etablissement,
-            'dossier'              => $dossier,
+            'dossier'              => $dossier ? array_merge($dossier->toArray(), [
+                'date_visite' => $dossier->date_visite?->format('d/m/Y'),
+            ]) : null,
             'onboarding'           => $onboarding,
             'notifications'        => $notifications,
             'notificationsNonLues' => $notificationsNonLues,
+            'derniereNotif'        => $derniereNotif,
             'taches'               => $taches,
             'timeline'             => $timeline,
             'documentsManquants'   => $documentsManquants,
@@ -46,7 +69,7 @@ class EtablissementDashboardController extends Controller
         ]);
     }
 
-    private function buildTaches(Etablissement $etablissement, ?Dossier $dossier, ?EtablissementOnboarding $onboarding): array
+    private function buildTaches(?Dossier $dossier, ?EtablissementOnboarding $onboarding): array
     {
         $taches = [];
 
@@ -61,7 +84,7 @@ class EtablissementDashboardController extends Controller
         if ($dossier) {
             $hasRapport = DB::table('dossier_documents')
                 ->where('dossier_id', $dossier->id)
-                ->where('type_document', 'rapport_autoevaluation')
+                ->whereIn('type_document', ['rapport_autoevaluation', ''])
                 ->exists();
 
             if (!$hasRapport) {
@@ -82,8 +105,6 @@ class EtablissementDashboardController extends Controller
 
         $typesRequis = [
             'rapport_autoevaluation' => "Rapport d'autoévaluation",
-            'plan_developpement'     => 'Plan de développement',
-            'statuts'                => 'Statuts de l\'établissement',
         ];
 
         $deposes = DB::table('dossier_documents')
@@ -91,8 +112,12 @@ class EtablissementDashboardController extends Controller
             ->pluck('type_document')
             ->toArray();
 
+        $hasAnyDoc = count($deposes) > 0;
+
         $manquants = [];
         foreach ($typesRequis as $type => $label) {
+            // treat any uploaded document as satisfying rapport_autoevaluation
+            if ($type === 'rapport_autoevaluation' && $hasAnyDoc) continue;
             if (!in_array($type, $deposes)) {
                 $manquants[] = ['type' => $type, 'label' => $label];
             }
@@ -102,39 +127,38 @@ class EtablissementDashboardController extends Controller
     }
 
     private function buildTimeline(?Dossier $dossier): array
-{
-    if (!$dossier) return [];
+    {
+        if (!$dossier) return [];
 
-    $etapes = [
-        ['statut' => 'en_attente_formulaire', 'label' => 'Sélectionné'],
-        ['statut' => 'formulaire_complete',   'label' => 'Profil complété'],
-        ['statut' => 'rapport_depose',        'label' => 'Rapport déposé'],
-        ['statut' => 'visite_planifiee',      'label' => 'Visite planifiée'],
-        ['statut' => 'rapport_en_attente',    'label' => 'Rapport expert'],
-        ['statut' => 'valide',                'label' => 'Validé'],
-    ];
+        $etapes = [
+            ['statut' => 'en_attente_formulaire', 'label' => 'Sélectionné'],
+            ['statut' => 'formulaire_complete',   'label' => 'Profil complété'],
+            ['statut' => 'rapport_depose',        'label' => 'Rapport déposé'],
+            ['statut' => 'visite_planifiee',      'label' => 'Visite planifiée'],
+            ['statut' => 'valide',                'label' => 'Validé'],
+        ];
 
-    // Map des valeurs "libres" vers les clés normalisées
-    $mapping = [
-        'date de visite planifiée' => 'visite_planifiee',
-        'visite planifiée'         => 'visite_planifiee',
-        'rapport déposé'           => 'rapport_depose',
-        'profil complété'          => 'formulaire_complete',
-        'validé'                   => 'valide',
-        'rejeté'                   => 'valide',
-    ];
+        $mapping = [
+            'date de visite planifiée' => 'visite_planifiee',
+            'visite planifiée'         => 'visite_planifiee',
+            'rapport déposé'           => 'rapport_depose',
+            'profil complété'          => 'formulaire_complete',
+            'rapport_en_attente'       => 'visite_planifiee',
+            'validé'                   => 'valide',
+            'rejeté'                   => 'valide',
+        ];
 
-    $statutBrut = strtolower(trim($dossier->statut));
-    $statut     = $mapping[$statutBrut] ?? $dossier->statut;
+        $statutBrut = strtolower(trim($dossier->statut ?? ''));
+        $statut     = $mapping[$statutBrut] ?? $dossier->statut;
 
-    $ordre = array_column($etapes, 'statut');
-    $idx   = array_search($statut, $ordre);
+        $ordre = array_column($etapes, 'statut');
+        $idx   = array_search($statut, $ordre);
 
-    return array_map(function ($etape, $i) use ($idx) {
-        return array_merge($etape, [
-            'done'    => $idx !== false && $i <= $idx,
-            'current' => $idx !== false && $i === $idx,
-        ]);
-    }, $etapes, array_keys($etapes));
-}
+        return array_map(function ($etape, $i) use ($idx) {
+            return array_merge($etape, [
+                'done'    => $idx !== false && $i <= $idx,
+                'current' => $idx !== false && $i === $idx,
+            ]);
+        }, $etapes, array_keys($etapes));
+    }
 }

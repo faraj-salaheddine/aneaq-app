@@ -70,11 +70,12 @@ class RecommandationDomaineController extends Controller
             'domaine_code'   => $validated['domaine_code'] ?? null,
             'recommandation' => $validated['recommandation'],
             'urgence'        => $validated['urgence'],
+            'statut'         => 'brouillon',
             'created_at'     => now(),
             'updated_at'     => now(),
         ]);
 
-        return back()->with('success', 'Recommandation ajoutée.');
+        return back()->with('success', 'Recommandation enregistrée en brouillon.');
     }
 
     public function update(Request $request, Dossier $dossier, int $recommandation)
@@ -91,14 +92,22 @@ class RecommandationDomaineController extends Controller
 
         $this->ensureTable();
 
-        DB::table('recommandations_domaines')
+        $rec = DB::table('recommandations_domaines')
             ->where('id', $recommandation)
             ->where('expert_id', $expert->id)
             ->where('dossier_id', $dossier->id)
+            ->first();
+
+        abort_unless($rec, 404);
+        abort_unless(in_array($rec->statut ?? 'brouillon', ['brouillon', 'renvoyee_expert']), 403, 'Cette recommandation ne peut plus être modifiée.');
+
+        DB::table('recommandations_domaines')
+            ->where('id', $recommandation)
             ->update([
-                'recommandation' => $validated['recommandation'],
-                'urgence'        => $validated['urgence'],
-                'updated_at'     => now(),
+                'recommandation'      => $validated['recommandation'],
+                'urgence'             => $validated['urgence'],
+                'commentaire_revision' => $request->commentaire_revision ?? null,
+                'updated_at'          => now(),
             ]);
 
         return back()->with('success', 'Recommandation mise à jour.');
@@ -113,13 +122,67 @@ class RecommandationDomaineController extends Controller
 
         $this->ensureTable();
 
-        DB::table('recommandations_domaines')
+        $rec = DB::table('recommandations_domaines')
             ->where('id', $recommandation)
             ->where('expert_id', $expert->id)
             ->where('dossier_id', $dossier->id)
+            ->first();
+
+        abort_unless($rec, 404);
+        abort_unless(($rec->statut ?? 'brouillon') === 'brouillon', 403, 'Seuls les brouillons peuvent être supprimés.');
+
+        DB::table('recommandations_domaines')
+            ->where('id', $recommandation)
             ->delete();
 
         return back()->with('success', 'Recommandation supprimée.');
+    }
+
+    public function soumettre(Dossier $dossier)
+    {
+        $user   = Auth::user();
+        $expert = $this->findExpertForUser($user);
+        if (!$expert) abort(403);
+        $this->autoriser($expert->id, $dossier->id);
+
+        $this->ensureTable();
+
+        $count = DB::table('recommandations_domaines')
+            ->where('expert_id', $expert->id)
+            ->where('dossier_id', $dossier->id)
+            ->whereIn('statut', ['brouillon', 'renvoyee_expert'])
+            ->count();
+
+        abort_if($count === 0, 422, 'Aucune recommandation à soumettre.');
+
+        DB::table('recommandations_domaines')
+            ->where('expert_id', $expert->id)
+            ->where('dossier_id', $dossier->id)
+            ->whereIn('statut', ['brouillon', 'renvoyee_expert'])
+            ->update([
+                'statut'              => 'soumise_dee',
+                'date_soumission_dee' => now(),
+                'updated_at'          => now(),
+            ]);
+
+        // Notifier les admins DEE
+        $dossierRow = DB::table('dossiers')->where('id', $dossier->id)->first();
+        $ref = $dossierRow->reference ?? "#{$dossier->id}";
+        $expertNom = trim(($expert->prenom ?? '') . ' ' . ($expert->nom ?? '')) ?: ($expert->name ?? 'Expert');
+
+        $deeAdmins = DB::table('users')->where('role', 'admin_dee')->pluck('id');
+        foreach ($deeAdmins as $adminId) {
+            try {
+                \App\Models\NotificationAneaq::envoyer(
+                    $adminId, 'general',
+                    "Recommandations soumises — {$ref}",
+                    "{$expertNom} a soumis {$count} recommandation(s) pour le dossier {$ref}. En attente de votre validation.",
+                    'Dossier', $dossier->id
+                );
+            } catch (\Throwable) {}
+        }
+
+        return back()->with('success', "{$count} recommandation(s) soumise(s) à la DEE.");
     }
 
     /* ── Private helpers ── */

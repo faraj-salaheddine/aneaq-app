@@ -14,9 +14,19 @@ const STATUT_META = {
     rejete:                { label: "Rejeté",                 color: "#ef4444", bg: "#FFF1F2" },
 };
 
+const NOTIF_COLORS = {
+    reponse:  { border: '#6EE7B7', bg: '#f0fdf4', icon: '💬', color: '#065F46' },
+    document: { border: '#93C5FD', bg: '#eff6ff', icon: '📄', color: '#1e40af' },
+    annexe:   { border: '#C4B5FD', bg: '#f5f3ff', icon: '📎', color: '#5b21b6' },
+    question: { border: '#FDE68A', bg: '#fefce8', icon: '❓', color: '#92400e' },
+    visite:   { border: '#6EE7B7', bg: '#f0f9ff', icon: '📅', color: '#0369a1' },
+    info:     { border: '#e2e8f0', bg: '#f8fafc', icon: 'ℹ️',  color: '#475569' },
+};
+
 export default function EtablissementDashboard({
     etablissement, dossier, onboarding,
     notifications = [], notificationsNonLues = 0,
+    derniereNotif = null,
     taches = [], timeline = [], documentsManquants = [], dossierId = null
 }) {
     const nom = etablissement.etablissement_2 || etablissement.etablissement || etablissement.acronyme || "Établissement";
@@ -39,6 +49,21 @@ export default function EtablissementDashboard({
                     <p style={{ fontSize: 13, color: "#94a3b8", margin: "4px 0 0" }}>Tableau de bord de votre espace d'évaluation</p>
                 </div>
 
+                {/* Dernière notification urgente */}
+                {derniereNotif && (() => {
+                    const c = NOTIF_COLORS[derniereNotif.type] ?? NOTIF_COLORS.info;
+                    return (
+                        <div className="fade-up" style={{ marginBottom: "1.5rem", padding: "14px 18px", borderRadius: 12, background: c.bg, border: `1.5px solid ${c.border}`, display: "flex", alignItems: "center", gap: 12 }}>
+                            <span style={{ fontSize: 20 }}>{c.icon}</span>
+                            <div style={{ flex: 1 }}>
+                                <div style={{ fontSize: 13, fontWeight: 700, color: c.color }}>{derniereNotif.titre}</div>
+                                <div style={{ fontSize: 12, color: c.color, opacity: 0.8 }}>{derniereNotif.message}</div>
+                            </div>
+                            <a href="/etablissement/notifications" style={{ fontSize: 11, fontWeight: 600, color: c.color, textDecoration: "none", whiteSpace: "nowrap", opacity: 0.7 }}>Voir tout →</a>
+                        </div>
+                    );
+                })()}
+
                 {/* Statut + Tâches */}
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", marginBottom: "1.5rem" }}>
                     <div className="fade-up" style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 16, padding: "1.5rem", boxShadow: "0 2px 10px rgba(0,0,0,0.04)", animationDelay: "0.05s" }}>
@@ -49,6 +74,15 @@ export default function EtablissementDashboard({
                                     {sm.label}
                                 </span>
                                 <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 10, fontFamily: "monospace" }}>Réf. {dossier.reference}</div>
+                                {dossier.date_visite && (
+                                    <div style={{ marginTop: 14, padding: "10px 14px", borderRadius: 10, background: "#f0f9ff", border: "1.5px solid #bae6fd", display: "flex", alignItems: "center", gap: 8 }}>
+                                        <span style={{ fontSize: 16 }}>📅</span>
+                                        <div>
+                                            <div style={{ fontSize: 10, fontWeight: 700, color: "#0369a1", textTransform: "uppercase", letterSpacing: "0.06em" }}>Date de visite planifiée</div>
+                                            <div style={{ fontSize: 15, fontWeight: 700, color: "#0c4a6e", marginTop: 1 }}>{dossier.date_visite}</div>
+                                        </div>
+                                    </div>
+                                )}
                             </>
                         ) : (
                             <div style={{ fontSize: 13, color: "#94a3b8" }}>Aucun dossier en cours</div>
@@ -130,6 +164,24 @@ export default function EtablissementDashboard({
                                 </div>
                             ))}
                         </div>
+                    </div>
+                )}
+
+                {/* Recommandations quick access */}
+                {dossierId && (
+                    <div className="fade-up" style={{ background: "#faf5ff", border: "1px solid #e9d5ff", borderRadius: 16, padding: "1.25rem 1.5rem", marginBottom: "1rem", display: "flex", alignItems: "center", justifyContent: "space-between", animationDelay: "0.12s" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                            <div style={{ width: 36, height: 36, borderRadius: 9, background: "#ede9fe", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>📋</div>
+                            <div>
+                                <div style={{ fontWeight: 700, fontSize: 14, color: "#7c3aed" }}>Recommandations DEE</div>
+                                <div style={{ fontSize: 12, color: "#a855f7" }}>Consultez et répondez aux recommandations de la DEE</div>
+                            </div>
+                        </div>
+                        <button
+                            onClick={() => router.visit(`/etablissement/recommandations/${dossierId}`)}
+                            style={{ padding: "7px 18px", background: "#7c3aed", border: "none", borderRadius: 9, color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", flexShrink: 0 }}>
+                            Consulter →
+                        </button>
                     </div>
                 )}
 

@@ -162,6 +162,12 @@ class RapportExpertController extends Controller
             DB::table('rapports_experts')->insert($payload);
         }
 
+        // Advance dossier status so the établissement timeline reflects the deposit
+        DB::table('dossiers')
+            ->where('id', $dossier->id)
+            ->whereNotIn('statut', ['rapport_en_attente', 'valide', 'rejeté', 'valide_definitif'])
+            ->update(['statut' => 'rapport_en_attente', 'updated_at' => now()]);
+
         return redirect('/expert/dossiers/' . $dossier->id)
             ->with('success', 'Rapport déposé avec succès.');
     }
@@ -205,7 +211,7 @@ return response()->download($cheminComplet, basename($item->fichier));
         $authorized = DB::table('dossier_experts')
             ->where('expert_id', $expertId)
             ->where('dossier_id', $dossierId)
-            ->whereIn('status', ['confirme_par_expert', 'comite_confirme'])
+            ->whereIn('status', ['accepte_par_expert', 'confirme_par_expert', 'comite_confirme'])
             ->exists();
 
         abort_unless($authorized, 403);

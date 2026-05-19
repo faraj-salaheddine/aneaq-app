@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Dossier;
 use App\Models\Etablissement;
 use App\Models\EtablissementOnboarding;
+use App\Services\ActivityLogger;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -79,6 +80,8 @@ class EtablissementProfilController extends Controller
     if ($dossier && $dossier->statut === 'en_attente_formulaire') {
         $dossier->update(['statut' => 'formulaire_complete']);
     }
+
+    ActivityLogger::log('profil_mis_a_jour', "Profil de l'établissement mis à jour", $etablissement);
 
     return redirect()->route('etablissement.profil.show')
         ->with('success', 'Profil mis à jour avec succès.');

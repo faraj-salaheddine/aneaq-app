@@ -43,6 +43,8 @@ use App\Http\Controllers\Etablissement\EtablissementDocumentController;
 use App\Http\Controllers\Etablissement\AnnexeController;
 use App\Http\Controllers\Etablissement\EtablissementNotificationController;
 use App\Http\Controllers\Etablissement\EtablissementHistoriqueController;
+use App\Http\Controllers\DEE\SuiviRecommandationController;
+use App\Http\Controllers\Etablissement\RecommandationSuiviController;
 use App\Models\CampagneEvaluation;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
@@ -272,6 +274,16 @@ Route::middleware(['auth', 'dee.admin'])
             Route::get('/', [QuestionsReponsesController::class, 'indexDee'])->name('index');
             Route::post('/{question}/repondre', [QuestionsReponsesController::class, 'repondre'])->name('repondre');
         });
+
+        // Suivi des recommandations
+        Route::prefix('dossiers/{dossier}/recommandations-suivi')->name('recommandations-suivi.')->group(function () {
+            Route::get('/', [SuiviRecommandationController::class, 'index'])->name('index');
+            Route::post('/{recommandation}/valider', [SuiviRecommandationController::class, 'valider'])->name('valider');
+            Route::post('/{recommandation}/renvoyer-expert', [SuiviRecommandationController::class, 'renvoyerExpert'])->name('renvoyer-expert');
+            Route::post('/envoyer-etablissement', [SuiviRecommandationController::class, 'envoyerEtablissement'])->name('envoyer-etablissement');
+            Route::post('/envoyer-rappel', [SuiviRecommandationController::class, 'envoyerRappel'])->name('envoyer-rappel');
+            Route::post('/{recommandation}/cloturer', [SuiviRecommandationController::class, 'cloturer'])->name('cloturer');
+        });
     });
 
 /*
@@ -351,6 +363,12 @@ Route::middleware(['auth', 'role:expert'])
         Route::get('/dashboard', [ExpertDashboardController::class, 'index'])
             ->name('dashboard');
 
+        // Affectation accept/refuse (called from dashboard invitation cards)
+        Route::post('/affectations/{dossierExpert}/accept', [ExpertDashboardController::class, 'accept'])
+            ->name('affectations.accept');
+        Route::post('/affectations/{dossierExpert}/refuse', [ExpertDashboardController::class, 'refuse'])
+            ->name('affectations.refuse');
+
         // Profil Expert
         Route::get('/profil', [ExpertProfilController::class, 'show'])
             ->name('profil.show');
@@ -417,6 +435,7 @@ Route::middleware(['auth', 'role:expert'])
             Route::post('/{dossier}', [RecommandationDomaineController::class, 'store'])->name('store');
             Route::patch('/{dossier}/{recommandation}', [RecommandationDomaineController::class, 'update'])->name('update');
             Route::delete('/{dossier}/{recommandation}', [RecommandationDomaineController::class, 'destroy'])->name('destroy');
+            Route::post('/{dossier}/soumettre-dee', [RecommandationDomaineController::class, 'soumettre'])->name('soumettre');
         });
 
         // Historique participations
@@ -450,6 +469,9 @@ Route::middleware(['auth', 'role:etablissement'])
 
         Route::get('/dashboard', [EtablissementDashboardController::class, 'index'])
             ->name('dashboard');
+
+        Route::get('/sans-dossier', fn () => \Inertia\Inertia::render('Etablissement/SansDossier'))
+            ->name('sans-dossier');
 
         Route::get('/profil', [EtablissementProfilController::class, 'show'])
             ->name('profil.show');
@@ -493,6 +515,14 @@ Route::get('/historique', [EtablissementHistoriqueController::class, 'index'])->
         Route::prefix('questions-reponses')->name('questions-reponses.')->group(function () {
             Route::get('/{dossier}', [QuestionsReponsesController::class, 'indexEtablissement'])->name('index');
             Route::post('/{dossier}', [QuestionsReponsesController::class, 'poserQuestion'])->name('store');
+        });
+
+        // Suivi des recommandations (établissement)
+        Route::prefix('recommandations/{dossier}')->name('recommandations.')->group(function () {
+            Route::get('/', [RecommandationSuiviController::class, 'index'])->name('index');
+            Route::post('/{recommandation}/repondre', [RecommandationSuiviController::class, 'repondre'])->name('repondre');
+            Route::post('/{recommandation}/preuve', [RecommandationSuiviController::class, 'uploaderPreuve'])->name('preuve');
+            Route::delete('/preuves/{preuve}', [RecommandationSuiviController::class, 'supprimerPreuve'])->name('preuve.supprimer');
         });
     });
 

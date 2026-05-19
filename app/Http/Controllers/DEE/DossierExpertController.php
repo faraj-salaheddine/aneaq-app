@@ -4,7 +4,9 @@ namespace App\Http\Controllers\DEE;
 
 use App\Http\Controllers\Controller;
 use App\Mail\ExpertAccountCreatedMail;
+use App\Mail\ExpertNotificationMail;
 use App\Models\Dossier;
+use App\Models\NotificationAneaq;
 use App\Services\ActivityLogger;
 use App\Models\DossierExpert;
 use App\Models\Expert;
@@ -77,6 +79,13 @@ class DossierExpertController extends Controller
         DossierExpert::create($payload);
         ActivityLogger::log('expert_affecte', "Expert {$expert->prenom} {$expert->nom} affecté au dossier {$dossier->reference}", $dossier);
 
+        // Notify expert if they already have an account
+        $this->notifyExpert($expert, 'affectation_dossier',
+            "Proposition d'affectation — {$dossier->reference}",
+            "Vous avez été proposé comme {$this->roleLabel($validated['role_expert'])} pour le dossier {$dossier->reference}. En attente de confirmation DEE.",
+            $dossier->id
+        );
+
         return back()->with('success', 'Expert ajouté en attente de confirmation DEE.');
     }
 
@@ -98,8 +107,9 @@ class DossierExpertController extends Controller
             return back()->with('error', "Cet expert ne possède pas d'adresse email.");
         }
 
-        $plainPassword = Str::random(10);
         $token = Str::random(64);
+        $isNewUser = false;
+        $plainPassword = null;
 
         $expertName = trim(($expert->prenom ?? '') . ' ' . ($expert->nom ?? ''));
 
@@ -107,13 +117,20 @@ class DossierExpertController extends Controller
             $expertName = $expert->name ?? $expert->nom ?? 'Expert';
         }
 
-        DB::transaction(function () use ($expert, $expertName, $plainPassword, $token, $dossierExpert) {
-            $user = User::firstOrNew([
-                'email' => $expert->email,
-            ]);
+        DB::transaction(function () use ($expert, $expertName, $token, $dossierExpert, &$isNewUser, &$plainPassword) {
+            $existingUser = User::where('email', $expert->email)->first();
+            $isNewUser = !$existingUser;
 
-            $user->name = $expertName;
-            $user->password = Hash::make($plainPassword);
+            if ($isNewUser) {
+                $plainPassword = Str::random(10);
+                $user = new User();
+                $user->name = $expertName;
+                $user->email = $expert->email;
+                $user->password = Hash::make($plainPassword);
+            } else {
+                $user = $existingUser;
+                // Preserve existing password — expert keeps their own credentials
+            }
 
             if (Schema::hasColumn('users', 'role')) {
                 $user->role = 'expert';
@@ -165,6 +182,7 @@ class DossierExpertController extends Controller
                 'token' => $token,
             ]);
 
+            // Always send credentials — expert needs fresh password for each dossier assignment
             Mail::to($expert->email)->send(
                 new ExpertAccountCreatedMail(
                     expertName: $expertName,
@@ -178,7 +196,23 @@ class DossierExpertController extends Controller
             );
 
             ActivityLogger::log('expert_confirme', "Expert {$expertName} confirmé pour le dossier {$dossier->reference}", $dossier);
-            return back()->with('success', 'Expert accepté, compte créé et email envoyé avec succès.');
+
+            // Notify expert — user now exists after transaction
+            $expert->refresh();
+            $this->notifyExpert($expert, 'affectation_dossier',
+                "Invitation à confirmer — {$dossier->reference}",
+                "La DEE vous a confirmé comme {$this->roleLabel($dossierExpert->role_expert)} pour le dossier {$dossier->reference}. Veuillez confirmer votre participation via le lien reçu par email.",
+                $dossier->id
+            );
+
+            $action = $isNewUser ? 'Compte créé' : 'Invitation envoyée';
+            $msg = "{$action} pour {$expertName}. Email envoyé à {$expert->email}.";
+
+            if (app()->environment('local') && $isNewUser) {
+                $msg .= " [DEV] Mot de passe : {$plainPassword}";
+            }
+
+            return back()->with('success', $msg);
         } catch (\Throwable $e) {
             return back()->with(
                 'error',
@@ -194,6 +228,13 @@ class DossierExpertController extends Controller
         }
 
         $expert = $dossierExpert->expert;
+
+        $this->notifyExpert($expert, 'general',
+            "Affectation refusée — {$dossier->reference}",
+            "Votre proposition d'affectation pour le dossier {$dossier->reference} a été refusée par la DEE.",
+            $dossier->id
+        );
+
         ActivityLogger::log('expert_refuse', "Expert refusé sur le dossier {$dossier->reference}", $dossier);
         $dossierExpert->delete();
 
@@ -223,9 +264,41 @@ class DossierExpertController extends Controller
             ]);
         }
 
+        $expert = $dossierExpert->expert;
+
+        $this->notifyExpert($expert, 'general',
+            "Retiré du dossier — {$dossier->reference}",
+            "Vous avez été retiré du dossier {$dossier->reference} par la DEE.",
+            $dossier->id
+        );
+
         $dossierExpert->delete();
 
         return back()->with('success', 'Expert supprimé du dossier avec succès.');
+    }
+
+    private function notifyExpert(?Expert $expert, string $type, string $titre, string $message, int $dossierId): void
+    {
+        if (!$expert) return;
+
+        try {
+            $userId = $expert->user_id ?? User::where('email', $expert->email)->value('id');
+            if (!$userId) return;
+
+            // Platform notification
+            NotificationAneaq::envoyer($userId, $type, $titre, $message, 'Dossier', $dossierId);
+
+            // Email notification — brief summary + link to platform
+            if (!empty($expert->email)) {
+                $expertName = trim(($expert->prenom ?? '') . ' ' . ($expert->nom ?? '')) ?: ($expert->name ?? 'Expert');
+                Mail::to($expert->email)->send(new ExpertNotificationMail(
+                    expertName:  $expertName,
+                    titre:       $titre,
+                    message:     $message,
+                    platformUrl: config('app.url') . '/expert/dashboard',
+                ));
+            }
+        } catch (\Throwable) {}
     }
 
     private function roleLabel(?string $role): string

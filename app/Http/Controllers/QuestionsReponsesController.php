@@ -3,9 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Models\Dossier;
+use App\Models\Etablissement;
+use App\Models\NotificationAneaq;
 use App\Models\QuestionReponse;
+use App\Services\ActivityLogger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 
 class QuestionsReponsesController extends Controller
@@ -48,6 +52,22 @@ class QuestionsReponsesController extends Controller
             'statut'      => 'repondu',
         ]);
 
+        // Notify the établissement user
+        $dossier = Dossier::find($question->dossier_id);
+        $etablissement = $dossier ? Etablissement::where('id', $dossier->etablissement_id)->first() : null;
+        if ($etablissement?->user_id) {
+            NotificationAneaq::envoyer(
+                $etablissement->user_id, 'reponse',
+                'Réponse reçue',
+                'La DEE a répondu à votre question : « ' . Str::limit($question->question, 80) . ' »',
+                'Dossier', $dossier->id
+            );
+        }
+
+        if ($dossier) {
+            ActivityLogger::log('question_repondue', "La DEE a répondu à une question pour le dossier {$dossier->reference}", $dossier);
+        }
+
         return back()->with('success', 'Réponse enregistrée.');
     }
 
@@ -75,6 +95,15 @@ class QuestionsReponsesController extends Controller
             'user_id'    => Auth::id(),
             'question'   => $request->question,
         ]);
+
+        NotificationAneaq::envoyer(
+            Auth::id(), 'question',
+            'Question envoyée',
+            'Votre question a été transmise à la DEE. Vous serez notifié dès réception d\'une réponse.',
+            'Dossier', $dossier->id
+        );
+
+        ActivityLogger::log('question_posee', "Question posée pour le dossier {$dossier->reference}", $dossier);
 
         return back()->with('success', 'Question envoyée. Vous serez notifié dès qu\'une réponse est disponible.');
     }

@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Etablissement;
 use App\Http\Controllers\Controller;
 use App\Models\Critere;
 use App\Models\CriterePreuve;
+use App\Models\NotificationAneaq;
+use App\Services\ActivityLogger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
@@ -18,7 +20,7 @@ class AnnexeController extends Controller
      */
     public function index()
     {
-        $etablissement = \App\Models\Etablissement::where('email', Auth::user()->email)->firstOrFail();
+        $etablissement = \App\Models\Etablissement::where('user_id', Auth::id())->firstOrFail();
 
         $criteres = Critere::all();
 
@@ -86,7 +88,7 @@ class AnnexeController extends Controller
      */
     public function store(Request $request)
     {
-        $etablissement = \App\Models\Etablissement::where('email', Auth::user()->email)->firstOrFail();
+        $etablissement = \App\Models\Etablissement::where('user_id', Auth::id())->firstOrFail();
 
         $request->validate([
             'critere_id'   => 'required|exists:criteres,id',
@@ -154,6 +156,15 @@ class AnnexeController extends Controller
             $data
         );
 
+        NotificationAneaq::envoyer(
+            Auth::id(), 'annexe',
+            'Annexe enregistrée',
+            'Une preuve a été enregistrée avec succès.',
+            'Etablissement', $etablissement->id
+        );
+
+        ActivityLogger::log('annexe_enregistree', 'Preuve annexe enregistrée', $etablissement);
+
         return back()->with('success', 'Preuve enregistrée avec succès.');
     }
 
@@ -162,7 +173,7 @@ class AnnexeController extends Controller
      */
     public function saveNote(Request $request)
     {
-        $etablissement = \App\Models\Etablissement::where('email', Auth::user()->email)->firstOrFail();
+        $etablissement = \App\Models\Etablissement::where('user_id', Auth::id())->firstOrFail();
 
         $request->validate([
             'critere_id'   => 'required|exists:criteres,id',
@@ -187,7 +198,7 @@ class AnnexeController extends Controller
      */
     public function download(CriterePreuve $criterePreuve)
     {
-        $etablissement = \App\Models\Etablissement::where('email', Auth::user()->email)->firstOrFail();
+        $etablissement = \App\Models\Etablissement::where('user_id', Auth::id())->firstOrFail();
 
         abort_if($criterePreuve->etablissement_id !== $etablissement->id, 403);
 

@@ -110,7 +110,7 @@ class EvaluationQuantitativeController extends Controller
         $ok = DB::table('dossier_experts')
             ->where('expert_id', $expert->id)
             ->where('dossier_id', $dossier->id)
-            ->whereIn('status', ['confirme_par_expert', 'comite_confirme'])
+            ->whereIn('status', ['accepte_par_expert', 'confirme_par_expert', 'comite_confirme'])
             ->exists();
 
         if (!$ok && Schema::hasTable('expert_dossier')) {

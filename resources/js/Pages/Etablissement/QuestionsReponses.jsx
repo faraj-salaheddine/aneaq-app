@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { Head, useForm, usePage } from '@inertiajs/react';
 import EtablissementLayout from '@/Layouts/Etablissement/EtablissementLayout';
 
@@ -54,7 +53,7 @@ export default function QuestionsReponses({ dossier, questions }) {
     const flash = props.flash ?? {};
 
     return (
-        <EtablissementLayout>
+        <EtablissementLayout active="qr">
             <Head title="Questions & Réponses"/>
 
             <div style={{ maxWidth: 800, margin: '0 auto', padding: '24px 16px' }}>

@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\Dossier;
 use App\Models\DossierDocument;
 use App\Models\Etablissement;
+use App\Models\NotificationAneaq;
+use App\Services\ActivityLogger;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -18,7 +20,8 @@ class EtablissementDocumentController extends Controller
     public function index(): Response
     {
         $etablissement = Etablissement::where('user_id', Auth::id())->firstOrFail();
-        $dossier       = Dossier::where('etablissement_id', $etablissement->id)->latest()->firstOrFail();
+        $dossier       = Dossier::where('etablissement_id', $etablissement->id)->latest()->first();
+        if (!$dossier) return Inertia::render('Etablissement/SansDossier', ['page' => "Rapport d'autoévaluation"]);
 
         $documents = DossierDocument::where('dossier_id', $dossier->id)
             ->where('type_document', 'rapport_autoevaluation')
@@ -83,6 +86,19 @@ class EtablissementDocumentController extends Controller
         $dossier->update(['statut' => 'rapport_depose']);
     }
 
+    NotificationAneaq::envoyer(
+        Auth::id(), 'document',
+        'Rapport déposé',
+        "Votre rapport d'autoévaluation a été déposé avec succès pour le dossier {$dossier->reference}.",
+        'Dossier', $dossier->id
+    );
+
+    ActivityLogger::log(
+        'rapport_depose',
+        "Rapport d'autoévaluation déposé pour le dossier {$dossier->reference}",
+        $dossier
+    );
+
     return back()->with('success', 'Rapport déposé avec succès (PDF + Word).');
 }
 
@@ -122,7 +138,8 @@ class EtablissementDocumentController extends Controller
 public function complementaires(): Response
 {
     $etablissement = Etablissement::where('user_id', Auth::id())->firstOrFail();
-    $dossier       = Dossier::where('etablissement_id', $etablissement->id)->latest()->firstOrFail();
+    $dossier       = Dossier::where('etablissement_id', $etablissement->id)->latest()->first();
+    if (!$dossier) return Inertia::render('Etablissement/SansDossier', ['page' => 'Documents complémentaires']);
 
     $documents = DossierDocument::where('dossier_id', $dossier->id)
         ->where('type_document', 'document_complementaire')
@@ -165,13 +182,27 @@ public function storeComplementaire(Request $request): RedirectResponse
         'status'           => 'Déposé',
     ]);
 
+    NotificationAneaq::envoyer(
+        Auth::id(), 'document',
+        'Document complémentaire déposé',
+        "Un document complémentaire a été déposé pour le dossier {$dossier->reference}.",
+        'Dossier', $dossier->id
+    );
+
+    ActivityLogger::log(
+        'document_complementaire_depose',
+        "Document complémentaire déposé pour le dossier {$dossier->reference}",
+        $dossier
+    );
+
     return back()->with('success', 'Document complémentaire envoyé avec succès.');
 }
 
 public function rapportAneaq(): Response
 {
     $etablissement = Etablissement::where('user_id', Auth::id())->firstOrFail();
-    $dossier       = Dossier::where('etablissement_id', $etablissement->id)->latest()->firstOrFail();
+    $dossier       = Dossier::where('etablissement_id', $etablissement->id)->latest()->first();
+    if (!$dossier) return Inertia::render('Etablissement/SansDossier', ['page' => 'Rapport ANEAQ']);
 
     $documents = DossierDocument::where('dossier_id', $dossier->id)
         ->where('type_document', 'rapport_aneaq')

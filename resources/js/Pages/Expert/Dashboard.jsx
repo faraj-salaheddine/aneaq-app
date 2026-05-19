@@ -215,22 +215,25 @@ export default function Dashboard({
                                     <a href="/expert/notifications" style={{ fontSize: 12, color: BLUE, fontWeight: 600, textDecoration: "none" }}>Tout voir →</a>
                                 </div>
                             </div>
-                            <div style={{ padding: "0.5rem" }}>
+                            <div>
                                 {localNotifications?.length > 0
                                     ? localNotifications.slice(0, 5).map((n, i) => (
                                         <div key={n.id || i}
                                             onClick={() => !n.lu && marquerLu(n.id)}
-                                            style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "9px 10px", borderRadius: 10, background: n.lu ? "transparent" : `${BLUE}05`, marginBottom: 2, borderLeft: n.lu ? "3px solid transparent" : `3px solid ${BLUE}25`, cursor: n.lu ? "default" : "pointer", transition: "background 0.1s" }}>
+                                            style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: "12px 1.25rem", borderBottom: "1px solid #f8fafc", cursor: n.lu ? "default" : "pointer", transition: "background 0.1s" }}>
+                                            <div style={{ width: 8, height: 8, borderRadius: "50%", background: n.lu ? "#e2e8f0" : "#ef4444", marginTop: 5, flexShrink: 0 }} />
                                             <div style={{ flex: 1, minWidth: 0 }}>
-                                                <p style={{ fontSize: 12.5, fontWeight: n.lu ? 600 : 700, color: "#0f172a", margin: "0 0 2px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{n.titre || "Notification"}</p>
-                                                <p style={{ fontSize: 10.5, color: "#94a3b8", margin: 0, fontFamily: "'DM Mono', monospace" }}>{n.created_at ? new Date(n.created_at).toLocaleDateString("fr-FR") : "—"}</p>
+                                                <div style={{ fontSize: 13, fontWeight: 600, color: "#0f172a" }}>{n.titre || "Notification"}</div>
+                                                {n.message && (
+                                                    <div style={{ fontSize: 12, color: "#64748b", marginTop: 2 }}>{n.message}</div>
+                                                )}
+                                                <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 4, fontFamily: "monospace" }}>
+                                                    {n.created_at ? new Date(n.created_at).toLocaleDateString("fr-FR") : "—"}
+                                                </div>
                                             </div>
-                                            {!n.lu && (
-                                                <span style={{ width: 7, height: 7, borderRadius: "50%", background: BLUE, flexShrink: 0, marginTop: 4 }} />
-                                            )}
                                         </div>
                                     ))
-                                    : <p style={{ padding: "1.5rem", textAlign: "center", fontSize: 13, color: "#94a3b8" }}>Aucune notification.</p>
+                                    : <p style={{ padding: "3rem", textAlign: "center", fontSize: 13, color: "#94a3b8" }}>Aucune notification.</p>
                                 }
                             </div>
                         </div>

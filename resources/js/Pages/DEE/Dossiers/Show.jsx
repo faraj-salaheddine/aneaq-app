@@ -474,6 +474,14 @@ function Show({ dossier, experts = [], allExperts = [], dossierExperts = [], doc
                         <Camera size={16} />
                         Photos de visite
                     </button>
+
+                    <Link
+                        href={`/dee/dossiers/${dossier.id}/recommandations-suivi`}
+                        className="inline-flex items-center gap-2 rounded-2xl border border-violet-200 bg-violet-50 px-5 py-3 text-sm font-black text-violet-700 transition hover:bg-violet-100"
+                    >
+                        <ClipboardCheck size={16} />
+                        Suivi recommandations
+                    </Link>
                 </div>
 
                 <div className="mt-6 grid gap-7 xl:grid-cols-[1.35fr_0.65fr]">

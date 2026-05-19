@@ -25,7 +25,11 @@
 
             <ul>
                 <li><strong>Email :</strong> {{ $loginEmail }}</li>
+                @if($plainPassword)
                 <li><strong>Mot de passe :</strong> {{ $plainPassword }}</li>
+                @else
+                <li><strong>Mot de passe :</strong> Utilisez votre mot de passe habituel ANEAQ.</li>
+                @endif
             </ul>
 
             <p>Cliquez sur le lien ci-dessous pour confirmer votre participation :</p>

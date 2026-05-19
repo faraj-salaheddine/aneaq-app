@@ -9,6 +9,7 @@ use App\Models\DossierExpert;
 use App\Models\DossierPhoto;
 use App\Models\Etablissement;
 use App\Models\Expert;
+use App\Models\NotificationAneaq;
 use App\Models\User;
 use App\Services\ActivityLogger;
 use App\Services\DossierStatusService;
@@ -127,6 +128,22 @@ class DossierController extends Controller
         if ($hasChanges) {
             $dossier->save();
             ActivityLogger::log('dossier_mis_a_jour', "Dossier {$dossier->reference} mis à jour", $dossier);
+
+            // Notify the établissement when a visit date is set or updated
+            if ($request->has('date_visite') && !empty($validated['date_visite'])) {
+                $etablissement = Etablissement::find($dossier->etablissement_id);
+                if ($etablissement?->user_id) {
+                    $dateFormatee = \Carbon\Carbon::parse($validated['date_visite'])->format('d/m/Y');
+                    NotificationAneaq::envoyer(
+                        $etablissement->user_id,
+                        'visite',
+                        'Date de visite planifiée',
+                        "Une visite a été planifiée pour votre dossier {$dossier->reference} le {$dateFormatee}.",
+                        'Dossier',
+                        $dossier->id
+                    );
+                }
+            }
         }
 
         if (class_exists(DossierStatusService::class)) {
@@ -153,6 +170,13 @@ class DossierController extends Controller
         }
 
         ActivityLogger::log('dossier_supprime', "Dossier {$dossier->reference} supprimé", $dossier);
+
+        // Also log against the établissement so the event appears in historique after dossier deletion
+        $etablissementModel = Etablissement::find($dossier->etablissement_id);
+        if ($etablissementModel) {
+            ActivityLogger::log('dossier_supprime', "Dossier {$dossier->reference} supprimé par la DEE", $etablissementModel);
+        }
+
         $dossier->delete();
 
         return redirect()

@@ -9,42 +9,40 @@ const ORANGE = "#EF9F27";
 const PURPLE = "#7e22ce";
 const ROSE   = "#e11d48";
 
-/* ── Donut SVG chart ── */
-function DonutChart({ slices, size = 130 }) {
-    const r = 46, cx = 65, cy = 65;
+/* ── Modern Donut SVG chart ── */
+function DonutChart({ slices, size = 160 }) {
+    const r = 58, cx = 80, cy = 80;
     const circumference = 2 * Math.PI * r;
     const total = slices.reduce((s, sl) => s + sl.value, 0);
+    const GAP_DEG = slices.length > 1 ? 3 : 0;
+    const gapLen = (GAP_DEG / 360) * circumference;
 
     let offset = 0;
     const paths = slices.map((sl, i) => {
-        const pct     = total > 0 ? sl.value / total : 0;
-        const dash    = pct * circumference;
-        const gap     = circumference - dash;
-        const rotate  = (offset / (total || 1)) * 360 - 90;
-        offset       += sl.value;
+        const pct  = total > 0 ? sl.value / total : 0;
+        const dash = Math.max(0, pct * circumference - gapLen);
+        const gap  = circumference - dash;
+        const rot  = (offset / (total || 1)) * 360 - 90;
+        offset    += sl.value;
         return (
-            <circle key={i}
-                cx={cx} cy={cy} r={r}
-                fill="none"
-                stroke={sl.color}
-                strokeWidth={20}
+            <circle key={i} cx={cx} cy={cy} r={r}
+                fill="none" stroke={sl.color} strokeWidth={18}
                 strokeDasharray={`${dash} ${gap}`}
-                strokeDashoffset={0}
-                transform={`rotate(${rotate} ${cx} ${cy})`}
-                style={{ transition: 'stroke-dasharray 0.5s ease' }}
+                strokeLinecap="round"
+                transform={`rotate(${rot} ${cx} ${cy})`}
+                style={{ transition: 'stroke-dasharray 0.7s cubic-bezier(.4,0,.2,1)', filter: `drop-shadow(0 2px 4px ${sl.color}55)` }}
             />
         );
     });
 
     return (
-        <svg width={size} height={size} viewBox="0 0 130 130">
-            {total === 0
-                ? <circle cx={cx} cy={cy} r={r} fill="none" stroke="#f1f5f9" strokeWidth={20}/>
-                : paths
-            }
-            <circle cx={cx} cy={cy} r={36} fill="#fff"/>
-            <text x={cx} y={cy - 6} textAnchor="middle" fontSize={22} fontWeight={700} fill="#0f172a">{total}</text>
-            <text x={cx} y={cy + 14} textAnchor="middle" fontSize={10} fill="#94a3b8" fontWeight={500}>dossiers</text>
+        <svg width={size} height={size} viewBox="0 0 160 160">
+            <circle cx={cx} cy={cy} r={r} fill="none" stroke="#f1f5f9" strokeWidth={18}/>
+            {total > 0 && paths}
+            <circle cx={cx} cy={cy} r={r - 9} fill="#fff"/>
+            <text x={cx} y={cy - 10} textAnchor="middle" fontSize={30} fontWeight={800} fill="#0f172a" style={{ letterSpacing: '-1px' }}>{total}</text>
+            <text x={cx} y={cy + 10} textAnchor="middle" fontSize={10} fill="#94a3b8" fontWeight={600} style={{ textTransform: 'uppercase', letterSpacing: '1px' }}>dossiers</text>
+            <text x={cx} y={cy + 25} textAnchor="middle" fontSize={9} fill="#cbd5e1">au total</text>
         </svg>
     );
 }
@@ -79,16 +77,29 @@ function BarChart({ labels, values, color = BLUE }) {
     );
 }
 
-/* ── Statut labels & colors ── */
+/* ── Statut labels & colors — covers both snake_case keys and raw DB strings ── */
 const STATUT_META = {
-    en_attente_formulaire: { label: 'En attente formulaire', color: ORANGE },
-    formulaire_soumis:     { label: 'Formulaire soumis',     color: ACCENT },
-    en_cours_evaluation:   { label: 'En cours évaluation',   color: BLUE   },
-    rapport_depose:        { label: 'Rapport déposé',         color: PURPLE },
-    visite_programmee:     { label: 'Visite programmée',      color: '#06b6d4' },
-    valide:                { label: 'Validé',                 color: GREEN  },
-    cloture:               { label: 'Clôturé',                color: '#64748b' },
-    rejete:                { label: 'Rejeté',                 color: ROSE   },
+    // snake_case keys
+    en_attente_formulaire:    { label: 'En attente formulaire', color: ORANGE,       bg: '#fffbeb' },
+    formulaire_complete:      { label: 'Formulaire complété',   color: '#3b82f6',    bg: '#eff6ff' },
+    formulaire_soumis:        { label: 'Formulaire soumis',     color: ACCENT,       bg: '#eff6ff' },
+    en_cours_evaluation:      { label: 'En cours évaluation',   color: BLUE,         bg: '#e0eaf7' },
+    rapport_depose:           { label: 'Rapport déposé',        color: PURPLE,       bg: '#f5f3ff' },
+    visite_programmee:        { label: 'Visite planifiée',      color: '#06b6d4',    bg: '#ecfeff' },
+    valide:                   { label: 'Validé',                color: GREEN,        bg: '#ecfdf5' },
+    cloture:                  { label: 'Clôturé',               color: '#64748b',    bg: '#f8fafc' },
+    rejete:                   { label: 'Rejeté',                color: ROSE,         bg: '#fef2f2' },
+    // Raw French strings stored in DB
+    // Raw French/mixed strings stored in DB
+    'Établissement sélectionné': { label: 'Sélectionné',           color: '#94a3b8', bg: '#f8fafc' },
+    'En attente formulaire':     { label: 'En attente formulaire', color: ORANGE,    bg: '#fffbeb' },
+    'Formulaire complété':       { label: 'Formulaire complété',   color: '#3b82f6', bg: '#eff6ff' },
+    'Rapport déposé':            { label: 'Rapport déposé',        color: PURPLE,    bg: '#f5f3ff' },
+    'Date de visite planifiée':  { label: 'Visite planifiée',      color: '#06b6d4', bg: '#ecfeff' },
+    'En cours évaluation':       { label: 'En cours évaluation',   color: BLUE,      bg: '#e0eaf7' },
+    'Validé':                    { label: 'Validé',                 color: GREEN,     bg: '#ecfdf5' },
+    'Clôturé':                   { label: 'Clôturé',               color: '#64748b', bg: '#f8fafc' },
+    'Rejeté':                    { label: 'Rejeté',                 color: ROSE,      bg: '#fef2f2' },
 };
 
 const ASSIGN_META = {
@@ -140,12 +151,22 @@ export default function AdminDashboard({
           icon: <><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></> },
     ];
 
-    // Donut slices
-    const donutSlices = Object.entries(dossierParStatut).map(([statut, total]) => ({
-        label: STATUT_META[statut]?.label ?? statut,
-        color: STATUT_META[statut]?.color ?? '#cbd5e1',
-        value: total,
-    }));
+    // Donut slices — sorted descending, unknowns get a graceful fallback
+    const FALLBACK_COLORS = ['#6366f1','#f59e0b','#10b981','#ef4444','#06b6d4','#8b5cf6','#ec4899','#0ea5e9'];
+    let fbIdx = 0;
+    const donutSlices = Object.entries(dossierParStatut)
+        .map(([statut, total]) => {
+            const meta = STATUT_META[statut];
+            return {
+                label: meta?.label ?? statut,
+                color: meta?.color ?? FALLBACK_COLORS[fbIdx++ % FALLBACK_COLORS.length],
+                bg:    meta?.bg    ?? '#f8fafc',
+                value: Number(total),
+            };
+        })
+        .filter(sl => sl.value > 0)
+        .sort((a, b) => b.value - a.value);
+    const donutTotal = donutSlices.reduce((s, sl) => s + sl.value, 0);
 
     return (
         <>
@@ -207,28 +228,54 @@ export default function AdminDashboard({
                 <div className="dee-fu" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginBottom: 16, animationDelay: '0.1s' }}>
 
                     {/* Donut — dossiers par statut */}
-                    <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 18, padding: '1.5rem', boxShadow: '0 2px 10px rgba(0,0,0,0.05)' }}>
-                        <p style={{ fontSize: 13, fontWeight: 700, color: '#0f172a', margin: '0 0 16px', display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <span style={{ width: 8, height: 8, borderRadius: '50%', background: PURPLE, display: 'inline-block' }}/>
-                            Dossiers par statut
-                        </p>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
-                            <DonutChart slices={donutSlices}/>
-                            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 7 }}>
-                                {donutSlices.length === 0
-                                    ? <p style={{ fontSize: 12, color: '#94a3b8' }}>Aucun dossier</p>
-                                    : donutSlices.map((sl, i) => (
-                                        <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                                <span style={{ width: 8, height: 8, borderRadius: 2, background: sl.color, display: 'inline-block', flexShrink: 0 }}/>
-                                                <span style={{ fontSize: 11, color: '#475569', fontWeight: 500, lineHeight: 1.2 }}>{sl.label}</span>
-                                            </div>
-                                            <span style={{ fontSize: 12, fontWeight: 700, color: sl.color }}>{sl.value}</span>
-                                        </div>
-                                    ))
-                                }
-                            </div>
+                    <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 18, padding: '1.5rem', boxShadow: '0 2px 10px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                            <p style={{ fontSize: 13, fontWeight: 700, color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <span style={{ width: 8, height: 8, borderRadius: '50%', background: PURPLE, display: 'inline-block' }}/>
+                                Dossiers par statut
+                            </p>
+                            <span style={{ fontSize: 10, fontWeight: 600, color: '#94a3b8', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 99, padding: '2px 8px' }}>
+                                {donutSlices.length} statut{donutSlices.length !== 1 ? 's' : ''}
+                            </span>
                         </div>
+
+                        {donutSlices.length === 0 ? (
+                            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px 0', color: '#94a3b8' }}>
+                                <svg width={40} height={40} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
+                                <p style={{ fontSize: 12, margin: '8px 0 0' }}>Aucun dossier</p>
+                            </div>
+                        ) : (
+                            <>
+                                {/* Donut centered */}
+                                <div style={{ display: 'flex', justifyContent: 'center', margin: '8px 0 12px' }}>
+                                    <DonutChart slices={donutSlices}/>
+                                </div>
+
+                                {/* Legend with progress bars */}
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                    {donutSlices.map((sl, i) => {
+                                        const pct = donutTotal > 0 ? Math.round((sl.value / donutTotal) * 100) : 0;
+                                        return (
+                                            <div key={i}>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
+                                                        <span style={{ width: 9, height: 9, borderRadius: 3, background: sl.color, flexShrink: 0, boxShadow: `0 1px 3px ${sl.color}66` }}/>
+                                                        <span style={{ fontSize: 11, color: '#374151', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 120 }}>{sl.label}</span>
+                                                    </div>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                                                        <span style={{ fontSize: 10, fontWeight: 700, color: sl.color, background: sl.bg, padding: '1px 6px', borderRadius: 99 }}>{pct}%</span>
+                                                        <span style={{ fontSize: 13, fontWeight: 800, color: '#0f172a', minWidth: 18, textAlign: 'right' }}>{sl.value}</span>
+                                                    </div>
+                                                </div>
+                                                <div style={{ height: 4, background: '#f1f5f9', borderRadius: 99, overflow: 'hidden' }}>
+                                                    <div style={{ height: '100%', width: `${pct}%`, background: `linear-gradient(90deg, ${sl.color}, ${sl.color}99)`, borderRadius: 99, transition: 'width 0.8s cubic-bezier(.4,0,.2,1)' }}/>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </>
+                        )}
                     </div>
 
                     {/* Bar — activité mensuelle */}

@@ -96,6 +96,19 @@ class ExpertDashboardController extends Controller
 
         $dossierExpert->forceFill($payload)->save();
 
+        // Trace self-action for expert
+        $dossier = DB::table('dossiers')->where('id', $dossierExpert->dossier_id)->first();
+        $ref = $dossier?->reference ?? '—';
+        try {
+            NotificationAneaq::create([
+                'user_id' => Auth::id(),
+                'type'    => 'general',
+                'titre'   => "Invitation acceptée — {$ref}",
+                'message' => "Vous avez accepté votre participation pour le dossier {$ref}. En attente de confirmation par la DEE.",
+                'lu'      => true,
+            ]);
+        } catch (\Throwable) {}
+
         // Notify all DEE admins
         $this->notifyDeeAdmins($dossierExpert, 'accept');
 
@@ -125,6 +138,19 @@ class ExpertDashboardController extends Controller
         }
 
         $dossierExpert->forceFill($payload)->save();
+
+        // Trace self-action for expert
+        $dossierForTrace = DB::table('dossiers')->where('id', $dossierExpert->dossier_id)->first();
+        $refForTrace = $dossierForTrace?->reference ?? '—';
+        try {
+            NotificationAneaq::create([
+                'user_id' => Auth::id(),
+                'type'    => 'general',
+                'titre'   => "Invitation refusée — {$refForTrace}",
+                'message' => "Vous avez refusé votre participation pour le dossier {$refForTrace}" . ($motif ? " — Motif : {$motif}" : '') . '.',
+                'lu'      => true,
+            ]);
+        } catch (\Throwable) {}
 
         // Notify all DEE admins with motif
         $this->notifyDeeAdmins($dossierExpert, 'refuse', $motif);
@@ -168,7 +194,7 @@ class ExpertDashboardController extends Controller
                 if ($action === 'accept') {
                     NotificationAneaq::create([
                         'user_id' => $admin->id,
-                        'type'    => 'expert_accepte',
+                        'type'    => 'general',
                         'titre'   => 'Expert a accepté — ' . $ref,
                         'message' => $expertName . ' (' . $expertRole . ') a accepté l\'invitation pour le dossier '
                             . $ref . '. Confirmez son affectation.',
@@ -177,7 +203,7 @@ class ExpertDashboardController extends Controller
                 } else {
                     NotificationAneaq::create([
                         'user_id' => $admin->id,
-                        'type'    => 'expert_refuse',
+                        'type'    => 'general',
                         'titre'   => 'Expert a refusé — ' . $ref,
                         'message' => $expertName . ' (' . $expertRole . ') a refusé l\'invitation pour le dossier '
                             . $ref . ($motif ? ' — Motif : ' . $motif : '') . '.',

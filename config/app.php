@@ -15,6 +15,8 @@ return [
 
     'name' => env('APP_NAME', 'Laravel'),
 
+    'dee_delete_password' => env('DEE_DELETE_PASSWORD'),
+
     /*
     |--------------------------------------------------------------------------
     | Application Environment

@@ -3,20 +3,40 @@ import { Head } from "@inertiajs/react";
 import EtablissementLayout from "@/Layouts/Etablissement/EtablissementLayout";
 
 // ─── Action metadata ──────────────────────────────────────────────────────────
+const ACTION_LABELS = {
+    dossier_cree:                  "Dossier créé",
+    dossier_mis_a_jour:            "Dossier mis à jour",
+    dossier_supprime:              "Dossier supprimé",
+    rapport_depose:                "Rapport déposé",
+    document_complementaire_depose:"Document complémentaire déposé",
+    annexe_enregistree:            "Annexe enregistrée",
+    profil_mis_a_jour:             "Profil mis à jour",
+    question_posee:                "Question posée",
+    question_repondue:             "Réponse reçue",
+    expert_affecte:                "Expert affecté",
+    expert_confirme:               "Expert confirmé",
+    expert_refuse:                 "Expert refusé",
+};
+
 const ACTION_META = [
-    { match: "créé",      ink: "#0e7c5b", bg: "#ecfaf4", border: "#c6f0df", d: "M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2M12 7a4 4 0 100 8 4 4 0 000-8zM19 8v6M22 11h-6" },
-    { match: "modifié",   ink: "#1c5fdc", bg: "#eef3fd", border: "#d6e4fb", d: "M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" },
-    { match: "déposé",    ink: "#b35c00", bg: "#fdf5ec", border: "#fde8cc", d: "M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8zM14 2v6h6" },
-    { match: "supprimé",  ink: "#b91c1c", bg: "#fef2f2", border: "#fecaca", d: "M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" },
-    { match: "connecté",  ink: "#5046a8", bg: "#f0effc", border: "#dddaf7", d: "M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4M10 17l5-5-5-5M15 12H3" },
-    { match: "soumis",    ink: "#0e7c5b", bg: "#ecfaf4", border: "#c6f0df", d: "M20 6L9 17l-5-5" },
+    { matches: ["cree","créé","creation"],     ink: "#0e7c5b", bg: "#ecfaf4", border: "#c6f0df", d: "M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2M12 7a4 4 0 100 8 4 4 0 000-8zM19 8v6M22 11h-6" },
+    { matches: ["mis_a_jour","modifié","update"]  ,ink: "#1c5fdc", bg: "#eef3fd", border: "#d6e4fb", d: "M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" },
+    { matches: ["depose","déposé","rapport","document","annexe","enregistree"], ink: "#b35c00", bg: "#fdf5ec", border: "#fde8cc", d: "M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8zM14 2v6h6" },
+    { matches: ["supprime","supprimé","delete"],  ink: "#b91c1c", bg: "#fef2f2", border: "#fecaca", d: "M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" },
+    { matches: ["connecte","connecté","login"],   ink: "#5046a8", bg: "#f0effc", border: "#dddaf7", d: "M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4M10 17l5-5-5-5M15 12H3" },
+    { matches: ["question","reponse","repondue"], ink: "#0369a1", bg: "#f0f9ff", border: "#bae6fd", d: "M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" },
+    { matches: ["expert"],                        ink: "#7c3aed", bg: "#f5f3ff", border: "#ddd6fe", d: "M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2M12 7a4 4 0 100 8 4 4 0 000-8zM22 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" },
 ];
 const DEFAULT_META = { ink: "#5c6480", bg: "#f4f6fb", border: "#e4e7f0", d: "M12 2a10 10 0 100 20A10 10 0 0012 2zM12 6v6l4 2" };
 
 function getMeta(action) {
     if (!action) return DEFAULT_META;
     const a = action.toLowerCase();
-    return ACTION_META.find(m => a.includes(m.match)) || DEFAULT_META;
+    return ACTION_META.find(m => m.matches.some(kw => a.includes(kw))) || DEFAULT_META;
+}
+
+function getLabel(action) {
+    return ACTION_LABELS[action] ?? action?.replace(/_/g, " ") ?? "—";
 }
 
 // ─── CSS ─────────────────────────────────────────────────────────────────────
@@ -85,12 +105,13 @@ export default function Index({ etablissement, logs = [] }) {
     const reset = () => { setSearch(""); setAction(""); setDateFrom(""); setDateTo(""); setPage(1); };
     const go    = (n) => { setPage(n); window.scrollTo({ top: 0, behavior: "smooth" }); };
 
+    const matchAction = (log, kws) => kws.some(kw => (log.action ?? "").toLowerCase().includes(kw));
     const SUMMARY = [
-        { label: "Total",         value: logs.length,                                              color: "#1c5fdc", bg: "#eef3fd", border: "#d6e4fb" },
-        { label: "Créations",     value: logs.filter(l => l.action?.toLowerCase().includes("créé")).length,     color: "#0e7c5b", bg: "#ecfaf4", border: "#c6f0df" },
-        { label: "Modifications", value: logs.filter(l => l.action?.toLowerCase().includes("modifié")).length,  color: "#1c5fdc", bg: "#eef3fd", border: "#d6e4fb" },
-        { label: "Documents",     value: logs.filter(l => l.action?.toLowerCase().includes("document")).length, color: "#b35c00", bg: "#fdf5ec", border: "#fde8cc" },
-        { label: "Suppressions",  value: logs.filter(l => l.action?.toLowerCase().includes("supprimé")).length, color: "#b91c1c", bg: "#fef2f2", border: "#fecaca" },
+        { label: "Total",         value: logs.length,                                                                    color: "#1c5fdc", bg: "#eef3fd", border: "#d6e4fb" },
+        { label: "Créations",     value: logs.filter(l => matchAction(l, ["cree","créé"])).length,                       color: "#0e7c5b", bg: "#ecfaf4", border: "#c6f0df" },
+        { label: "Modifications", value: logs.filter(l => matchAction(l, ["mis_a_jour","modifié"])).length,              color: "#1c5fdc", bg: "#eef3fd", border: "#d6e4fb" },
+        { label: "Documents",     value: logs.filter(l => matchAction(l, ["depose","document","annexe","rapport"])).length, color: "#b35c00", bg: "#fdf5ec", border: "#fde8cc" },
+        { label: "Suppressions",  value: logs.filter(l => matchAction(l, ["supprime","supprimé"])).length,               color: "#b91c1c", bg: "#fef2f2", border: "#fecaca" },
     ];
 
     return (
@@ -200,7 +221,7 @@ export default function Index({ etablissement, logs = [] }) {
                                     }}
                                 >
                                     <option value="">Toutes les actions</option>
-                                    {uniqueActions.map(a => <option key={a} value={a}>{a}</option>)}
+                                    {uniqueActions.map(a => <option key={a} value={a}>{getLabel(a)}</option>)}
                                 </select>
 
                                 {/* date range */}
@@ -292,7 +313,7 @@ export default function Index({ etablissement, logs = [] }) {
                                                             border:`1px solid ${m.border}`,
                                                             padding:"1px 7px", borderRadius:999,
                                                             textTransform:"uppercase", letterSpacing:".04em",
-                                                        }}>{log.action}</span>
+                                                        }}>{getLabel(log.action)}</span>
                                                         <span style={{
                                                             fontSize:11, color:"#9ca3af",
                                                             marginLeft:"auto", flexShrink:0,
@@ -491,7 +512,7 @@ export default function Index({ etablissement, logs = [] }) {
                                 </div>
                                 <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
                                     {search    && <Tag label={`"${search}"`}   onRemove={() => setSearch("")}/>}
-                                    {action    && <Tag label={action}           onRemove={() => setAction("")}/>}
+                                    {action    && <Tag label={getLabel(action)} onRemove={() => setAction("")}/>}
                                     {dateFrom  && <Tag label={`Depuis ${dateFrom}`} onRemove={() => setDateFrom("")}/>}
                                     {dateTo    && <Tag label={`Jusqu'au ${dateTo}`} onRemove={() => setDateTo("")}/>}
                                 </div>

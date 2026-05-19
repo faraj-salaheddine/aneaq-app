@@ -9,7 +9,9 @@ use App\Models\CampagneEtablissement;
 use App\Models\CampagneEvaluation;
 use App\Models\Dossier;
 use App\Models\Etablissement;
+use App\Models\NotificationAneaq;
 use App\Models\User;
+use App\Services\ActivityLogger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -119,20 +121,23 @@ class CampagneEtablissementController extends Controller
             }
         }
 
-        DB::transaction(function () use ($request, $validated, $campagneEvaluation, $campagneEtablissement, $etablissement) {
+        $isNewUser = false;
+
+        DB::transaction(function () use ($request, $validated, $campagneEvaluation, $campagneEtablissement, $etablissement, &$isNewUser) {
             $password = Str::random(10);
 
             $user = User::query()
                 ->where('email', $validated['email'])
                 ->first();
 
-            if (!$user) {
+            $isNewUser = !$user; // exposed to outer scope via reference
+
+            if ($isNewUser) {
                 $user = new User();
                 $user->name = $this->etablissementName($etablissement);
                 $user->email = $validated['email'];
+                $user->password = Hash::make($password);
             }
-
-            $user->password = Hash::make($password);
 
             if ($this->hasColumn('users', 'role')) {
                 $user->role = 'etablissement';
@@ -196,27 +201,33 @@ class CampagneEtablissementController extends Controller
                 'has_file_lettre_dee' => $request->hasFile('lettre_dee'),
             ]);
 
-            Mail::to($validated['email'])->send(
-                new EtablissementAccountCreatedMail(
-                    $this->etablissementName($etablissement),
-                    $validated['email'],
-                    $password,
-                    $this->read($dossier, ['reference'], null),
-                    $this->read($campagneEvaluation, ['reference'], null),
-                    $messageLettre
-                )
-            );
+            if ($isNewUser) {
+                Mail::to($validated['email'])->send(
+                    new EtablissementAccountCreatedMail(
+                        $this->etablissementName($etablissement),
+                        $validated['email'],
+                        $password,
+                        $this->read($dossier, ['reference'], null),
+                        $this->read($campagneEvaluation, ['reference'], null),
+                        $messageLettre
+                    )
+                );
 
-            Log::info('EMAIL ETABLISSEMENT ENVOYE AVEC SUCCES', [
-                'email' => $validated['email'],
-                'etablissement' => $this->etablissementName($etablissement),
-                'dossier' => $this->read($dossier, ['reference'], null),
-                'campagne' => $this->read($campagneEvaluation, ['reference'], null),
-                'message_lettre' => $messageLettre,
-            ]);
+                Log::info('EMAIL ETABLISSEMENT ENVOYE AVEC SUCCES', [
+                    'email' => $validated['email'],
+                    'etablissement' => $this->etablissementName($etablissement),
+                    'dossier' => $this->read($dossier, ['reference'], null),
+                    'campagne' => $this->read($campagneEvaluation, ['reference'], null),
+                    'message_lettre' => $messageLettre,
+                ]);
+            }
         });
 
-        return back()->with('success', 'Compte établissement créé, lettre stockée et email envoyé avec succès.');
+        $msg = $isNewUser
+            ? 'Compte établissement créé, dossier assigné et email envoyé avec succès.'
+            : 'Dossier assigné avec succès. Le compte existant a été conservé (aucune réinitialisation de mot de passe).';
+
+        return back()->with('success', $msg);
     }
 
     public function refuse(
@@ -318,6 +329,20 @@ class CampagneEtablissementController extends Controller
         }
 
         $dossier->save();
+
+        ActivityLogger::log('dossier_cree', "Dossier {$dossier->reference} créé pour l'établissement", $dossier);
+
+        // Notify the établissement user that their dossier has been created
+        if ($etablissement->user_id) {
+            NotificationAneaq::envoyer(
+                $etablissement->user_id,
+                'info',
+                'Dossier d\'évaluation créé',
+                "Un dossier d'évaluation ({$dossier->reference}) vous a été affecté. Vous pouvez maintenant compléter votre formulaire.",
+                'Dossier',
+                $dossier->id
+            );
+        }
 
         return $dossier;
     }
