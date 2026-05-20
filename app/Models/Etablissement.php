@@ -10,11 +10,15 @@ class Etablissement extends Model
 
     protected $fillable = [
         'user_id',
+        'acronyme',
+        'domaine_connaissances',
+        'evaluation',
         'etablissement',
         'etablissement_2',
         'ville',
         'universite',
         'email',
+        'nom',
     ];
 
     public function user()
