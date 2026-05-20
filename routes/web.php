@@ -44,6 +44,7 @@ use App\Http\Controllers\Etablissement\AnnexeController;
 use App\Http\Controllers\Etablissement\EtablissementNotificationController;
 use App\Http\Controllers\Etablissement\EtablissementHistoriqueController;
 use App\Http\Controllers\DEE\SuiviRecommandationController;
+use App\Http\Controllers\DEE\RapportExpertValidationController;
 use App\Http\Controllers\Etablissement\RecommandationSuiviController;
 use App\Models\CampagneEvaluation;
 use Illuminate\Support\Facades\Auth;
@@ -232,6 +233,8 @@ Route::middleware(['auth', 'dee.admin'])
                 ->name('experts.store');
             Route::post('/{dossier}/experts/{dossierExpert}/confirm', [DossierExpertController::class, 'confirm'])
                 ->name('experts.confirm');
+            Route::post('/{dossier}/experts/{dossierExpert}/renvoyer-email', [DossierExpertController::class, 'renvoyerEmail'])
+                ->name('experts.renvoyer_email');
             Route::delete('/{dossier}/experts/{dossierExpert}/refuse', [DossierExpertController::class, 'refuse'])
                 ->name('experts.refuse');
             Route::delete('/{dossier}/experts/{dossierExpert}', [DossierExpertController::class, 'destroy'])
@@ -241,11 +244,19 @@ Route::middleware(['auth', 'dee.admin'])
                 ->name('photos.store');
             Route::delete('/{dossier}/photos/{photo}', [DossierPhotoController::class, 'destroy'])
                 ->name('photos.destroy');
+
+            Route::post('/{dossier}/rapports/{rapport}/valider', [RapportExpertValidationController::class, 'valider'])
+                ->name('rapports.valider');
+            Route::post('/{dossier}/rapports/{rapport}/rejeter', [RapportExpertValidationController::class, 'rejeter'])
+                ->name('rapports.rejeter');
         });
 
         // Workflow DEE
         Route::prefix('workflow')->name('workflow.')->group(function () {
             Route::get('/visites', [WorkflowController::class, 'visites'])->name('visites');
+            Route::get('/affectations', [WorkflowController::class, 'affectations'])->name('affectations');
+            Route::get('/comites', [WorkflowController::class, 'comites'])->name('comites');
+            Route::get('/recommandations', [WorkflowController::class, 'recommandations'])->name('recommandations');
         });
 
         // Audit Trail
