@@ -32,7 +32,7 @@ class RapportExpertValidationController extends Controller
 
         DB::table('dossiers')
             ->where('id', $dossier->id)
-            ->update(['statut' => 'rapport_depose', 'updated_at' => now()]);
+            ->update(['statut' => 'valide', 'updated_at' => now()]);
 
         $this->notifyExpert($row->expert_id, $dossier, 'accepte');
 

@@ -11,6 +11,8 @@ use App\Services\ActivityLogger;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -204,10 +206,43 @@ public function rapportAneaq(): Response
     $dossier       = Dossier::where('etablissement_id', $etablissement->id)->latest()->first();
     if (!$dossier) return Inertia::render('Etablissement/SansDossier', ['page' => 'Rapport ANEAQ']);
 
-    $documents = DossierDocument::where('dossier_id', $dossier->id)
+    // DEE-uploaded rapport_aneaq documents
+    $docsFormels = DossierDocument::where('dossier_id', $dossier->id)
         ->where('type_document', 'rapport_aneaq')
         ->orderByDesc('created_at')
-        ->get();
+        ->get()
+        ->map(fn($d) => [
+            'id'            => $d->id,
+            'original_name' => $d->original_name ?? basename($d->file_path ?? ''),
+            'observation'   => $d->observation,
+            'created_at'    => $d->created_at,
+            'url'           => $d->file_path ? asset('storage/' . $d->file_path) : null,
+            'source'        => 'dee',
+        ]);
+
+    // Validated expert rapports
+    $rapportsExperts = collect();
+    if (Schema::hasTable('rapports_experts')) {
+        $rapportsExperts = DB::table('rapports_experts')
+            ->where('dossier_id', $dossier->id)
+            ->where('statut', 'valide')
+            ->orderByDesc('created_at')
+            ->get()
+            ->map(function ($r) {
+                $expert = DB::table('experts')->where('id', $r->expert_id)->first();
+                $expertName = $expert ? trim(($expert->prenom ?? '') . ' ' . ($expert->nom ?? '')) : 'Expert';
+                return [
+                    'id'            => $r->id,
+                    'original_name' => $r->original_name ?? $r->titre ?? 'Rapport expert',
+                    'observation'   => "Rapport déposé par l'expert : {$expertName}",
+                    'created_at'    => $r->created_at,
+                    'url'           => $r->fichier ? asset('storage/' . $r->fichier) : null,
+                    'source'        => 'expert',
+                ];
+            });
+    }
+
+    $documents = $docsFormels->concat($rapportsExperts)->sortByDesc('created_at')->values();
 
     return Inertia::render('Etablissement/Documents/RapportAneaq', [
         'etablissement' => $etablissement,
