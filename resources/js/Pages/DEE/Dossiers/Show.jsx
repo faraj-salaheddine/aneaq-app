@@ -46,6 +46,8 @@ function Show({ dossier, experts = [], allExperts = [], dossierExperts = [], doc
     const [motifRejet, setMotifRejet] = useState('');
     const [confirmAcceptModal, setConfirmAcceptModal] = useState({ open: false, rapport: null });
     const [cloturerModal, setCloturerModal] = useState(false);
+    const [codeCloturer, setCodeCloturer] = useState('');
+    const [codeError, setCodeError] = useState('');
 
     const [deleteModal, setDeleteModal] = useState({
         open: false,
@@ -202,10 +204,22 @@ function Show({ dossier, experts = [], allExperts = [], dossierExperts = [], doc
     };
 
     const confirmerCloture = () => {
-        router.post(`/dee/dossiers/${dossier.id}/cloturer`, {}, {
+        if (codeCloturer !== '0000') {
+            setCodeError('Code DEE incorrect.');
+            return;
+        }
+        setCodeError('');
+        router.post(`/dee/dossiers/${dossier.id}/cloturer`, { code: codeCloturer }, {
             preserveScroll: true,
-            onSuccess: () => setCloturerModal(false),
+            onSuccess: () => { setCloturerModal(false); setCodeCloturer(''); },
+            onError: () => setCodeError('Code DEE incorrect.'),
         });
+    };
+
+    const openCloturerModal = () => {
+        setCodeCloturer('');
+        setCodeError('');
+        setCloturerModal(true);
     };
 
     const validerRapport = (rapport) => {
@@ -317,6 +331,7 @@ function Show({ dossier, experts = [], allExperts = [], dossierExperts = [], doc
             });
     }, [experts, allExperts, assignedExpertIds, expertSearch, expertFilterActive]);
 
+    const cloture = !!dossier.est_cloture;
     const etablissement = dossier.etablissement || {};
 
     const dateVisiteBrute =
@@ -506,10 +521,23 @@ function Show({ dossier, experts = [], allExperts = [], dossierExperts = [], doc
                             </div>
                             <h3 className="text-lg font-black text-slate-900">Clôturer le dossier ?</h3>
                             <p className="mt-2 text-sm text-slate-500">
-                                Cette action archive le dossier <strong>{dossier.reference}</strong>. L'établissement et les experts seront notifiés. Le dossier restera consultable en lecture seule.
+                                Cette action archive le dossier <strong>{dossier.reference}</strong> en lecture seule. L'établissement et les experts seront notifiés.
                             </p>
+                            <div className="mt-5">
+                                <label className="mb-1.5 block text-sm font-black text-slate-700">
+                                    Code DEE <span className="text-red-500">*</span>
+                                </label>
+                                <input
+                                    type="password"
+                                    value={codeCloturer}
+                                    onChange={(e) => { setCodeCloturer(e.target.value); setCodeError(''); }}
+                                    placeholder="Entrez le code DEE"
+                                    className={`h-12 w-full rounded-xl border px-4 text-sm font-bold text-slate-700 outline-none transition focus:ring-2 ${codeError ? 'border-red-400 focus:ring-red-100' : 'border-slate-200 focus:border-slate-400 focus:ring-slate-100'}`}
+                                />
+                                {codeError && <p className="mt-1.5 text-xs font-bold text-red-600">{codeError}</p>}
+                            </div>
                             <div className="mt-6 flex gap-3">
-                                <button onClick={() => setCloturerModal(false)}
+                                <button onClick={() => { setCloturerModal(false); setCodeCloturer(''); setCodeError(''); }}
                                     className="flex-1 rounded-xl border border-slate-200 bg-white py-2.5 text-sm font-black text-slate-700 transition hover:bg-slate-50">
                                     Annuler
                                 </button>
@@ -659,7 +687,7 @@ function Show({ dossier, experts = [], allExperts = [], dossierExperts = [], doc
                     {dossier.statut === 'valide' && !dossier.est_cloture && (
                         <button
                             type="button"
-                            onClick={() => setCloturerModal(true)}
+                            onClick={openCloturerModal}
                             className="ml-auto inline-flex items-center gap-2 rounded-2xl border border-slate-300 bg-slate-800 px-5 py-3 text-sm font-black text-white transition hover:bg-slate-900"
                         >
                             <LockKeyhole size={16} />
@@ -698,6 +726,22 @@ function Show({ dossier, experts = [], allExperts = [], dossierExperts = [], doc
                                     </p>
                                 </div>
 
+                                {cloture ? (
+                                    <div className="mt-6 space-y-5">
+                                        {dossier.description && (
+                                            <div>
+                                                <p className="mb-1.5 text-sm font-bold text-slate-500">Description</p>
+                                                <p className="rounded-2xl bg-slate-50 px-4 py-4 text-sm font-medium text-slate-700">{dossier.description}</p>
+                                            </div>
+                                        )}
+                                        {dossier.observation && (
+                                            <div>
+                                                <p className="mb-1.5 text-sm font-bold text-slate-500">Observation</p>
+                                                <p className="rounded-2xl bg-slate-50 px-4 py-4 text-sm font-medium text-slate-700">{dossier.observation}</p>
+                                            </div>
+                                        )}
+                                    </div>
+                                ) : (
                                 <form onSubmit={submitUpdate} className="mt-6 space-y-5">
                                     <div>
                                         <label className="mb-2 block text-sm font-bold text-slate-700">
@@ -750,6 +794,7 @@ function Show({ dossier, experts = [], allExperts = [], dossierExperts = [], doc
                                         </button>
                                     </div>
                                 </form>
+                                )}
                             </div>
                         )}
 
@@ -771,6 +816,12 @@ function Show({ dossier, experts = [], allExperts = [], dossierExperts = [], doc
                                     </div>
                                 </div>
 
+                                {cloture ? (
+                                    <div className="mt-7 rounded-2xl bg-slate-50 px-5 py-4">
+                                        <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">Date de visite</p>
+                                        <p className="mt-2 text-lg font-black text-slate-900">{dateVisiteAffichee}</p>
+                                    </div>
+                                ) : (
                                 <form onSubmit={submitDate} className="mt-7 space-y-5">
                                     <div>
                                         <label className="mb-2 block text-sm font-bold text-slate-700">
@@ -802,6 +853,7 @@ function Show({ dossier, experts = [], allExperts = [], dossierExperts = [], doc
                                         </button>
                                     </div>
                                 </form>
+                                )}
                             </div>
                         )}
 
@@ -824,7 +876,7 @@ function Show({ dossier, experts = [], allExperts = [], dossierExperts = [], doc
                                         </div>
                                     </div>
 
-                                    <div className="mt-7">
+                                    {!cloture && <div className="mt-7">
                                         <label
                                             htmlFor="photo-upload"
                                             className={`flex cursor-pointer flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed px-6 py-10 transition ${
@@ -870,7 +922,7 @@ function Show({ dossier, experts = [], allExperts = [], dossierExperts = [], doc
                                             className="hidden"
                                             onChange={handlePhotoChange}
                                         />
-                                    </div>
+                                    </div>}
                                 </div>
 
                                 <div className="rounded-[2rem] border border-slate-200 bg-white p-7 shadow-sm">
@@ -911,6 +963,7 @@ function Show({ dossier, experts = [], allExperts = [], dossierExperts = [], doc
                                                                 Voir
                                                             </a>
 
+                                                            {!cloture && (
                                                             <button
                                                                 type="button"
                                                                 onClick={() => deletePhoto(photo)}
@@ -919,6 +972,7 @@ function Show({ dossier, experts = [], allExperts = [], dossierExperts = [], doc
                                                                 <Trash2 size={13} />
                                                                 Supprimer
                                                             </button>
+                                                            )}
                                                         </div>
                                                     </div>
                                                 ))}
@@ -959,7 +1013,7 @@ function Show({ dossier, experts = [], allExperts = [], dossierExperts = [], doc
                                 </div>
                             </div>
 
-                            <div className="grid gap-6 p-7 xl:grid-cols-[1fr_0.75fr]">
+                            {!cloture && <div className="grid gap-6 p-7 xl:grid-cols-[1fr_0.75fr]">
                                 <div>
                                     <label className="mb-2 block text-sm font-bold text-slate-700">
                                         Recherche expert
@@ -1119,7 +1173,7 @@ function Show({ dossier, experts = [], allExperts = [], dossierExperts = [], doc
                                         </div>
                                     )}
                                 </form>
-                            </div>
+                            </div>}
 
                             <div className="border-t border-slate-100 p-7">
                                 <h4 className="text-xl font-black text-slate-900">
@@ -1132,6 +1186,7 @@ function Show({ dossier, experts = [], allExperts = [], dossierExperts = [], doc
                                             <ExpertAssignedCard
                                                 key={item.id}
                                                 item={item}
+                                                readOnly={cloture}
                                                 onAccept={() => acceptExpert(item.id)}
                                                 onRefuse={() => refuseExpert(item.id)}
                                                 onDelete={() => deleteExpert(item)}
@@ -1204,6 +1259,7 @@ function Show({ dossier, experts = [], allExperts = [], dossierExperts = [], doc
                                                         Ouvrir
                                                     </a>
                                                 )}
+                                                {!cloture && (
                                                 <button
                                                     type="button"
                                                     onClick={() => deleteDocument(document)}
@@ -1212,6 +1268,7 @@ function Show({ dossier, experts = [], allExperts = [], dossierExperts = [], doc
                                                     <Trash2 size={15} />
                                                     Supprimer
                                                 </button>
+                                                )}
                                             </div>
                                         </div>
                                     ))
@@ -1246,6 +1303,7 @@ function Show({ dossier, experts = [], allExperts = [], dossierExperts = [], doc
                                         <RapportExpertCard
                                             key={rapport.id}
                                             rapport={rapport}
+                                            readOnly={cloture}
                                             onValider={() => validerRapport(rapport)}
                                             onRejeter={() => openRejectModal(rapport)}
                                         />
@@ -1498,7 +1556,7 @@ function InfoBox({ label, value }) {
     );
 }
 
-function ExpertAssignedCard({ item, onAccept, onRefuse, onDelete, onRenvoyerEmail }) {
+function ExpertAssignedCard({ item, readOnly = false, onAccept, onRefuse, onDelete, onRenvoyerEmail }) {
     const expert = item.expert || {};
     const isPending = item.status === 'en_attente_confirmation_dee';
     const isSent = item.status === 'acces_envoye' || item.status === 'en_attente_confirmation_expert';
@@ -1543,6 +1601,7 @@ function ExpertAssignedCard({ item, onAccept, onRefuse, onDelete, onRenvoyerEmai
                     </div>
                 </div>
 
+                {!readOnly && (
                 <div className="flex flex-wrap gap-2">
                     {isPending && (
                         <>
@@ -1588,6 +1647,7 @@ function ExpertAssignedCard({ item, onAccept, onRefuse, onDelete, onRenvoyerEmai
                         </button>
                     )}
                 </div>
+                )}
             </div>
         </div>
     );
@@ -1660,7 +1720,7 @@ function CategorieBadge({ categorie }) {
     );
 }
 
-function RapportExpertCard({ rapport, onValider, onRejeter }) {
+function RapportExpertCard({ rapport, readOnly = false, onValider, onRejeter }) {
     const statutStyles = {
         depose: { bg: 'bg-amber-100 text-amber-700', label: 'En attente' },
         valide: { bg: 'bg-emerald-100 text-emerald-700', label: 'Validé' },
@@ -1715,7 +1775,7 @@ function RapportExpertCard({ rapport, onValider, onRejeter }) {
                             Ouvrir
                         </a>
                     )}
-                    {rapport.statut === 'depose' && (
+                    {rapport.statut === 'depose' && !readOnly && (
                         <>
                             <button
                                 type="button"

@@ -67,8 +67,17 @@ class RapportExpertValidationController extends Controller
         return back()->with('success', 'Rapport expert refusé.');
     }
 
-    public function cloturer(Dossier $dossier)
+    public function cloturer(Request $request, Dossier $dossier)
     {
+        $request->validate(
+            ['code' => 'required|string'],
+            ['code.required' => 'Le code DEE est obligatoire.']
+        );
+
+        if ($request->input('code') !== '0000') {
+            return back()->withErrors(['code' => 'Code DEE incorrect.'])->withInput();
+        }
+
         abort_unless($dossier->statut === 'valide', 422, 'Le dossier doit être validé avant d\'être clôturé.');
 
         DB::table('dossiers')
