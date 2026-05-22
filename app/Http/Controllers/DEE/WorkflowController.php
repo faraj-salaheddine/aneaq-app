@@ -192,6 +192,52 @@ class WorkflowController extends Controller
         return Inertia::render('DEE/Workflow/Comites', ['comites' => $comites]);
     }
 
+    public function recommandations()
+    {
+        $dossiers = Dossier::query()
+            ->orderByDesc('updated_at')
+            ->get();
+
+        $etablissementIds = $dossiers->pluck('etablissement_id')->filter()->unique()->values();
+        $etablissements = collect();
+
+        if ($etablissementIds->isNotEmpty() && Schema::hasTable('etablissements')) {
+            $etablissements = Etablissement::query()
+                ->whereIn('id', $etablissementIds)
+                ->get()
+                ->keyBy('id');
+        }
+
+        $expertCountByDossier = collect();
+        if (Schema::hasTable('dossier_experts')) {
+            $expertCountByDossier = DossierExpert::query()
+                ->selectRaw('dossier_id, count(*) as total')
+                ->groupBy('dossier_id')
+                ->pluck('total', 'dossier_id');
+        }
+
+        $result = $dossiers->map(function ($dossier) use ($etablissements, $expertCountByDossier) {
+            $etablissement = $etablissements->get($dossier->etablissement_id);
+
+            $etablissementNom = $etablissement
+                ? ($etablissement->etablissement_2 ?? $etablissement->etablissement ?? $etablissement->acronyme ?? '—')
+                : $this->read($dossier, ['etablissement_nom', 'etablissement'], '—');
+
+            return [
+                'id' => $dossier->id,
+                'reference' => $this->read($dossier, ['reference'], '—'),
+                'etablissement' => $etablissementNom,
+                'campagne' => $this->read($dossier, ['campagne', 'campagne_reference'], '—'),
+                'experts_count' => $expertCountByDossier->get($dossier->id, 0),
+                'documents_count' => 0,
+                'statut' => $this->read($dossier, ['statut', 'status'], '—'),
+                'url' => route('dee.dossiers.show', $dossier->id),
+            ];
+        })->values();
+
+        return Inertia::render('DEE/Workflow/Recommandations', ['dossiers' => $result]);
+    }
+
     public function visites()
     {
         $dossierTable = (new Dossier())->getTable();

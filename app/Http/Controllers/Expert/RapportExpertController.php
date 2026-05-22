@@ -132,7 +132,8 @@ class RapportExpertController extends Controller
             'rapport' => ['required', 'file', 'mimes:pdf,doc,docx', 'max:10240'],
         ]);
 
-        $path = $request->file('rapport')->store('rapports_experts', 'public');
+        $file = $request->file('rapport');
+        $path = $file->store('rapports_experts', 'public');
 
         if (!Schema::hasTable('rapports_experts')) {
             return back()->withErrors([
@@ -145,15 +146,27 @@ class RapportExpertController extends Controller
             ->where('expert_id', $expert->id)
             ->first();
 
+        $columns = Schema::getColumnListing('rapports_experts');
+
         $payload = [
-            'dossier_id' => $dossier->id,
-            'expert_id' => $expert->id,
-            'titre' => $validated['titre'] ?: 'Rapport expert',
-            'commentaire' => $validated['commentaire'] ?? null,
-            'fichier' => $path,
-            'statut' => 'depose',
-            'updated_at' => now(),
+            'dossier_id'    => $dossier->id,
+            'expert_id'     => $expert->id,
+            'statut'        => 'depose',
+            'updated_at'    => now(),
         ];
+
+        // Populate every column that exists so NOT NULL constraints are satisfied
+        if (in_array('file_path', $columns))    $payload['file_path']    = $path;
+        if (in_array('fichier', $columns))      $payload['fichier']      = $path;
+        if (in_array('original_name', $columns))$payload['original_name']= $file->getClientOriginalName();
+        if (in_array('mime_type', $columns))    $payload['mime_type']    = $file->getMimeType() ?? $file->getClientMimeType();
+        if (in_array('file_size', $columns))    $payload['file_size']    = $file->getSize();
+        if (in_array('titre', $columns))        $payload['titre']        = $validated['titre'] ?: 'Rapport expert';
+        if (in_array('commentaire', $columns))  $payload['commentaire']  = $validated['commentaire'] ?? null;
+        // Reset validation fields when re-depositing
+        if (in_array('motif_rejet', $columns))  $payload['motif_rejet']  = null;
+        if (in_array('valide_le', $columns))    $payload['valide_le']    = null;
+        if (in_array('valide_par', $columns))   $payload['valide_par']   = null;
 
         if ($existing) {
             DB::table('rapports_experts')->where('id', $existing->id)->update($payload);

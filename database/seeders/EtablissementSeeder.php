@@ -9,6 +9,11 @@ class EtablissementSeeder extends Seeder
 {
     public function run(): void
     {
+        if (Etablissement::count() > 0) {
+            $this->command->info('EtablissementSeeder: établissements already exist, skipping.');
+            return;
+        }
+
         Etablissement::create([
             'acronyme' => 'ENCG',
             'domaine_connaissances' => 'Commerce et gestion',

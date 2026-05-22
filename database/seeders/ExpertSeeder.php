@@ -8,6 +8,11 @@ class ExpertSeeder extends Seeder
 {
     public function run(): void
     {
+        if (Expert::count() > 0) {
+            $this->command->info('ExpertSeeder: experts already exist, skipping.');
+            return;
+        }
+
         Expert::create([
             'nom' => 'Labjar',
             'prenom' => 'Najoua',

@@ -3,6 +3,7 @@ import DashboardShell from '@/Layouts/DashboardShell';
 import MessageriePanel from '@/Components/MessageriePanel';
 import ConfirmModal from '@/Components/ConfirmModal';
 import {
+    AlertTriangle,
     ArrowLeft,
     BadgeCheck,
     Building2,
@@ -31,7 +32,7 @@ import {
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
-function Show({ dossier, experts = [], allExperts = [], dossierExperts = [], documents = [], photos = [] }) {
+function Show({ dossier, experts = [], allExperts = [], dossierExperts = [], documents = [], photos = [], rapportsExperts = [] }) {
     const { props } = usePage();
     const flash = props.flash || {};
 
@@ -41,6 +42,9 @@ function Show({ dossier, experts = [], allExperts = [], dossierExperts = [], doc
     const [expertFilterActive, setExpertFilterActive] = useState(true);
     const [photoPreviews, setPhotoPreviews] = useState([]);
     const [dialog, setDialog] = useState(null);
+    const [rejectModal, setRejectModal] = useState({ open: false, rapport: null });
+    const [motifRejet, setMotifRejet] = useState('');
+    const [confirmAcceptModal, setConfirmAcceptModal] = useState({ open: false, rapport: null });
 
     const [deleteModal, setDeleteModal] = useState({
         open: false,
@@ -126,6 +130,14 @@ function Show({ dossier, experts = [], allExperts = [], dossierExperts = [], doc
         );
     };
 
+    const renvoyerEmailExpert = (dossierExpertId) => {
+        router.post(
+            `/dee/dossiers/${dossier.id}/experts/${dossierExpertId}/renvoyer-email`,
+            {},
+            { preserveScroll: true }
+        );
+    };
+
     const refuseExpert = (dossierExpertId) => {
         setDialog({
             message: 'Voulez-vous vraiment refuser cet expert ?',
@@ -186,6 +198,44 @@ function Show({ dossier, experts = [], allExperts = [], dossierExperts = [], doc
 
     const deletePhoto = (photo) => {
         openSecureDeleteModal('photo', photo);
+    };
+
+    const validerRapport = (rapport) => {
+        setConfirmAcceptModal({ open: true, rapport });
+    };
+
+    const confirmValider = () => {
+        router.post(
+            `/dee/dossiers/${dossier.id}/rapports/${confirmAcceptModal.rapport.id}/valider`,
+            {},
+            {
+                preserveScroll: true,
+                onSuccess: () => setConfirmAcceptModal({ open: false, rapport: null }),
+            }
+        );
+    };
+
+    const openRejectModal = (rapport) => {
+        setRejectModal({ open: true, rapport });
+        setMotifRejet('');
+    };
+
+    const closeRejectModal = () => {
+        setRejectModal({ open: false, rapport: null });
+        setMotifRejet('');
+    };
+
+    const submitRejet = (e) => {
+        e.preventDefault();
+        if (!motifRejet.trim()) return;
+        router.post(
+            `/dee/dossiers/${dossier.id}/rapports/${rejectModal.rapport.id}/rejeter`,
+            { motif: motifRejet },
+            {
+                preserveScroll: true,
+                onSuccess: closeRejectModal,
+            }
+        );
     };
 
     const submitSecureDelete = (e) => {
@@ -284,6 +334,88 @@ function Show({ dossier, experts = [], allExperts = [], dossierExperts = [], doc
                     onCancel={() => setDialog(null)}
                 />
             )}
+            {rejectModal.open && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+                    <div className="w-full max-w-lg rounded-3xl bg-white p-8 shadow-2xl">
+                        <div className="flex items-center gap-3">
+                            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-red-100 text-red-600">
+                                <AlertTriangle size={22} />
+                            </div>
+                            <div>
+                                <h3 className="text-xl font-black text-slate-900">Refuser le rapport</h3>
+                                <p className="text-sm font-medium text-slate-500">Expert : {rejectModal.rapport?.expert_nom}</p>
+                            </div>
+                        </div>
+                        <form onSubmit={submitRejet} className="mt-6 space-y-4">
+                            <div>
+                                <label className="mb-2 block text-sm font-black text-slate-700">
+                                    Motif du refus <span className="text-red-500">*</span>
+                                </label>
+                                <textarea
+                                    rows={4}
+                                    value={motifRejet}
+                                    onChange={(e) => setMotifRejet(e.target.value)}
+                                    placeholder="Expliquez pourquoi ce rapport est refusé..."
+                                    className="w-full rounded-2xl border border-slate-200 p-4 text-sm font-medium text-slate-700 placeholder-slate-400 outline-none focus:border-red-400 focus:ring-2 focus:ring-red-100"
+                                    required
+                                />
+                            </div>
+                            <div className="flex justify-end gap-3">
+                                <button
+                                    type="button"
+                                    onClick={closeRejectModal}
+                                    className="rounded-2xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-black text-slate-700 hover:bg-slate-50"
+                                >
+                                    Annuler
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={!motifRejet.trim()}
+                                    className="rounded-2xl bg-red-600 px-5 py-2.5 text-sm font-black text-white transition hover:bg-red-700 disabled:opacity-50"
+                                >
+                                    Confirmer le refus
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {confirmAcceptModal.open && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+                    <div className="w-full max-w-md rounded-3xl bg-white p-8 shadow-2xl">
+                        <div className="flex items-center gap-3">
+                            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-600">
+                                <CheckCircle2 size={22} />
+                            </div>
+                            <div>
+                                <h3 className="text-xl font-black text-slate-900">Accepter le rapport</h3>
+                                <p className="text-sm font-medium text-slate-500">Expert : {confirmAcceptModal.rapport?.expert_nom}</p>
+                            </div>
+                        </div>
+                        <p className="mt-5 text-sm font-medium text-slate-600 leading-7">
+                            Confirmez-vous l'acceptation de ce rapport ? L'expert sera notifié par email.
+                        </p>
+                        <div className="mt-6 flex justify-end gap-3">
+                            <button
+                                type="button"
+                                onClick={() => setConfirmAcceptModal({ open: false, rapport: null })}
+                                className="rounded-2xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-black text-slate-700 hover:bg-slate-50"
+                            >
+                                Annuler
+                            </button>
+                            <button
+                                type="button"
+                                onClick={confirmValider}
+                                className="rounded-2xl bg-emerald-600 px-5 py-2.5 text-sm font-black text-white transition hover:bg-emerald-700"
+                            >
+                                Confirmer l'acceptation
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <MessageriePanel dossierId={dossier.id} currentRole="admin_dee" />
 
             <div className="mx-auto max-w-[98rem] px-4 py-10 sm:px-6 lg:px-8">
@@ -796,34 +928,30 @@ function Show({ dossier, experts = [], allExperts = [], dossierExperts = [], doc
                                         />
                                     </div>
 
-                                    {etablissement.domaine_connaissances && (
-                                        expertFilterActive ? (
-                                            <div className="mt-3 flex items-center gap-2 rounded-xl bg-violet-50 px-3 py-2 text-xs font-bold text-violet-700">
-                                                <span className="shrink-0">Filtre actif :</span>
-                                                <span className="font-black">{etablissement.domaine_connaissances}</span>
-                                                <span className="text-violet-400">— même spécialité, établissement différent</span>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setExpertFilterActive(false)}
-                                                    className="ml-auto flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-violet-200 text-violet-700 transition hover:bg-red-200 hover:text-red-600"
-                                                    title="Désactiver le filtre"
-                                                >
-                                                    <X size={11} />
-                                                </button>
-                                            </div>
-                                        ) : (
-                                            <div className="mt-3 flex items-center gap-2 rounded-xl bg-slate-100 px-3 py-2 text-xs font-bold text-slate-500">
-                                                <span className="shrink-0">Filtre désactivé</span>
-                                                <span className="text-slate-400">— tous les experts</span>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setExpertFilterActive(true)}
-                                                    className="ml-auto rounded-lg bg-slate-200 px-2 py-0.5 text-xs font-black text-slate-600 transition hover:bg-violet-100 hover:text-violet-700"
-                                                >
-                                                    Réactiver
-                                                </button>
-                                            </div>
-                                        )
+
+                                    {expertFilterActive ? (
+                                        <div className="mt-3 flex items-center gap-2 rounded-xl bg-violet-50 px-3 py-2 text-xs font-bold text-violet-700">
+                                            <span>Filtre actif — établissement différent</span>
+                                            <button
+                                                type="button"
+                                                onClick={() => setExpertFilterActive(false)}
+                                                className="ml-auto flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-violet-200 text-violet-700 transition hover:bg-red-200 hover:text-red-600"
+                                                title="Désactiver le filtre"
+                                            >
+                                                <X size={11} />
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <div className="mt-3 flex items-center gap-2 rounded-xl bg-slate-100 px-3 py-2 text-xs font-bold text-slate-500">
+                                            <span>Filtre désactivé — tous les experts</span>
+                                            <button
+                                                type="button"
+                                                onClick={() => setExpertFilterActive(true)}
+                                                className="ml-auto rounded-lg bg-slate-200 px-2 py-0.5 text-xs font-black text-slate-600 transition hover:bg-violet-100 hover:text-violet-700"
+                                            >
+                                                Réactiver
+                                            </button>
+                                        </div>
                                     )}
 
                                     <div className="mt-5 max-h-[28rem] space-y-3 overflow-y-auto pr-1">
@@ -955,6 +1083,7 @@ function Show({ dossier, experts = [], allExperts = [], dossierExperts = [], doc
                                                 onAccept={() => acceptExpert(item.id)}
                                                 onRefuse={() => refuseExpert(item.id)}
                                                 onDelete={() => deleteExpert(item)}
+                                                onRenvoyerEmail={() => renvoyerEmailExpert(item.id)}
                                             />
                                         ))
                                     ) : (
@@ -996,17 +1125,22 @@ function Show({ dossier, experts = [], allExperts = [], dossierExperts = [], doc
                                             key={document.id}
                                             className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:flex-row sm:items-center sm:justify-between"
                                         >
-                                            <div>
+                                            <div className="min-w-0">
                                                 <p className="font-black text-slate-900">
-                                                    {document.nom || document.name || document.filename || 'Document'}
+                                                    {document.original_name || document.nom || document.name || 'Document'}
                                                 </p>
-
-                                                <p className="mt-1 text-sm font-medium text-slate-500">
+                                                <p className="mt-0.5 text-sm font-medium text-slate-500">
                                                     {document.type || document.document_type || 'Type non défini'}
                                                 </p>
+                                                <div className="mt-2 flex flex-wrap items-center gap-2">
+                                                    <span className="text-xs font-semibold text-slate-500">
+                                                        Déposé par : <span className="font-black text-slate-700">{document.uploader_nom || '—'}</span>
+                                                    </span>
+                                                    <CategorieBadge categorie={document.uploader_categorie} />
+                                                </div>
                                             </div>
 
-                                            <div className="flex gap-2">
+                                            <div className="flex shrink-0 gap-2">
                                                 {document.url && (
                                                     <a
                                                         href={document.url}
@@ -1018,7 +1152,6 @@ function Show({ dossier, experts = [], allExperts = [], dossierExperts = [], doc
                                                         Ouvrir
                                                     </a>
                                                 )}
-
                                                 <button
                                                     type="button"
                                                     onClick={() => deleteDocument(document)}
@@ -1033,7 +1166,6 @@ function Show({ dossier, experts = [], allExperts = [], dossierExperts = [], doc
                                 ) : (
                                     <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
                                         <FileText className="mx-auto text-slate-300" size={34} />
-
                                         <p className="mt-3 font-black text-slate-900">
                                             Aucun document n'a encore été déposé.
                                         </p>
@@ -1041,6 +1173,34 @@ function Show({ dossier, experts = [], allExperts = [], dossierExperts = [], doc
                                 )}
                             </div>
                         </div>
+
+                        {/* Rapports experts déposés */}
+                        {rapportsExperts.length > 0 && (
+                            <div className="rounded-[2rem] border border-slate-200 bg-white p-7 shadow-sm">
+                                <div className="flex items-start gap-4">
+                                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-violet-50 text-violet-600">
+                                        <UserCheck size={24} />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-2xl font-black text-slate-900">Rapports experts</h3>
+                                        <p className="mt-1 text-sm font-medium text-slate-500">
+                                            Rapports déposés par les experts — validation requise.
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <div className="mt-7 space-y-4">
+                                    {rapportsExperts.map((rapport) => (
+                                        <RapportExpertCard
+                                            key={rapport.id}
+                                            rapport={rapport}
+                                            onValider={() => validerRapport(rapport)}
+                                            onRejeter={() => openRejectModal(rapport)}
+                                        />
+                                    ))}
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     <div className="space-y-7">
@@ -1286,10 +1446,10 @@ function InfoBox({ label, value }) {
     );
 }
 
-function ExpertAssignedCard({ item, onAccept, onRefuse, onDelete }) {
+function ExpertAssignedCard({ item, onAccept, onRefuse, onDelete, onRenvoyerEmail }) {
     const expert = item.expert || {};
     const isPending = item.status === 'en_attente_confirmation_dee';
-    const isSent = item.status === 'acces_envoye';
+    const isSent = item.status === 'acces_envoye' || item.status === 'en_attente_confirmation_expert';
     const isConfirmed = item.status === 'confirme_par_expert';
 
     return (
@@ -1352,6 +1512,17 @@ function ExpertAssignedCard({ item, onAccept, onRefuse, onDelete }) {
                                 Accepter
                             </button>
                         </>
+                    )}
+
+                    {isSent && (
+                        <button
+                            type="button"
+                            onClick={onRenvoyerEmail}
+                            className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-black text-white transition hover:bg-blue-700"
+                        >
+                            <Send size={16} />
+                            Renvoyer email
+                        </button>
                     )}
 
                     {!isPending && (
@@ -1418,6 +1589,102 @@ function WorkflowItem({ text }) {
             <span className="text-sm font-semibold text-blue-50">
                 {text}
             </span>
+        </div>
+    );
+}
+
+function CategorieBadge({ categorie }) {
+    const styles = {
+        Expert: 'bg-violet-100 text-violet-700',
+        'Établissement': 'bg-blue-100 text-blue-700',
+        DEE: 'bg-emerald-100 text-emerald-700',
+    };
+    if (!categorie || categorie === '—') return null;
+    const cls = styles[categorie] || 'bg-slate-100 text-slate-600';
+    return (
+        <span className={`rounded-full px-2.5 py-0.5 text-xs font-black ${cls}`}>
+            {categorie}
+        </span>
+    );
+}
+
+function RapportExpertCard({ rapport, onValider, onRejeter }) {
+    const statutStyles = {
+        depose: { bg: 'bg-amber-100 text-amber-700', label: 'En attente' },
+        valide: { bg: 'bg-emerald-100 text-emerald-700', label: 'Validé' },
+        rejete: { bg: 'bg-red-100 text-red-700', label: 'Refusé' },
+    };
+    const s = statutStyles[rapport.statut] || statutStyles.depose;
+
+    return (
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                        <p className="font-black text-slate-900">
+                            {rapport.original_name || rapport.titre || 'Rapport expert'}
+                        </p>
+                        <span className={`rounded-full px-3 py-0.5 text-xs font-black ${s.bg}`}>
+                            {s.label}
+                        </span>
+                    </div>
+                    <p className="mt-1 text-sm font-semibold text-slate-500">
+                        Expert : <span className="font-black text-slate-700">{rapport.expert_nom}</span>
+                        {rapport.expert_email && rapport.expert_email !== '—' && (
+                            <span className="ml-2 text-slate-400">— {rapport.expert_email}</span>
+                        )}
+                    </p>
+                    {rapport.commentaire && (
+                        <p className="mt-2 text-sm text-slate-600 italic">« {rapport.commentaire} »</p>
+                    )}
+                    {rapport.statut === 'rejete' && rapport.motif_rejet && (
+                        <div className="mt-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+                            <p className="text-xs font-black uppercase tracking-wider text-red-500">Motif du refus</p>
+                            <p className="mt-1 text-sm font-medium text-red-700">{rapport.motif_rejet}</p>
+                        </div>
+                    )}
+                    {rapport.statut === 'valide' && rapport.valide_le && (
+                        <p className="mt-2 text-xs font-semibold text-emerald-600">
+                            Validé le {rapport.valide_le}{rapport.valide_par ? ` par ${rapport.valide_par}` : ''}
+                        </p>
+                    )}
+                    <p className="mt-1 text-xs text-slate-400">Déposé le {rapport.created_at}</p>
+                </div>
+
+                <div className="flex shrink-0 flex-wrap gap-2">
+                    {rapport.url && (
+                        <a
+                            href={rapport.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-black text-white transition hover:bg-blue-700"
+                        >
+                            <Eye size={15} />
+                            Ouvrir
+                        </a>
+                    )}
+                    {rapport.statut === 'depose' && (
+                        <>
+                            <button
+                                type="button"
+                                onClick={onValider}
+                                className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-black text-white transition hover:bg-emerald-700"
+                            >
+                                <CheckCircle2 size={15} />
+                                Accepter
+                            </button>
+                            <button
+                                type="button"
+                                onClick={onRejeter}
+                                className="inline-flex items-center gap-2 rounded-xl bg-red-600 px-4 py-2.5 text-sm font-black text-white transition hover:bg-red-700"
+                            >
+                                <XCircle size={15} />
+                                Refuser
+                            </button>
+                        </>
+                    )}
+                </div>
+            </div>
         </div>
     );
 }

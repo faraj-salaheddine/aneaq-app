@@ -28,6 +28,12 @@ class Expert extends Model
         'grade',
         'responsabilite',
         'etablissement_et_annee_responsabilite',
+        'cin_number',
+        'contract_start',
+        'contract_end',
+        'contract_renewals',
+        'car_horsepower',
+        'rib',
     ];
 
     public function user()

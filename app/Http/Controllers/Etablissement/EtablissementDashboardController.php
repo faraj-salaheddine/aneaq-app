@@ -139,13 +139,20 @@ class EtablissementDashboardController extends Controller
         ];
 
         $mapping = [
+            // French label variants
             'date de visite planifiée' => 'visite_planifiee',
             'visite planifiée'         => 'visite_planifiee',
             'rapport déposé'           => 'rapport_depose',
             'profil complété'          => 'formulaire_complete',
-            'rapport_en_attente'       => 'visite_planifiee',
             'validé'                   => 'valide',
             'rejeté'                   => 'valide',
+            // Raw DB slug variants
+            'rapport_en_attente'       => 'rapport_depose',
+            'date_visite_planifiee'    => 'visite_planifiee',
+            'visite_planifiee'         => 'visite_planifiee',
+            'valide'                   => 'valide',
+            'valide_definitif'         => 'valide',
+            'cloture'                  => 'valide',
         ];
 
         $statutBrut = strtolower(trim($dossier->statut ?? ''));

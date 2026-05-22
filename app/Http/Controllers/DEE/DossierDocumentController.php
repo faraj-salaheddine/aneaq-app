@@ -32,12 +32,16 @@ class DossierDocumentController extends Controller
 
         $data = [];
 
+        $label = $this->documentLabel($validated['type']);
+
         $this->setColumn($table, $data, 'dossier_id', $dossier->id);
+        // type columns — cover every naming variant across tables
         $this->setColumn($table, $data, 'type', $validated['type']);
         $this->setColumn($table, $data, 'document_type', $validated['type']);
-        $this->setColumn($table, $data, 'titre', $this->documentLabel($validated['type']));
-        $this->setColumn($table, $data, 'nom', $this->documentLabel($validated['type']));
-        $this->setColumn($table, $data, 'name', $this->documentLabel($validated['type']));
+        $this->setColumn($table, $data, 'type_document', $validated['type']);
+        $this->setColumn($table, $data, 'titre', $label);
+        $this->setColumn($table, $data, 'nom', $label);
+        $this->setColumn($table, $data, 'name', $label);
 
         $this->setColumn($table, $data, 'path', $path);
         $this->setColumn($table, $data, 'file_path', $path);
@@ -50,6 +54,8 @@ class DossierDocumentController extends Controller
 
         $this->setColumn($table, $data, 'uploaded_by', Auth::id());
         $this->setColumn($table, $data, 'created_by', Auth::id());
+        // role columns — cover every naming variant
+        $this->setColumn($table, $data, 'uploaded_by_role', 'DEE');
         $this->setColumn($table, $data, 'depose_par', 'DEE');
         $this->setColumn($table, $data, 'statut', 'Déposé');
         $this->setColumn($table, $data, 'status', 'Déposé');

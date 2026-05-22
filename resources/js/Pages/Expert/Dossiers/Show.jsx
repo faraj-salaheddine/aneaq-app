@@ -43,7 +43,11 @@ export default function DossierShow({
     documents         = [],
     assignmentStatus  = null,
 }) {
-    const isWaiting = assignmentStatus === 'accepte_par_expert';
+    // Blocked = DEE hasn't confirmed yet OR expert hasn't accepted yet
+    // accepte_par_expert / confirme_par_expert / comite_confirme = fully unlocked
+    const isWaiting = assignmentStatus === 'en_attente_confirmation_dee'
+        || assignmentStatus === 'en_attente_confirmation_expert'
+        || assignmentStatus === 'acces_envoye';
     const etab   = dossier?.etablissement || {};
     const status = dossier?.statut || dossier?.status || 'en_preparation';
     const smeta  = STATUS_META[status] || { label: status || '—', color: '#64748b', bg: '#f1f5f9', dot: '#94a3b8' };
@@ -184,7 +188,7 @@ export default function DossierShow({
                     <div className="fu d2" style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 14, marginBottom: 28 }}>
                         <StatCard icon={<IcoChart />}  label="Progression"     value={`${pct}%`}              accent={BLUE}   sub={pct < 100 ? 'En cours' : 'Complété'} />
                         <StatCard icon={<IcoUsers />}  label="Membres comité"  value={comite.length}           accent={GREEN}  sub={`${confirmedCount} confirmé(s)`} />
-                        <StatCard icon={<IcoFile />}   label="Rapport final"   value={rapport ? '✓' : '—'}    accent={rapport ? GREEN : ORANGE} sub={rapport ? 'Déposé' : 'Non déposé'} />
+                        <StatCard icon={<IcoFile />}   label="Rapport final"   value={rapport ? '✓' : '—'}    accent={rapport?.statut === 'valide' ? GREEN : rapport?.statut === 'rejete' ? RED : rapport ? BLUE : ORANGE} sub={rapport?.statut === 'valide' ? 'Validé ✓' : rapport?.statut === 'rejete' ? 'Refusé' : rapport ? 'En attente DEE' : 'Non déposé'} />
                         <StatCard icon={<IcoClip />}   label="Recommandations" value={nbRecommandations || 0}  accent={ORANGE} sub="au total" />
                     </div>
 
@@ -323,26 +327,50 @@ export default function DossierShow({
                             <Card className="fu d4">
                                 <CardHead icon={<IcoFile />} title="Rapport final" sub="État du rapport expert." compact />
                                 <div style={{ padding: '1.25rem 1.5rem' }}>
-                                    <div style={{ borderRadius: 14, border: `1.5px solid ${rapport ? '#86efac' : '#fed7aa'}`, background: rapport ? '#f0fdf4' : '#fff7ed', padding: '1.25rem' }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-                                            <div style={{ width: 10, height: 10, borderRadius: '50%', background: rapport ? GREEN : ORANGE, flexShrink: 0 }} />
-                                            <p style={{ margin: 0, fontWeight: 800, fontSize: 14, color: rapport ? '#166534' : '#92400e' }}>
-                                                {rapport ? 'Rapport déposé' : 'Rapport non déposé'}
-                                            </p>
-                                        </div>
-                                        <p style={{ margin: 0, fontSize: 12, color: '#64748b', fontWeight: 600, lineHeight: 1.6 }}>
-                                            {rapport
-                                                ? `Statut : ${rapport.statut || rapport.status || '—'}`
-                                                : 'Déposez votre rapport depuis la section Actions.'}
-                                        </p>
-                                    </div>
-
-                                    <button
-                                        onClick={() => !isWaiting && router.visit(`/expert/rapports/${dossier.id}/deposer`)}
-                                        disabled={isWaiting}
-                                        style={{ marginTop: 12, width: '100%', padding: '10px', borderRadius: 10, background: isWaiting ? '#e2e8f0' : (rapport ? '#f1f5f9' : GREEN), color: isWaiting ? '#94a3b8' : (rapport ? '#374151' : '#fff'), fontSize: 13, fontWeight: 800, border: 'none', cursor: isWaiting ? 'not-allowed' : 'pointer' }}>
-                                        {isWaiting ? '🔒 En attente' : (rapport ? 'Consulter le rapport' : 'Déposer le rapport')}
-                                    </button>
+                                    {(() => {
+                                        const statut = rapport?.statut || rapport?.status;
+                                        const isRejete = statut === 'rejete';
+                                        const isValide = statut === 'valide';
+                                        const borderColor = isRejete ? '#fca5a5' : isValide ? '#86efac' : rapport ? '#93c5fd' : '#fed7aa';
+                                        const bgColor     = isRejete ? '#fef2f2' : isValide ? '#f0fdf4' : rapport ? '#eff6ff' : '#fff7ed';
+                                        const dotColor    = isRejete ? '#ef4444' : isValide ? GREEN : rapport ? '#3b82f6' : ORANGE;
+                                        const titleColor  = isRejete ? '#991b1b' : isValide ? '#166534' : rapport ? '#1e40af' : '#92400e';
+                                        const statusLabel = isRejete ? 'Refusé par la DEE' : isValide ? 'Validé' : rapport ? 'En attente de validation DEE' : 'Non déposé';
+                                        return (
+                                            <>
+                                                <div style={{ borderRadius: 14, border: `1.5px solid ${borderColor}`, background: bgColor, padding: '1.25rem' }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                                                        <div style={{ width: 10, height: 10, borderRadius: '50%', background: dotColor, flexShrink: 0 }} />
+                                                        <p style={{ margin: 0, fontWeight: 800, fontSize: 14, color: titleColor }}>
+                                                            {statusLabel}
+                                                        </p>
+                                                    </div>
+                                                    {rapport?.original_name && (
+                                                        <p style={{ margin: '0 0 4px', fontSize: 12, color: '#475569', fontWeight: 600 }}>
+                                                            📄 {rapport.original_name}
+                                                        </p>
+                                                    )}
+                                                    {isRejete && rapport?.motif_rejet && (
+                                                        <div style={{ marginTop: 10, borderRadius: 10, background: '#fee2e2', border: '1px solid #fca5a5', padding: '10px 12px' }}>
+                                                            <p style={{ margin: '0 0 4px', fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#b91c1c' }}>Motif du refus</p>
+                                                            <p style={{ margin: 0, fontSize: 13, color: '#7f1d1d', fontWeight: 500, lineHeight: 1.6 }}>{rapport.motif_rejet}</p>
+                                                        </div>
+                                                    )}
+                                                    {!rapport && (
+                                                        <p style={{ margin: 0, fontSize: 12, color: '#64748b', fontWeight: 600, lineHeight: 1.6 }}>
+                                                            Déposez votre rapport depuis la section Actions.
+                                                        </p>
+                                                    )}
+                                                </div>
+                                                <button
+                                                    onClick={() => !isWaiting && router.visit(`/expert/rapports/${dossier.id}/deposer`)}
+                                                    disabled={isWaiting}
+                                                    style={{ marginTop: 12, width: '100%', padding: '10px', borderRadius: 10, background: isWaiting ? '#e2e8f0' : isRejete ? '#ef4444' : (rapport ? '#f1f5f9' : GREEN), color: isWaiting ? '#94a3b8' : isRejete ? '#fff' : (rapport ? '#374151' : '#fff'), fontSize: 13, fontWeight: 800, border: 'none', cursor: isWaiting ? 'not-allowed' : 'pointer' }}>
+                                                    {isWaiting ? '🔒 En attente' : isRejete ? '↺ Redéposer le rapport' : rapport ? 'Consulter / Mettre à jour' : 'Déposer le rapport'}
+                                                </button>
+                                            </>
+                                        );
+                                    })()}
                                 </div>
                             </Card>
 

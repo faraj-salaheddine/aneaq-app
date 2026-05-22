@@ -10,6 +10,7 @@ use App\Models\DossierPhoto;
 use App\Models\Etablissement;
 use App\Models\Expert;
 use App\Models\NotificationAneaq;
+use App\Models\RapportExpert;
 use App\Models\User;
 use App\Services\ActivityLogger;
 use App\Services\DossierStatusService;
@@ -67,12 +68,13 @@ class DossierController extends Controller
     public function show(Dossier $dossier)
     {
         return Inertia::render('DEE/Dossiers/Show', [
-            'dossier'       => $this->dossierPayload($dossier, false),
-            'experts'       => $this->availableExpertsPayload($dossier),
-            'allExperts'    => $this->allExpertsPayload(),
+            'dossier'        => $this->dossierPayload($dossier, false),
+            'experts'        => $this->availableExpertsPayload($dossier),
+            'allExperts'     => $this->allExpertsPayload(),
             'dossierExperts' => $this->dossierExpertsPayload($dossier),
-            'documents'     => $this->documentsPayload($dossier),
-            'photos'        => $this->photosPayload($dossier),
+            'documents'      => $this->documentsPayload($dossier),
+            'photos'         => $this->photosPayload($dossier),
+            'rapportsExperts' => $this->rapportsExpertsPayload($dossier),
         ]);
     }
 
@@ -177,6 +179,13 @@ class DossierController extends Controller
             ActivityLogger::log('dossier_supprime', "Dossier {$dossier->reference} supprimé par la DEE", $etablissementModel);
         }
 
+        // Remove the établissement from the vague so it can be re-added
+        if (!empty($dossier->campagne_etablissement_id)) {
+            DB::table('campagne_etablissements')
+                ->where('id', $dossier->campagne_etablissement_id)
+                ->delete();
+        }
+
         $dossier->delete();
 
         return redirect()
@@ -267,19 +276,17 @@ class DossierController extends Controller
             return collect();
         }
 
-        // Retrieve the dossier's establishment for filtering
+        // Collect all possible name variants of the dossier's establishment
         $etablissementId = $this->value($dossier, ['etablissement_id']);
-        $domaineEtablissement = null;
         $etablissementNoms = [];
 
         if ($etablissementId && Schema::hasTable((new Etablissement())->getTable())) {
             $etab = Etablissement::find($etablissementId);
             if ($etab) {
-                $domaineEtablissement = $this->value($etab, ['domaine_connaissances'], null);
-
-                foreach (['etablissement', 'etablissement_2', 'nom', 'name', 'acronyme'] as $col) {
+                $nameCols = ['etablissement', 'etablissement_2', 'nom', 'name', 'acronyme', 'intitule', 'sigle'];
+                foreach ($nameCols as $col) {
                     $val = $this->hasColumn('etablissements', $col) ? $etab->getAttribute($col) : null;
-                    if ($val && trim($val) !== '') {
+                    if ($val && trim($val) !== '' && trim($val) !== '—') {
                         $etablissementNoms[] = strtolower(trim($val));
                     }
                 }
@@ -289,33 +296,28 @@ class DossierController extends Controller
         $query = Expert::query();
         $this->orderExperts($query);
 
+        // Only keep names long enough to avoid false matches (min 6 chars)
+        $etabNomsLong = array_filter($etablissementNoms, fn($n) => mb_strlen($n) >= 6);
+
         return $query
             ->get()
-            ->filter(function (Expert $expert) use ($domaineEtablissement, $etablissementNoms) {
-                // 1. Match specialite with domaine_connaissances of the establishment
-                if ($domaineEtablissement) {
-                    $specialite = strtolower(trim((string) $this->value($expert, ['specialite', 'domaine', 'discipline'], '')));
-                    $domaine    = strtolower(trim($domaineEtablissement));
-
-                    if ($specialite === '' || $domaine === '') {
-                        return false;
-                    }
-
-                    if (!$this->keywordsMatch($domaine, $specialite)) {
-                        return false;
-                    }
+            ->filter(function (Expert $expert) use ($etabNomsLong) {
+                // If no usable establishment names, show all experts
+                if (empty($etabNomsLong)) {
+                    return true;
                 }
 
-                // 2. Exclude experts from the same establishment
-                if (!empty($etablissementNoms)) {
-                    $expertEtab = strtolower(trim((string) $this->value($expert, ['etablissement', 'etablissement_nom', 'institution'], '')));
+                $expertEtab = strtolower(trim((string) $this->value($expert, ['etablissement', 'etablissement_nom', 'institution'], '')));
 
-                    if ($expertEtab !== '') {
-                        foreach ($etablissementNoms as $etabNom) {
-                            if (str_contains($expertEtab, $etabNom) || str_contains($etabNom, $expertEtab)) {
-                                return false;
-                            }
-                        }
+                // Experts with empty establishment field pass through
+                if ($expertEtab === '') {
+                    return true;
+                }
+
+                // Exclude experts whose establishment matches the dossier's establishment
+                foreach ($etabNomsLong as $etabNom) {
+                    if (str_contains($expertEtab, $etabNom) || str_contains($etabNom, $expertEtab)) {
+                        return false;
                     }
                 }
 
@@ -428,30 +430,66 @@ class DossierController extends Controller
 
         $this->orderLatestDb($query, $table);
 
-        return $query
-            ->get()
-            ->map(function ($document) use ($table) {
+        $rows = $query->get();
+
+        // Pre-load uploaders
+        $userIds = $rows->pluck('uploaded_by')->filter()->unique()->values();
+        $usersById = User::query()->whereIn('id', $userIds)->get()->keyBy('id');
+
+        return $rows
+            ->map(function ($document) use ($table, $usersById) {
                 $path = $this->documentPath($document);
 
+                $uploadedById   = $this->objectValue($document, ['uploaded_by'], null);
+                $uploadedByRole = $this->objectValue($document, ['uploaded_by_role', 'depose_par'], null)
+                    ?? ($table === 'dossier_documents' ? 'DEE' : null); // DEE is the only uploader in this table
+                $uploaderUser   = $uploadedById ? $usersById->get($uploadedById) : null;
+
+                // Determine category label
+                $categorie = match (strtolower((string) $uploadedByRole)) {
+                    'expert'        => 'Expert',
+                    'etablissement' => 'Établissement',
+                    'dee'           => 'DEE',
+                    default         => $uploadedByRole ? ucfirst($uploadedByRole) : '—',
+                };
+
+                // Use real name when available; fall back to role label so "Déposé par" is never "—"
+                $roleLabel = match (strtolower((string) $uploadedByRole)) {
+                    'dee'           => 'Administrateur DEE',
+                    'expert'        => 'Expert',
+                    'etablissement' => 'Établissement',
+                    default         => null,
+                };
+                $uploaderName = $uploaderUser?->name ?? $roleLabel ?? '—';
+
+                // Fallback: infer display name from path if all name fields are empty
+                $nomFallback = $path ? pathinfo(basename($path), PATHINFO_FILENAME) : 'Document';
+                $nomFallback = str_replace(['_', '-'], ' ', $nomFallback);
+                // Infer type from path segment if type columns are empty
+                $typeFallback = $path ? $this->inferTypeFromPath($path) : 'document';
+
                 return [
-                    'id' => $document->id,
-                    'dossier_id' => $document->dossier_id ?? null,
+                    'id'            => $document->id,
+                    'dossier_id'    => $document->dossier_id ?? null,
 
-                    'type' => $this->objectValue($document, ['type', 'document_type'], 'document'),
-                    'titre' => $this->objectValue($document, ['titre', 'title', 'nom', 'name'], 'Document'),
-                    'nom' => $this->objectValue($document, ['nom', 'name', 'titre', 'title'], 'Document'),
+                    'type'  => $this->objectValue($document, ['type', 'document_type', 'type_document'], null) ?? $typeFallback,
+                    'titre' => $this->objectValue($document, ['titre', 'title', 'nom', 'name'], null) ?? $nomFallback,
+                    'nom'   => $this->objectValue($document, ['original_name', 'filename', 'nom', 'name', 'titre', 'title'], null) ?? $nomFallback,
 
-                    'original_name' => $this->objectValue($document, ['original_name', 'filename', 'file_name'], null),
-                    'mime_type' => $this->objectValue($document, ['mime_type'], null),
-                    'size' => $this->objectValue($document, ['size', 'file_size'], null),
+                    'original_name' => $this->objectValue($document, ['original_name', 'filename', 'file_name'], null) ?? basename((string) $path),
+                    'mime_type'     => $this->objectValue($document, ['mime_type'], null),
+                    'size'          => $this->objectValue($document, ['size', 'file_size'], null),
 
-                    'path' => $path,
+                    'path'      => $path,
                     'file_path' => $path,
-                    'url' => $this->fileUrl($path),
+                    'url'       => $this->fileUrl($path),
 
-                    'depose_par' => $this->objectValue($document, ['depose_par', 'uploaded_by_role'], '—'),
-                    'statut' => $this->objectValue($document, ['statut', 'status'], 'Déposé'),
-                    'status' => $this->objectValue($document, ['status', 'statut'], 'Déposé'),
+                    'depose_par'       => $this->objectValue($document, ['depose_par', 'uploaded_by_role'], '—'),
+                    'uploader_nom'     => $uploaderName,
+                    'uploader_categorie' => $categorie,
+
+                    'statut'     => $this->objectValue($document, ['statut', 'status'], 'Déposé'),
+                    'status'     => $this->objectValue($document, ['status', 'statut'], 'Déposé'),
 
                     'created_at' => $this->formatDateDisplay($this->objectValue($document, ['created_at'])),
                     'updated_at' => $this->formatDateDisplay($this->objectValue($document, ['updated_at'])),
@@ -460,6 +498,63 @@ class DossierController extends Controller
                 ];
             })
             ->values();
+    }
+
+    private function rapportsExpertsPayload(Dossier $dossier)
+    {
+        if (!Schema::hasTable('rapports_experts')) {
+            return collect();
+        }
+
+        $rapports = DB::table('rapports_experts')
+            ->where('dossier_id', $dossier->id)
+            ->orderByDesc('updated_at')
+            ->get();
+
+        if ($rapports->isEmpty()) {
+            return collect();
+        }
+
+        $expertIds = $rapports->pluck('expert_id')->filter()->unique()->values();
+        $experts   = Schema::hasTable('experts')
+            ? Expert::query()->whereIn('id', $expertIds)->get()->keyBy('id')
+            : collect();
+
+        $validatorsIds = $rapports->pluck('valide_par')->filter()->unique()->values();
+        $validators    = User::query()->whereIn('id', $validatorsIds)->get()->keyBy('id');
+
+        return $rapports->map(function ($rapport) use ($experts, $validators) {
+            $expert   = $experts->get($rapport->expert_id);
+            $prenom   = $expert ? ($expert->prenom ?? $expert->first_name ?? '') : '';
+            $nom      = $expert ? ($expert->nom ?? $expert->last_name ?? $expert->name ?? '') : '';
+            $fullName = trim($prenom . ' ' . $nom) ?: ($expert ? ($expert->name ?? 'Expert') : 'Expert');
+
+            $validateur = $validators->get($rapport->valide_par ?? 0);
+
+            // Use fichier if file_path is empty (pending migration adds fichier column)
+            $path = !empty($rapport->file_path) ? $rapport->file_path : ($rapport->fichier ?? null);
+
+            return [
+                'id'            => $rapport->id,
+                'expert_id'     => $rapport->expert_id,
+                'expert_nom'    => $fullName,
+                'expert_email'  => $expert?->email ?? '—',
+
+                'titre'         => $rapport->titre ?? 'Rapport expert',
+                'commentaire'   => $rapport->commentaire ?? null,
+                'original_name' => $rapport->original_name ?? basename((string) $path),
+                'path'          => $path,
+                'url'           => $this->fileUrl($path),
+
+                'statut'        => $rapport->statut ?? 'depose',
+                'motif_rejet'   => $rapport->motif_rejet ?? null,
+
+                'valide_le'     => $rapport->valide_le ? $this->formatDateDisplay($rapport->valide_le) : null,
+                'valide_par'    => $validateur?->name ?? null,
+
+                'created_at'    => $this->formatDateDisplay($rapport->created_at),
+            ];
+        })->values();
     }
 
     private function photosPayload(Dossier $dossier)
@@ -577,6 +672,22 @@ class DossierController extends Controller
         return null;
     }
 
+    private function inferTypeFromPath(?string $path): string
+    {
+        if (!$path) return 'document';
+
+        $segment = strtolower(basename(dirname($path)));
+
+        return match (true) {
+            str_contains($segment, 'lettre')   => 'Lettre DEE',
+            str_contains($segment, 'formulaire') => 'Formulaire',
+            str_contains($segment, 'annexe')   => 'Annexe',
+            str_contains($segment, 'rapport')  => 'Rapport',
+            str_contains($segment, 'document') => 'Document',
+            default                            => ucfirst($segment) ?: 'Document',
+        };
+    }
+
     private function documentPath(object $document): ?string
     {
         foreach (['path', 'file_path', 'fichier', 'document_path'] as $column) {
@@ -602,7 +713,7 @@ class DossierController extends Controller
             return $path;
         }
 
-return response()->json(['url' => asset('storage/' . $path)]);
+        return asset('storage/' . $path);
     }
 
     private function orderLatest(Builder $query, string $table): void

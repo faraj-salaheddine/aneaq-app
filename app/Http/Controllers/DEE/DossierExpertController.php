@@ -121,16 +121,18 @@ class DossierExpertController extends Controller
             $existingUser = User::where('email', $expert->email)->first();
             $isNewUser = !$existingUser;
 
+            // Always generate a new password so the expert receives usable credentials
+            $plainPassword = Str::random(10);
+
             if ($isNewUser) {
-                $plainPassword = Str::random(10);
                 $user = new User();
                 $user->name = $expertName;
                 $user->email = $expert->email;
-                $user->password = Hash::make($plainPassword);
             } else {
                 $user = $existingUser;
-                // Preserve existing password — expert keeps their own credentials
             }
+
+            $user->password = Hash::make($plainPassword);
 
             if (Schema::hasColumn('users', 'role')) {
                 $user->role = 'expert';
@@ -218,6 +220,72 @@ class DossierExpertController extends Controller
                 'error',
                 'Expert accepté et compte créé, mais email non envoyé : ' . $e->getMessage()
             );
+        }
+    }
+
+    public function renvoyerEmail(Dossier $dossier, DossierExpert $dossierExpert)
+    {
+        if ((int) $dossierExpert->dossier_id !== (int) $dossier->id) {
+            abort(404);
+        }
+
+        $dossierExpert->load('expert');
+        $expert = $dossierExpert->expert;
+
+        if (!$expert || empty($expert->email)) {
+            return back()->with('error', "Cet expert ne possède pas d'adresse email.");
+        }
+
+        $expertName = trim(($expert->prenom ?? '') . ' ' . ($expert->nom ?? '')) ?: ($expert->name ?? 'Expert');
+
+        // Generate a new token
+        $token = Str::random(64);
+        if (Schema::hasColumn('dossier_experts', 'invitation_token')) {
+            $dossierExpert->forceFill(['invitation_token' => $token])->save();
+        }
+
+        // Always generate a new password so the expert receives usable credentials
+        $plainPassword = Str::random(10);
+        $user = User::where('email', $expert->email)->first();
+        if (!$user) {
+            $user = User::create([
+                'name'              => $expertName,
+                'email'             => $expert->email,
+                'password'          => Hash::make($plainPassword),
+                'role'              => 'expert',
+                'email_verified_at' => now(),
+            ]);
+            if (Schema::hasColumn('experts', 'user_id')) {
+                $expert->forceFill(['user_id' => $user->id])->save();
+            }
+        } else {
+            $user->password = Hash::make($plainPassword);
+            $user->save();
+        }
+
+        try {
+            $confirmationUrl = route('experts.invitation.confirm', ['token' => $token]);
+
+            Mail::to($expert->email)->send(
+                new ExpertAccountCreatedMail(
+                    expertName:        $expertName,
+                    loginEmail:        $expert->email,
+                    plainPassword:     $plainPassword,
+                    dossierReference:  $dossier->reference ?? '—',
+                    campaignReference: $dossier->campagne ?? $dossier->campagne_reference ?? '—',
+                    confirmationUrl:   $confirmationUrl,
+                    expertRole:        $this->roleLabel($dossierExpert->role_expert),
+                )
+            );
+
+            $msg = "Email renvoyé à {$expert->email}.";
+            if (app()->environment('local') && $plainPassword) {
+                $msg .= " [DEV] Mot de passe : {$plainPassword}";
+            }
+
+            return back()->with('success', $msg);
+        } catch (\Throwable $e) {
+            return back()->with('error', 'Email non envoyé : ' . $e->getMessage());
         }
     }
 
