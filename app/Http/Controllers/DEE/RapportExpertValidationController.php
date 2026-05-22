@@ -67,6 +67,51 @@ class RapportExpertValidationController extends Controller
         return back()->with('success', 'Rapport expert refusé.');
     }
 
+    public function cloturer(Dossier $dossier)
+    {
+        abort_unless($dossier->statut === 'valide', 422, 'Le dossier doit être validé avant d\'être clôturé.');
+
+        DB::table('dossiers')
+            ->where('id', $dossier->id)
+            ->update(['statut' => 'cloture', 'updated_at' => now()]);
+
+        // Notify établissement user
+        $etab = DB::table('etablissements')->where('id', $dossier->etablissement_id)->first();
+        if ($etab && !empty($etab->user_id)) {
+            try {
+                NotificationAneaq::envoyer(
+                    $etab->user_id, 'general',
+                    'Dossier clôturé',
+                    "Votre dossier {$dossier->reference} a été clôturé par la DEE. Il est désormais archivé.",
+                    'Dossier', $dossier->id
+                );
+            } catch (\Throwable) {}
+        }
+
+        // Notify assigned experts
+        if (Schema::hasTable('dossier_experts') && Schema::hasTable('experts')) {
+            $expertIds = DB::table('dossier_experts')
+                ->where('dossier_id', $dossier->id)
+                ->pluck('expert_id');
+
+            foreach ($expertIds as $eid) {
+                $expert = DB::table('experts')->where('id', $eid)->first();
+                if ($expert && !empty($expert->user_id)) {
+                    try {
+                        NotificationAneaq::envoyer(
+                            $expert->user_id, 'general',
+                            'Dossier clôturé',
+                            "Le dossier {$dossier->reference} a été clôturé. Il est désormais archivé dans votre historique.",
+                            'Dossier', $dossier->id
+                        );
+                    } catch (\Throwable) {}
+                }
+            }
+        }
+
+        return back()->with('success', 'Dossier clôturé avec succès. Il est désormais archivé.');
+    }
+
     private function notifyExpert(int $expertId, Dossier $dossier, string $action, ?string $motif = null): void
     {
         if (!Schema::hasTable('experts') || !Schema::hasColumn('experts', 'user_id')) {

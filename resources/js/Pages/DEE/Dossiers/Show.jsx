@@ -45,6 +45,7 @@ function Show({ dossier, experts = [], allExperts = [], dossierExperts = [], doc
     const [rejectModal, setRejectModal] = useState({ open: false, rapport: null });
     const [motifRejet, setMotifRejet] = useState('');
     const [confirmAcceptModal, setConfirmAcceptModal] = useState({ open: false, rapport: null });
+    const [cloturerModal, setCloturerModal] = useState(false);
 
     const [deleteModal, setDeleteModal] = useState({
         open: false,
@@ -198,6 +199,13 @@ function Show({ dossier, experts = [], allExperts = [], dossierExperts = [], doc
 
     const deletePhoto = (photo) => {
         openSecureDeleteModal('photo', photo);
+    };
+
+    const confirmerCloture = () => {
+        router.post(`/dee/dossiers/${dossier.id}/cloturer`, {}, {
+            preserveScroll: true,
+            onSuccess: () => setCloturerModal(false),
+        });
     };
 
     const validerRapport = (rapport) => {
@@ -481,6 +489,39 @@ function Show({ dossier, experts = [], allExperts = [], dossierExperts = [], doc
                     </div>
                 )}
 
+                {/* Clôture banner */}
+                {dossier.statut === 'cloture' && (
+                    <div className="mb-6 flex items-center gap-3 rounded-2xl border border-slate-300 bg-slate-100 px-5 py-4">
+                        <LockKeyhole size={18} className="shrink-0 text-slate-500" />
+                        <span className="text-sm font-black text-slate-600">Dossier clôturé — archivé en lecture seule</span>
+                    </div>
+                )}
+
+                {/* Clôturer modal */}
+                {cloturerModal && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+                        <div className="w-full max-w-md rounded-3xl bg-white p-8 shadow-2xl">
+                            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100">
+                                <LockKeyhole size={22} className="text-slate-600" />
+                            </div>
+                            <h3 className="text-lg font-black text-slate-900">Clôturer le dossier ?</h3>
+                            <p className="mt-2 text-sm text-slate-500">
+                                Cette action archive le dossier <strong>{dossier.reference}</strong>. L'établissement et les experts seront notifiés. Le dossier restera consultable en lecture seule.
+                            </p>
+                            <div className="mt-6 flex gap-3">
+                                <button onClick={() => setCloturerModal(false)}
+                                    className="flex-1 rounded-xl border border-slate-200 bg-white py-2.5 text-sm font-black text-slate-700 transition hover:bg-slate-50">
+                                    Annuler
+                                </button>
+                                <button onClick={confirmerCloture}
+                                    className="flex-1 rounded-xl bg-slate-800 py-2.5 text-sm font-black text-white transition hover:bg-slate-900">
+                                    Confirmer la clôture
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 <div className="overflow-hidden rounded-[2rem] bg-gradient-to-r from-[#3730c9] via-[#2563eb] to-[#0891b2] text-white shadow-xl shadow-blue-900/10">
                     <div className="grid gap-6 p-8 lg:grid-cols-[1.2fr_0.8fr] lg:p-10">
                         <div>
@@ -614,6 +655,17 @@ function Show({ dossier, experts = [], allExperts = [], dossierExperts = [], doc
                         <ClipboardCheck size={16} />
                         Suivi recommandations
                     </Link>
+
+                    {dossier.statut === 'valide' && (
+                        <button
+                            type="button"
+                            onClick={() => setCloturerModal(true)}
+                            className="ml-auto inline-flex items-center gap-2 rounded-2xl border border-slate-300 bg-slate-800 px-5 py-3 text-sm font-black text-white transition hover:bg-slate-900"
+                        >
+                            <LockKeyhole size={16} />
+                            Clôturer le dossier
+                        </button>
+                    )}
                 </div>
 
                 <div className="mt-6 grid gap-7 xl:grid-cols-[1.35fr_0.65fr]">

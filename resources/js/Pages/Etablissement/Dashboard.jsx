@@ -12,6 +12,7 @@ const STATUT_META = {
     rapport_en_attente:    { label: "Rapport expert en cours",color: "#6366F1", bg: "#EEF2FF" },
     valide:                { label: "Validé ✅",              color: GREEN,     bg: "#ECFDF5" },
     rejete:                { label: "Rejeté",                 color: "#ef4444", bg: "#FFF1F2" },
+    cloture:               { label: "Clôturé",                color: "#6b7280", bg: "#f3f4f6" },
 };
 
 const NOTIF_COLORS = {
@@ -69,29 +70,43 @@ export default function EtablissementDashboard({
                     <div className="fade-up" style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 16, padding: "1.5rem", boxShadow: "0 2px 10px rgba(0,0,0,0.04)", animationDelay: "0.05s" }}>
                         <div style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>Statut du dossier</div>
                         {dossier ? (
-                            <>
-                                <span style={{ fontSize: 13, fontWeight: 700, padding: "5px 12px", borderRadius: 99, color: sm.color, background: sm.bg }}>
-                                    {sm.label}
-                                </span>
-                                <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 10, fontFamily: "monospace" }}>Réf. {dossier.reference}</div>
-                                {dossier.date_visite && (
-                                    <div style={{ marginTop: 14, padding: "10px 14px", borderRadius: 10, background: "#f0f9ff", border: "1.5px solid #bae6fd", display: "flex", alignItems: "center", gap: 8 }}>
-                                        <span style={{ fontSize: 16 }}>📅</span>
-                                        <div>
-                                            <div style={{ fontSize: 10, fontWeight: 700, color: "#0369a1", textTransform: "uppercase", letterSpacing: "0.06em" }}>Date de visite planifiée</div>
-                                            <div style={{ fontSize: 15, fontWeight: 700, color: "#0c4a6e", marginTop: 1 }}>{dossier.date_visite}</div>
-                                        </div>
+                            dossier.statut === 'cloture' ? (
+                                <>
+                                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                                        <span style={{ fontSize: 18 }}>🔒</span>
+                                        <span style={{ fontSize: 13, fontWeight: 700, color: "#6b7280" }}>Aucun dossier ouvert</span>
                                     </div>
-                                )}
-                            </>
+                                    <div style={{ fontSize: 12, color: "#94a3b8", marginBottom: 8 }}>Votre évaluation est terminée.</div>
+                                    <div style={{ padding: "10px 14px", borderRadius: 10, background: "#f9fafb", border: "1px solid #e5e7eb" }}>
+                                        <div style={{ fontSize: 10, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.06em" }}>Dossier archivé</div>
+                                        <div style={{ fontSize: 13, fontWeight: 700, color: "#374151", marginTop: 3, fontFamily: "monospace" }}>Réf. {dossier.reference}</div>
+                                    </div>
+                                </>
+                            ) : (
+                                <>
+                                    <span style={{ fontSize: 13, fontWeight: 700, padding: "5px 12px", borderRadius: 99, color: sm.color, background: sm.bg }}>
+                                        {sm.label}
+                                    </span>
+                                    <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 10, fontFamily: "monospace" }}>Réf. {dossier.reference}</div>
+                                    {dossier.date_visite && (
+                                        <div style={{ marginTop: 14, padding: "10px 14px", borderRadius: 10, background: "#f0f9ff", border: "1.5px solid #bae6fd", display: "flex", alignItems: "center", gap: 8 }}>
+                                            <span style={{ fontSize: 16 }}>📅</span>
+                                            <div>
+                                                <div style={{ fontSize: 10, fontWeight: 700, color: "#0369a1", textTransform: "uppercase", letterSpacing: "0.06em" }}>Date de visite planifiée</div>
+                                                <div style={{ fontSize: 15, fontWeight: 700, color: "#0c4a6e", marginTop: 1 }}>{dossier.date_visite}</div>
+                                            </div>
+                                        </div>
+                                    )}
+                                </>
+                            )
                         ) : (
                             <div style={{ fontSize: 13, color: "#94a3b8" }}>Aucun dossier en cours</div>
                         )}
                     </div>
 
-                    <div className="fade-up" style={{ background: taches.length > 0 ? "#fff1f2" : "#f0fdf4", border: `1px solid ${taches.length > 0 ? "#fecaca" : "#bbf7d0"}`, borderRadius: 16, padding: "1.5rem", boxShadow: "0 2px 10px rgba(0,0,0,0.04)", animationDelay: "0.08s" }}>
-                        <div style={{ fontSize: 11, fontWeight: 700, color: taches.length > 0 ? "#ef4444" : GREEN, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>
-                            {taches.length > 0 ? `⚠️ ${taches.length} tâche(s) en attente` : "✅ Aucune tâche urgente"}
+                    <div className="fade-up" style={{ background: dossier?.statut === 'cloture' ? "#f9fafb" : taches.length > 0 ? "#fff1f2" : "#f0fdf4", border: `1px solid ${dossier?.statut === 'cloture' ? "#e5e7eb" : taches.length > 0 ? "#fecaca" : "#bbf7d0"}`, borderRadius: 16, padding: "1.5rem", boxShadow: "0 2px 10px rgba(0,0,0,0.04)", animationDelay: "0.08s" }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: dossier?.statut === 'cloture' ? "#9ca3af" : taches.length > 0 ? "#ef4444" : GREEN, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>
+                            {dossier?.statut === 'cloture' ? "✅ Évaluation terminée" : taches.length > 0 ? `⚠️ ${taches.length} tâche(s) en attente` : "✅ Aucune tâche urgente"}
                         </div>
                         {taches.map(t => (
                             <div key={t.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>

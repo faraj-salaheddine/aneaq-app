@@ -250,6 +250,8 @@ Route::middleware(['auth', 'dee.admin'])
                 ->name('rapports.valider');
             Route::post('/{dossier}/rapports/{rapport}/rejeter', [RapportExpertValidationController::class, 'rejeter'])
                 ->name('rapports.rejeter');
+            Route::post('/{dossier}/cloturer', [RapportExpertValidationController::class, 'cloturer'])
+                ->name('cloturer');
         });
 
         // Workflow DEE
