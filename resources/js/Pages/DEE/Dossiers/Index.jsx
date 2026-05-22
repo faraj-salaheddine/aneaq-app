@@ -11,19 +11,29 @@ const STATUS_LABELS = {
     etablissement_selectionne:        'Établissement sélectionné',
     compte_etablissement_cree:        'Compte établissement créé',
     en_attente_formulaire:            'En attente formulaire',
+    formulaire_complete:              'Profil complété',
     formulaire_rempli:                'Formulaire rempli',
     rapport_autoevaluation_ajoute:    "Rapport d'autoévaluation ajouté",
+    rapport_depose:                   'Rapport déposé',
+    rapport_en_attente:               'Rapport déposé',
     annexe_ajoutee:                   'Annexe ajoutée',
     rapport_expert_ajoute:            'Rapport expert ajouté',
     date_visite_planifiee:            'Date de visite planifiée',
+    visite_planifiee:                 'Visite planifiée',
+    valide:                           'Validé',
+    valide_definitif:                 'Validé',
+    cloture:                          'Clôturé',
 };
 
-function formatStatus(status) {
-    return STATUS_LABELS[status] || status || '—';
+function getEffectiveLabel(dossier) {
+    if (dossier.est_cloture) return 'Clôturé';
+    return STATUS_LABELS[dossier.statut] || dossier.statut || '—';
 }
 
-function getStatusMeta(status) {
-    const s = String(status || '');
+function getStatusMeta(dossier) {
+    if (dossier.est_cloture) return { bg: '#f1f5f9', color: '#64748b', dot: '#94a3b8' };
+    const s = String(dossier.statut || '');
+    if (s === 'valide' || s === 'valide_definitif') return { bg: '#ECFDF5', color: GREEN, dot: GREEN };
     if (s.includes('visite'))     return { bg: '#EFF6FF', color: ACCENT,  dot: ACCENT  };
     if (s.includes('rapport'))    return { bg: '#FAF5FF', color: PURPLE,  dot: PURPLE  };
     if (s.includes('formulaire') && s.includes('rempli')) return { bg: '#ECFDF5', color: GREEN, dot: GREEN };
@@ -82,7 +92,7 @@ function DossiersIndex({ dossiers = [] }) {
         if (!q) return dossiers;
         return dossiers.filter((d) =>
             [d.reference, getEtablissementName(d), getVille(d), getCampagne(d),
-             formatStatus(d.statut), formatDateVisite(d)]
+             getEffectiveLabel(d), formatDateVisite(d)]
                 .filter(Boolean).join(' ').toLowerCase().includes(q)
         );
     }, [dossiers, search]);
@@ -204,7 +214,7 @@ function DossiersIndex({ dossiers = [] }) {
                                 </thead>
                                 <tbody>
                                     {filtered.map((dossier, i) => {
-                                        const sm = getStatusMeta(dossier.statut);
+                                        const sm = getStatusMeta(dossier);
                                         return (
                                             <tr key={dossier.id} className="dee-row" style={{ borderBottom: i < filtered.length - 1 ? '1px solid #f8fafc' : 'none', transition: 'background 0.1s' }}>
                                                 <td style={{ padding: '14px 16px' }}>
@@ -221,7 +231,7 @@ function DossiersIndex({ dossiers = [] }) {
                                                 <td style={{ padding: '14px 16px' }}>
                                                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 99, background: sm.bg, color: sm.color }}>
                                                         <span style={{ width: 5, height: 5, borderRadius: '50%', background: sm.dot, flexShrink: 0 }} />
-                                                        {formatStatus(dossier.statut)}
+                                                        {getEffectiveLabel(dossier)}
                                                     </span>
                                                 </td>
                                                 <td style={{ padding: '14px 16px', fontSize: 13, color: '#374151' }}>
