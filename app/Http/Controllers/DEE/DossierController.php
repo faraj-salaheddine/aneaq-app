@@ -219,6 +219,7 @@ class DossierController extends Controller
 
             'statut' => $this->value($dossier, ['statut', 'status'], 'Établissement sélectionné'),
             'status' => $this->value($dossier, ['status', 'statut'], 'Établissement sélectionné'),
+            'est_cloture' => !empty($dossier->cloture_at),
 
             'description' => $this->value($dossier, ['description'], ''),
             'observation' => $this->value($dossier, ['observation', 'observations'], ''),

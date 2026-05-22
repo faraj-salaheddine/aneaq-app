@@ -57,6 +57,7 @@ class EtablissementDashboardController extends Controller
             'etablissement'        => $etablissement,
             'dossier'              => $dossier ? array_merge($dossier->toArray(), [
                 'date_visite' => $dossier->date_visite?->format('d/m/Y'),
+                'est_cloture' => !empty($dossier->cloture_at),
             ]) : null,
             'onboarding'           => $onboarding,
             'notifications'        => $notifications,

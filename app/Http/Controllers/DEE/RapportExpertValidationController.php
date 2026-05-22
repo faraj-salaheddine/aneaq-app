@@ -73,7 +73,7 @@ class RapportExpertValidationController extends Controller
 
         DB::table('dossiers')
             ->where('id', $dossier->id)
-            ->update(['statut' => 'cloture', 'updated_at' => now()]);
+            ->update(['cloture_at' => now(), 'updated_at' => now()]);
 
         // Notify établissement user
         $etab = DB::table('etablissements')->where('id', $dossier->etablissement_id)->first();

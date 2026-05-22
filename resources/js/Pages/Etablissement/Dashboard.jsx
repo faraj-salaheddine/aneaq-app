@@ -70,7 +70,7 @@ export default function EtablissementDashboard({
                     <div className="fade-up" style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 16, padding: "1.5rem", boxShadow: "0 2px 10px rgba(0,0,0,0.04)", animationDelay: "0.05s" }}>
                         <div style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>Statut du dossier</div>
                         {dossier ? (
-                            dossier.statut === 'cloture' ? (
+                            dossier.est_cloture ? (
                                 <>
                                     <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
                                         <span style={{ fontSize: 18 }}>🔒</span>
@@ -104,9 +104,9 @@ export default function EtablissementDashboard({
                         )}
                     </div>
 
-                    <div className="fade-up" style={{ background: dossier?.statut === 'cloture' ? "#f9fafb" : taches.length > 0 ? "#fff1f2" : "#f0fdf4", border: `1px solid ${dossier?.statut === 'cloture' ? "#e5e7eb" : taches.length > 0 ? "#fecaca" : "#bbf7d0"}`, borderRadius: 16, padding: "1.5rem", boxShadow: "0 2px 10px rgba(0,0,0,0.04)", animationDelay: "0.08s" }}>
-                        <div style={{ fontSize: 11, fontWeight: 700, color: dossier?.statut === 'cloture' ? "#9ca3af" : taches.length > 0 ? "#ef4444" : GREEN, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>
-                            {dossier?.statut === 'cloture' ? "✅ Évaluation terminée" : taches.length > 0 ? `⚠️ ${taches.length} tâche(s) en attente` : "✅ Aucune tâche urgente"}
+                    <div className="fade-up" style={{ background: dossier?.est_cloture ? "#f9fafb" : taches.length > 0 ? "#fff1f2" : "#f0fdf4", border: `1px solid ${dossier?.est_cloture ? "#e5e7eb" : taches.length > 0 ? "#fecaca" : "#bbf7d0"}`, borderRadius: 16, padding: "1.5rem", boxShadow: "0 2px 10px rgba(0,0,0,0.04)", animationDelay: "0.08s" }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: dossier?.est_cloture ? "#9ca3af" : taches.length > 0 ? "#ef4444" : GREEN, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>
+                            {dossier?.est_cloture ? "✅ Évaluation terminée" : taches.length > 0 ? `⚠️ ${taches.length} tâche(s) en attente` : "✅ Aucune tâche urgente"}
                         </div>
                         {taches.map(t => (
                             <div key={t.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>

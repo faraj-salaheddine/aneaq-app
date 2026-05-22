@@ -490,7 +490,7 @@ function Show({ dossier, experts = [], allExperts = [], dossierExperts = [], doc
                 )}
 
                 {/* Clôture banner */}
-                {dossier.statut === 'cloture' && (
+                {dossier.est_cloture && (
                     <div className="mb-6 flex items-center gap-3 rounded-2xl border border-slate-300 bg-slate-100 px-5 py-4">
                         <LockKeyhole size={18} className="shrink-0 text-slate-500" />
                         <span className="text-sm font-black text-slate-600">Dossier clôturé — archivé en lecture seule</span>
@@ -656,7 +656,7 @@ function Show({ dossier, experts = [], allExperts = [], dossierExperts = [], doc
                         Suivi recommandations
                     </Link>
 
-                    {dossier.statut === 'valide' && (
+                    {dossier.statut === 'valide' && !dossier.est_cloture && (
                         <button
                             type="button"
                             onClick={() => setCloturerModal(true)}
