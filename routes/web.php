@@ -26,6 +26,7 @@ use App\Http\Controllers\SI\UniversiteController as SIUniversiteController;
 use App\Http\Controllers\SI\ExpertController as SIExpertController;
 use App\Http\Controllers\SI\HistoriqueController as SIHistoriqueController;
 use App\Http\Controllers\SI\GestionUsersController;
+use App\Http\Controllers\SI\SIProfileController;
 use App\Http\Controllers\Expert\ExpertDashboardController;
 use App\Http\Controllers\Expert\ExpertProfilController;
 use App\Http\Controllers\Expert\DossierExpertController as ExpertDossierController;
@@ -346,6 +347,10 @@ Route::middleware(['auth', 'role:si'])
             Route::patch('/{user}/toggle', [GestionUsersController::class, 'toggle'])->name('toggle');
             Route::post('/{user}/reset-password', [GestionUsersController::class, 'resetPassword'])->name('reset-password');
         });
+
+        // Profil SI
+        Route::get('/profile', [SIProfileController::class, 'edit'])->name('profile.edit');
+        Route::put('/profile', [SIProfileController::class, 'update'])->name('profile.update');
     });
 
 /*
