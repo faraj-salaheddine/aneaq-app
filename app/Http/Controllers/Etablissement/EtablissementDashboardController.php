@@ -139,15 +139,13 @@ class EtablissementDashboardController extends Controller
         ];
 
         $mapping = [
-            // French label variants
             'date de visite planifiée' => 'visite_planifiee',
             'visite planifiée'         => 'visite_planifiee',
             'rapport déposé'           => 'rapport_depose',
             'profil complété'          => 'formulaire_complete',
             'validé'                   => 'valide',
             'rejeté'                   => 'valide',
-            // Raw DB slug variants
-            'rapport_en_attente'       => 'rapport_depose',
+            'rapport_en_attente'       => 'visite_planifiee',
             'date_visite_planifiee'    => 'visite_planifiee',
             'visite_planifiee'         => 'visite_planifiee',
             'valide'                   => 'valide',
@@ -155,11 +153,32 @@ class EtablissementDashboardController extends Controller
             'cloture'                  => 'valide',
         ];
 
-        $statutBrut = strtolower(trim($dossier->statut ?? ''));
-        $statut     = $mapping[$statutBrut] ?? $dossier->statut;
+        // Try statut first, fall back to status (English column name)
+        $raw        = $dossier->statut ?? $dossier->status ?? '';
+        $statutBrut = mb_strtolower(trim($raw));
+        $statut     = $mapping[$statutBrut] ?? $raw;
 
         $ordre = array_column($etapes, 'statut');
         $idx   = array_search($statut, $ordre);
+
+        // Data-driven overrides: trust actual DB fields over status strings
+        if (!empty($dossier->date_visite)) {
+            $visitIdx = array_search('visite_planifiee', $ordre);
+            if ($idx === false || $idx < $visitIdx) {
+                $idx = $visitIdx;
+            }
+        }
+
+        $hasRapportExpert = DB::table('rapports_experts')
+            ->where('dossier_id', $dossier->id)
+            ->exists();
+
+        if ($hasRapportExpert) {
+            $visitIdx = array_search('visite_planifiee', $ordre);
+            if ($idx === false || $idx < $visitIdx) {
+                $idx = $visitIdx;
+            }
+        }
 
         return array_map(function ($etape, $i) use ($idx) {
             return array_merge($etape, [
