@@ -4,8 +4,8 @@ namespace App\Http\Controllers\Etablissement;
 
 use App\Http\Controllers\Controller;
 use App\Models\Dossier;
-use App\Models\NotificationAneaq;
 use App\Services\ActivityLogger;
+use App\Services\NotifierDee;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -29,68 +29,71 @@ class RecommandationSuiviController extends Controller
         ]);
     }
 
-    public function repondre(Request $request, Dossier $dossier, int $recommandation)
+    public function uploaderPlusieursPreuves(Request $request, Dossier $dossier, int $recommandation)
     {
         $this->autoriser($dossier);
         $r = $this->findOrFail($recommandation, $dossier->id);
 
         $request->validate([
-            'reponse_etablissement' => 'required|string|max:3000',
-            'delai_etablissement'   => 'required|date|after:today',
+            'fichiers'   => 'required|array|min:1|max:10',
+            'fichiers.*' => 'required|file|max:20480',
         ]);
 
-        DB::table('recommandations_domaines')->where('id', $r->id)->update([
-            'statut'                   => 'en_cours',
-            'reponse_etablissement'    => $request->reponse_etablissement,
-            'delai_etablissement'      => $request->delai_etablissement,
-            'date_reponse_etablissement' => now(),
-            'updated_at'               => now(),
-        ]);
+        $noms = [];
+        foreach ($request->file('fichiers') as $file) {
+            $path = $file->store("preuves/recommandations/{$dossier->id}", 'public');
+            DB::table('recommandation_preuves')->insert([
+                'recommandation_id' => $r->id,
+                'fichier_path'      => $path,
+                'fichier_nom'       => $file->getClientOriginalName(),
+                'fichier_type'      => $file->getClientOriginalExtension(),
+                'fichier_taille'    => $file->getSize(),
+                'description'       => null,
+                'uploaded_by'       => Auth::id(),
+                'created_at'        => now(),
+                'updated_at'        => now(),
+            ]);
+            $noms[] = $file->getClientOriginalName();
+        }
 
-        $this->log($r->id, 'reponse_etablissement', 'etablissement', Auth::id(),
-            "Délai : {$request->delai_etablissement}. " . $request->reponse_etablissement);
+        $this->log($r->id, 'preuves_brouillon', 'etablissement', Auth::id(),
+            count($noms) . ' fichier(s) enregistré(s) en brouillon : ' . implode(', ', $noms));
 
-        ActivityLogger::log('recommandation_repondue', "Réponse fournie pour une recommandation du dossier {$dossier->reference}", $dossier);
+        ActivityLogger::log('preuves_brouillon', count($noms) . " preuve(s) enregistrées en brouillon pour {$dossier->reference}", $dossier);
 
-        // Notifier DEE admins
-        $this->notifierDee($dossier, "L'établissement a répondu à une recommandation du dossier {$dossier->reference}. Délai annoncé : {$request->delai_etablissement}.");
-
-        return back()->with('success', 'Réponse enregistrée.');
+        return back()->with('success', count($noms) . ' fichier(s) enregistré(s).');
     }
 
-    public function uploaderPreuve(Request $request, Dossier $dossier, int $recommandation)
+    public function envoyerAuDEE(Dossier $dossier, int $recommandation)
     {
         $this->autoriser($dossier);
         $r = $this->findOrFail($recommandation, $dossier->id);
 
-        $request->validate([
-            'fichier'     => 'required|file|max:10240|mimes:pdf,doc,docx,jpg,jpeg,png,xlsx,xls',
-            'description' => 'nullable|string|max:500',
+        $preuveCount = DB::table('recommandation_preuves')
+            ->where('recommandation_id', $r->id)
+            ->count();
+
+        if ($preuveCount === 0) {
+            return back()->withErrors(['global' => 'Déposez au moins un fichier avant d\'envoyer à la DEE.']);
+        }
+
+        DB::table('recommandations_domaines')->where('id', $r->id)->update([
+            'statut'                     => 'en_cours',
+            'statut_mise_en_oeuvre'      => 'en_cours',
+            'date_reponse_etablissement' => now(),
+            'updated_at'                 => now(),
         ]);
 
-        $file = $request->file('fichier');
-        $path = $file->store("preuves/recommandations/{$dossier->id}", 'public');
+        $this->log($r->id, 'envoi_dee', 'etablissement', Auth::id(),
+            "{$preuveCount} preuve(s) soumise(s) à la DEE");
 
-        DB::table('recommandation_preuves')->insert([
-            'recommandation_id' => $r->id,
-            'fichier_path'      => $path,
-            'fichier_nom'       => $file->getClientOriginalName(),
-            'fichier_type'      => $file->getClientOriginalExtension(),
-            'fichier_taille'    => $file->getSize(),
-            'description'       => $request->description,
-            'uploaded_by'       => Auth::id(),
-            'created_at'        => now(),
-            'updated_at'        => now(),
-        ]);
+        ActivityLogger::log('recommandation_envoyee_dee',
+            "Preuves envoyées à la DEE pour une recommandation du dossier {$dossier->reference}", $dossier);
 
-        $this->log($r->id, 'reponse_etablissement', 'etablissement', Auth::id(),
-            "Preuve déposée : " . $file->getClientOriginalName());
+        $this->notifierDee($dossier,
+            "L'établissement a soumis {$preuveCount} preuve(s) pour une recommandation du dossier {$dossier->reference}.");
 
-        ActivityLogger::log('preuve_recommandation_deposee', "Preuve déposée pour une recommandation du dossier {$dossier->reference}", $dossier);
-
-        $this->notifierDee($dossier, "L'établissement a déposé une preuve pour une recommandation du dossier {$dossier->reference}.");
-
-        return back()->with('success', 'Preuve déposée avec succès.');
+        return back()->with('success', 'Preuves envoyées à la DEE avec succès.');
     }
 
     public function supprimerPreuve(Dossier $dossier, int $preuve)
@@ -101,7 +104,6 @@ class RecommandationSuiviController extends Controller
             ->join('recommandations_domaines', 'recommandation_preuves.recommandation_id', '=', 'recommandations_domaines.id')
             ->where('recommandation_preuves.id', $preuve)
             ->where('recommandations_domaines.dossier_id', $dossier->id)
-            ->where('recommandation_preuves.uploaded_by', Auth::id())
             ->select('recommandation_preuves.*')
             ->first();
 
@@ -110,16 +112,19 @@ class RecommandationSuiviController extends Controller
         Storage::disk('public')->delete($p->fichier_path);
         DB::table('recommandation_preuves')->where('id', $preuve)->delete();
 
-        return back()->with('success', 'Preuve supprimée.');
+        return back()->with('success', 'Fichier supprimé.');
     }
 
     // ─── Helpers ───────────────────────────────────────────────────────────
 
     private function autoriser(Dossier $dossier): void
     {
-        $user  = Auth::user();
-        $etab  = DB::table('etablissements')->where('user_id', $user->id)->first();
-        abort_unless($etab && $etab->id === $dossier->etablissement_id, 403);
+        $user = Auth::user();
+        $etab = DB::table('etablissements')->where('id', $dossier->etablissement_id)->first();
+        abort_unless($etab, 404);
+        $isOwner = ((int) ($etab->user_id ?? 0) === (int) $user->id)
+                || (!empty($etab->email) && $etab->email === $user->email);
+        abort_unless($isOwner, 403);
     }
 
     private function getRecommandations(int $dossierId): array
@@ -170,12 +175,11 @@ class RecommandationSuiviController extends Controller
 
     private function notifierDee(Dossier $dossier, string $message): void
     {
-        $admins = DB::table('users')->where('role', 'admin_dee')->get();
-        foreach ($admins as $admin) {
-            try {
-                NotificationAneaq::envoyer($admin->id, 'general',
-                    "Réponse établissement — {$dossier->reference}", $message, 'Dossier', $dossier->id);
-            } catch (\Throwable) {}
-        }
+        NotifierDee::pourDossier(
+            $dossier,
+            'general',
+            "Suivi établissement — {$dossier->reference}",
+            $message
+        );
     }
 }

@@ -1,10 +1,13 @@
 import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
+import SuiviRecommandationsTab from '@/Components/DEE/SuiviRecommandationsTab';
 import DashboardShell from '@/Layouts/DashboardShell';
 import MessageriePanel from '@/Components/MessageriePanel';
 import ConfirmModal from '@/Components/ConfirmModal';
+import AnnexesConformityDashboard from '@/Components/DEE/AnnexesConformityDashboard';
 import {
     AlertTriangle,
     ArrowLeft,
+    BarChart3,
     BadgeCheck,
     Building2,
     CalendarDays,
@@ -12,11 +15,13 @@ import {
     CheckCircle2,
     ClipboardCheck,
     Clock3,
+    Download,
     Eye,
     FileText,
     FolderKanban,
     Image,
     LockKeyhole,
+    ListTree,
     Mail,
     MapPin,
     Save,
@@ -32,11 +37,348 @@ import {
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
-function Show({ dossier, experts = [], allExperts = [], dossierExperts = [], documents = [], photos = [], rapportsExperts = [] }) {
+/* ── Note options ── */
+const NOTE_OPTS_DEE = [
+    { val:0, label:'Absent',       color:'#c0344a', bg:'#fdf0f2', border:'#f8cdd3' },
+    { val:1, label:'Non conforme', color:'#b35c00', bg:'#fdf5ec', border:'#fde8cc' },
+    { val:2, label:'Acceptable',   color:'#5046a8', bg:'#f0effc', border:'#dddaf7' },
+    { val:3, label:'Conforme',     color:'#0e7c5b', bg:'#ecfaf4', border:'#c6f0df' },
+];
+
+/* ── Preuve row (read-only) ── */
+function PreuveDEE({ preuve, dossierId }) {
+    const opt = NOTE_OPTS_DEE.find(o => o.val === preuve.note);
+    return (
+        <tr className="border-t border-slate-100 hover:bg-slate-50/50">
+            <td className="px-4 py-2.5 text-center">
+                <span className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-slate-200 bg-slate-100 text-xs font-bold text-slate-600">
+                    {preuve.preuve_index + 1}
+                </span>
+            </td>
+            <td className="max-w-sm px-4 py-2.5 text-xs text-slate-700">{preuve.preuve_label}</td>
+            <td className="px-4 py-2.5">
+                {preuve.fichier_nom ? (
+                    <a href={route('dee.dossiers.annexes.download', { dossier: dossierId, criterePreuve: preuve.fichier_id })}
+                        target="_blank" rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 rounded-lg bg-blue-50 px-2.5 py-1 text-xs font-bold text-blue-700 hover:bg-blue-100 transition">
+                        📄 {preuve.fichier_nom.length > 20 ? preuve.fichier_nom.slice(0,20)+'…' : preuve.fichier_nom}
+                    </a>
+                ) : <span className="text-xs italic text-slate-400">Aucun fichier</span>}
+            </td>
+            <td className="px-4 py-2.5 text-center">
+                {opt ? (
+                    <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-black whitespace-nowrap"
+                        style={{ background: opt.bg, color: opt.color, border: `1px solid ${opt.border}` }}>
+                        {opt.val} — {opt.label}
+                    </span>
+                ) : <span className="text-xs text-slate-300">—</span>}
+            </td>
+            <td className="max-w-xs px-4 py-2.5 text-xs italic text-slate-500">
+                {preuve.observation || <span className="text-slate-300">—</span>}
+            </td>
+        </tr>
+    );
+}
+
+/* ── Critere block ── */
+function CritereDEE({ critere, dossierId }) {
+    const [open, setOpen] = useState(false);
+    const conf = critere.preuves.filter(p => p.note !== null).length;
+    return (
+        <div className="border-t border-slate-100">
+            <button onClick={() => setOpen(o => !o)}
+                className="flex w-full items-start gap-3 px-6 py-3 text-left hover:bg-slate-50/60 transition">
+                <span className="mt-0.5 shrink-0 rounded bg-blue-50 px-2 py-0.5 font-mono text-xs font-black text-blue-700">
+                    {critere.critere_num}
+                </span>
+                <span className="flex-1 text-xs font-medium text-slate-700">{critere.critere_label}</span>
+                <span className={`shrink-0 text-xs font-bold ${conf === critere.preuves.length ? 'text-emerald-600' : 'text-slate-400'}`}>
+                    {conf}/{critere.preuves.length}
+                </span>
+                <svg className={`h-4 w-4 shrink-0 text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`} viewBox="0 0 16 16" fill="none">
+                    <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+            </button>
+            {open && (
+                <div className="overflow-x-auto bg-white">
+                    <table className="w-full text-sm">
+                        <thead>
+                            <tr className="bg-slate-50 text-left text-xs font-black uppercase tracking-wide text-slate-400">
+                                <th className="px-4 py-2">#</th>
+                                <th className="px-4 py-2">Preuve</th>
+                                <th className="px-4 py-2">Fichier</th>
+                                <th className="px-4 py-2 text-center">Note</th>
+                                <th className="px-4 py-2">Observation</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {critere.preuves.map((p, i) => (
+                                <PreuveDEE key={i} preuve={p} dossierId={dossierId} />
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            )}
+        </div>
+    );
+}
+
+/* ── Reference block ── */
+function ReferenceDEE({ reference, dossierId }) {
+    const [open, setOpen] = useState(false);
+    const tot  = reference.criteres.reduce((a, c) => a + c.preuves.length, 0);
+    const conf = reference.criteres.reduce((a, c) => a + c.preuves.filter(p => p.note !== null).length, 0);
+    return (
+        <div className="border-t border-slate-100">
+            <button onClick={() => setOpen(o => !o)}
+                className="flex w-full items-center gap-3 bg-slate-50/60 px-6 py-2.5 text-left hover:bg-slate-100/60 transition">
+                <span className="shrink-0 rounded border border-blue-200 bg-blue-50 px-2 py-0.5 font-mono text-xs font-black text-blue-600">
+                    {reference.reference}
+                </span>
+                <span className="flex-1 text-xs text-slate-600 leading-snug">{reference.reference_label}</span>
+                <span className="shrink-0 text-xs font-bold text-slate-400">{conf}/{tot}</span>
+                <svg className={`h-4 w-4 shrink-0 text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`} viewBox="0 0 16 16" fill="none">
+                    <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+            </button>
+            {open && reference.criteres.map(c => (
+                <CritereDEE key={c.critere_id} critere={c} dossierId={dossierId} />
+            ))}
+        </div>
+    );
+}
+
+/* ── Champ block ── */
+function ChampDEE({ champ, dossierId }) {
+    const [open, setOpen] = useState(false);
+    const tot  = champ.references.reduce((a, r) => a + r.criteres.reduce((b, c) => b + c.preuves.length, 0), 0);
+    const conf = champ.references.reduce((a, r) => a + r.criteres.reduce((b, c) => b + c.preuves.filter(p => p.note !== null).length, 0), 0);
+    const full = conf === tot && tot > 0;
+    return (
+        <div className="border-t border-slate-200">
+            <button onClick={() => setOpen(o => !o)}
+                className="flex w-full items-center gap-3 px-5 py-3 text-left hover:bg-slate-50 transition">
+                <span className="shrink-0 rounded bg-slate-200 px-2 py-0.5 font-mono text-xs font-black text-slate-700">
+                    {champ.champ}
+                </span>
+                <span className="flex-1 text-sm font-semibold text-slate-800">{champ.champ_label}</span>
+                <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-black ${full ? 'bg-emerald-100 text-emerald-700' : conf === 0 ? 'bg-slate-100 text-slate-500' : 'bg-blue-100 text-blue-700'}`}>
+                    {conf}/{tot}
+                </span>
+                <svg className={`h-4 w-4 shrink-0 text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`} viewBox="0 0 16 16" fill="none">
+                    <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+            </button>
+            {open && champ.references.map(r => (
+                <ReferenceDEE key={r.reference} reference={r} dossierId={dossierId} />
+            ))}
+        </div>
+    );
+}
+
+/* ── Domaine block ── */
+const SWOT_DEE = [
+    { key:"forces",       label:"Forces",       color:"#0e7c5b", bg:"#ecfaf4", border:"#c6f0df" },
+    { key:"faiblesses",   label:"Faiblesses",   color:"#c0344a", bg:"#fdf0f2", border:"#f8cdd3" },
+    { key:"opportunites", label:"Opportunités",  color:"#1c5fdc", bg:"#eef3fd", border:"#d6e4fb" },
+    { key:"menaces",      label:"Menaces",       color:"#b35c00", bg:"#fdf5ec", border:"#fde8cc" },
+];
+
+function SwotDEE({ swot }) {
+    if (!swot) return (
+        <div className="mx-6 mb-4 rounded-xl border border-dashed border-slate-200 bg-slate-50 px-5 py-3 text-xs italic text-slate-400">
+            Analyse SWOT non remplie par l'expert pour ce domaine.
+        </div>
+    );
+    const filled = SWOT_DEE.filter(f => swot[f.key]?.trim()).length;
+    if (filled === 0) return (
+        <div className="mx-6 mb-4 rounded-xl border border-dashed border-slate-200 bg-slate-50 px-5 py-3 text-xs italic text-slate-400">
+            Analyse SWOT non remplie par l'expert pour ce domaine.
+        </div>
+    );
+    return (
+        <div className="mx-6 mb-4 overflow-hidden rounded-xl border border-slate-200">
+            <div className="flex items-center gap-3 bg-slate-800 px-4 py-2.5">
+                <span className="rounded bg-white/10 px-2 py-0.5 font-mono text-xs font-black text-white/80">SWOT</span>
+                <span className="text-xs font-bold uppercase tracking-widest text-white/60">Analyse SWOT</span>
+                <span className="ml-auto rounded-full bg-emerald-500/20 px-2 py-0.5 text-xs font-black text-emerald-300">{filled}/4 rempli{filled>1?"s":""}</span>
+            </div>
+            <div className="grid grid-cols-2 divide-x divide-y divide-slate-100">
+                {SWOT_DEE.map(f => swot[f.key]?.trim() ? (
+                    <div key={f.key} className="p-4" style={{ background: f.bg }}>
+                        <div className="mb-2 flex items-center gap-2">
+                            <div className="h-2 w-2 rounded-full" style={{ background: f.color }}/>
+                            <span className="text-xs font-black uppercase tracking-wide" style={{ color: f.color }}>{f.label}</span>
+                        </div>
+                        <p className="whitespace-pre-wrap text-xs leading-relaxed text-slate-700">{swot[f.key]}</p>
+                    </div>
+                ) : (
+                    <div key={f.key} className="p-4 text-xs italic text-slate-400">
+                        <span className="text-xs font-black uppercase tracking-wide text-slate-300">{f.label} —</span> Non renseigné
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+}
+
+function DomaineDEE({ domaine, dossierId }) {
+    const [open, setOpen] = useState(false);
+    const tot  = domaine.champs.reduce((a, ch) => a + ch.references.reduce((b, r) => b + r.criteres.reduce((c, cr) => c + cr.preuves.length, 0), 0), 0);
+    const conf = domaine.champs.reduce((a, ch) => a + ch.references.reduce((b, r) => b + r.criteres.reduce((c, cr) => c + cr.preuves.filter(p => p.note !== null).length, 0), 0), 0);
+    const pct  = tot > 0 ? Math.round(conf / tot * 100) : 0;
+    const swotFilled = domaine.swot ? ['forces','faiblesses','opportunites','menaces'].filter(k => domaine.swot[k]?.trim()).length : 0;
+    return (
+        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <button onClick={() => setOpen(o => !o)}
+                className="flex w-full items-center gap-4 px-6 py-4 text-left hover:bg-slate-50 transition">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-800 font-mono text-sm font-black text-white">
+                    {domaine.domaine}
+                </div>
+                <div className="flex-1">
+                    <p className="font-black text-slate-900">Domaine {domaine.domaine} — {domaine.domaine_label}</p>
+                    <div className="mt-1.5 h-1.5 w-40 overflow-hidden rounded-full bg-slate-100">
+                        <div className="h-full rounded-full transition-all duration-500"
+                            style={{ width:`${pct}%`, background: pct===100 ? '#0e7c5b' : '#1c5fdc' }}/>
+                    </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                    {swotFilled > 0 && (
+                        <span className="rounded bg-slate-800 px-2 py-0.5 font-mono text-xs font-black text-white">
+                            SWOT {swotFilled}/4
+                        </span>
+                    )}
+                    <span className="text-sm font-black text-slate-600">{conf}/{tot}</span>
+                </div>
+                <svg className={`h-4 w-4 shrink-0 text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`} viewBox="0 0 16 16" fill="none">
+                    <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+            </button>
+            {open && (
+                <>
+                    <SwotDEE swot={domaine.swot} />
+                    {domaine.champs.map(ch => (
+                        <ChampDEE key={ch.champ} champ={ch} dossierId={dossierId} />
+                    ))}
+                </>
+            )}
+        </div>
+    );
+}
+
+function ExpertAnnexesEvaluationDEE({ evaluation, dossierId }) {
+    const [activeView, setActiveView] = useState('summary');
+
+    return (
+        <div className="space-y-4">
+            <div className="flex flex-col gap-4 rounded-2xl border border-emerald-200 bg-gradient-to-r from-emerald-50 to-slate-50 px-6 py-4 shadow-sm xl:flex-row xl:items-center xl:justify-between">
+                <div className="flex items-center gap-3">
+                    <div className="flex h-11 w-11 items-center justify-center rounded-full bg-emerald-600 text-sm font-black text-white shadow">
+                        {(evaluation.expert_nom || '?')[0].toUpperCase()}
+                    </div>
+                    <div>
+                        <p className="font-black text-slate-900">{evaluation.expert_nom}</p>
+                        <p className="text-xs text-slate-500">Soumis le {evaluation.soumis_le} · {evaluation.total} preuves évaluées</p>
+                    </div>
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                    {NOTE_OPTS_DEE.map((opt) => (
+                        <div key={opt.val} className="rounded-xl px-3 py-2 text-center"
+                            style={{ background: opt.bg, border: `1px solid ${opt.border}` }}>
+                            <p className="text-lg font-black" style={{ color: opt.color }}>{evaluation.stats[opt.val] ?? 0}</p>
+                            <p className="text-xs font-bold" style={{ color: opt.color }}>{opt.label}</p>
+                        </div>
+                    ))}
+                </div>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+                <button type="button" onClick={() => setActiveView('summary')}
+                    className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-black transition ${
+                        activeView === 'summary'
+                            ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'
+                            : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                    }`}>
+                    <BarChart3 size={16} />
+                    Synthèse graphique
+                </button>
+                <button type="button" onClick={() => setActiveView('details')}
+                    className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-black transition ${
+                        activeView === 'details'
+                            ? 'bg-slate-800 text-white shadow-lg shadow-slate-800/20'
+                            : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                    }`}>
+                    <ListTree size={16} />
+                    Détail des notes
+                </button>
+            </div>
+
+            {activeView === 'summary' ? (
+                <AnnexesConformityDashboard grouped={evaluation.grouped} />
+            ) : (
+                <div className="space-y-3">
+                    {evaluation.grouped.map((domaine) => (
+                        <DomaineDEE key={domaine.domaine} domaine={domaine} dossierId={dossierId} />
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+}
+
+/* ── Main annexes tab ── */
+function AnnexesEvalTab({ evaluationsAnnexes, dossierId }) {
+    if (evaluationsAnnexes.length === 0) return (
+        <div className="rounded-[2rem] border border-slate-200 bg-white p-12 text-center shadow-sm">
+            <ClipboardCheck className="mx-auto text-slate-300" size={44} />
+            <p className="mt-4 text-lg font-black text-slate-900">Aucune évaluation soumise</p>
+            <p className="mt-1 text-sm text-slate-500">Les experts n'ont pas encore soumis leurs évaluations des annexes.</p>
+        </div>
+    );
+
+    return (
+        <div className="space-y-8">
+            {evaluationsAnnexes.map((evaluation) => (
+                <ExpertAnnexesEvaluationDEE key={evaluation.expert_id} evaluation={evaluation} dossierId={dossierId} />
+            ))}
+        </div>
+    );
+}
+
+function Show({ dossier, experts = [], allExperts = [], dossierExperts = [], documents = [], photos = [], rapportsExperts = [], evaluationsAnnexes = [], expectedDocuments = {}, recommandations = [], recommandationsStats = {}, recommandationsRappels = [], recommandationsProchainRappel = null }) {
     const { props } = usePage();
     const flash = props.flash || {};
 
     const [activeTab, setActiveTab] = useState('pilotage');
+    const annexesBadgeStorageKey = `dee:dossier:${dossier.id}:evaluations-annexes:seen`;
+    const annexesBadgeSignature = evaluationsAnnexes
+        .map((evaluation) => `${evaluation.expert_id}:${evaluation.soumis_le ?? ''}`)
+        .sort()
+        .join('|');
+    const [seenAnnexesSignature, setSeenAnnexesSignature] = useState(() => {
+        if (typeof window === 'undefined') return '';
+
+        try {
+            return window.localStorage.getItem(annexesBadgeStorageKey) || '';
+        } catch {
+            return '';
+        }
+    });
+    const hasUnreadAnnexes = evaluationsAnnexes.length > 0 && seenAnnexesSignature !== annexesBadgeSignature;
+
+    const openAnnexesTab = () => {
+        setActiveTab('annexes');
+        setSeenAnnexesSignature(annexesBadgeSignature);
+
+        if (typeof window === 'undefined') return;
+
+        try {
+            window.localStorage.setItem(annexesBadgeStorageKey, annexesBadgeSignature);
+        } catch {
+            // The badge still disappears for the current page if storage is unavailable.
+        }
+    };
     const [expertSearch, setExpertSearch] = useState('');
     const [selectedExpert, setSelectedExpert] = useState(null);
     const [expertFilterActive, setExpertFilterActive] = useState(true);
@@ -282,6 +624,10 @@ function Show({ dossier, experts = [], allExperts = [], dossierExperts = [], doc
                 .filter(Boolean)
         );
     }, [dossierExperts]);
+
+    const chefComite = useMemo(() =>
+        dossierExperts.find((item) => item.role_expert === 'chef_comite') ?? null,
+    [dossierExperts]);
 
     const filteredExperts = useMemo(() => {
         const search = expertSearch.toLowerCase().trim();
@@ -529,6 +875,26 @@ function Show({ dossier, experts = [], allExperts = [], dossierExperts = [], doc
                                     <Mail size={16} />
                                     {etablissement.email || dossier.email || '—'}
                                 </div>
+
+                                {etablissement.telephone && (
+                                    <div className="flex items-center gap-2">
+                                        <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81a19.79 19.79 0 01-3.07-8.67A2 2 0 012 1h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.91 8.09a16 16 0 006 6l.38-.38a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg>
+                                        {etablissement.telephone}
+                                    </div>
+                                )}
+
+                                {etablissement.responsable_nom && (
+                                    <div className="flex items-start gap-2 pt-2 border-t border-blue-400/30">
+                                        <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="mt-0.5 shrink-0"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                                        <span>
+                                            <span className="text-blue-200 font-semibold">Chef de comité : </span>
+                                            <span className="font-bold">{etablissement.responsable_nom}</span>
+                                            {etablissement.responsable_fonction && (
+                                                <span className="text-blue-200"> — {etablissement.responsable_fonction}</span>
+                                            )}
+                                        </span>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -607,13 +973,41 @@ function Show({ dossier, experts = [], allExperts = [], dossierExperts = [], doc
                         Photos de visite
                     </button>
 
-                    <Link
-                        href={`/dee/dossiers/${dossier.id}/recommandations-suivi`}
-                        className="inline-flex items-center gap-2 rounded-2xl border border-violet-200 bg-violet-50 px-5 py-3 text-sm font-black text-violet-700 transition hover:bg-violet-100"
+                        <button
+                            type="button"
+                            onClick={openAnnexesTab}
+                            className={`inline-flex items-center gap-2 rounded-2xl px-5 py-3 text-sm font-black transition ${
+                                activeTab === 'annexes'
+                                    ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/20'
+                                : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                        }`}
+                        >
+                            <ClipboardCheck size={16} />
+                            Éval. Annexes
+                            {hasUnreadAnnexes && (
+                                <span className={`ml-1 rounded-full px-2 py-0.5 text-xs font-black ${activeTab === 'annexes' ? 'bg-white/30 text-white' : 'bg-emerald-100 text-emerald-700'}`}>
+                                    {evaluationsAnnexes.length}
+                                </span>
+                        )}
+                    </button>
+
+                    <button
+                        type="button"
+                        onClick={() => setActiveTab('recommandations')}
+                        className={`inline-flex items-center gap-2 rounded-2xl px-5 py-3 text-sm font-black transition ${
+                            activeTab === 'recommandations'
+                                ? 'bg-violet-600 text-white shadow-lg shadow-violet-600/20'
+                                : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                        }`}
                     >
                         <ClipboardCheck size={16} />
                         Suivi recommandations
-                    </Link>
+                        {(recommandationsStats.soumises ?? 0) > 0 && (
+                            <span className={`ml-1 rounded-full px-2 py-0.5 text-xs font-black ${activeTab === 'recommandations' ? 'bg-white/30 text-white' : 'bg-violet-100 text-violet-700'}`}>
+                                {recommandationsStats.soumises}
+                            </span>
+                        )}
+                    </button>
                 </div>
 
                 <div className="mt-6 grid gap-7 xl:grid-cols-[1.35fr_0.65fr]">
@@ -751,6 +1145,21 @@ function Show({ dossier, experts = [], allExperts = [], dossierExperts = [], doc
                                     </div>
                                 </form>
                             </div>
+                        )}
+
+                        {activeTab === 'annexes' && (
+                            <AnnexesEvalTab evaluationsAnnexes={evaluationsAnnexes} dossierId={dossier.id} />
+                        )}
+
+                        {activeTab === 'recommandations' && (
+                            <SuiviRecommandationsTab
+                                dossier={dossier}
+                                recommandations={recommandations}
+                                stats={recommandationsStats}
+                                rappels={recommandationsRappels}
+                                prochainRappel={recommandationsProchainRappel}
+                                etablissement={dossier.etablissement || {}}
+                            />
                         )}
 
                         {activeTab === 'photos' && (
@@ -1141,17 +1550,28 @@ function Show({ dossier, experts = [], allExperts = [], dossierExperts = [], doc
                                             </div>
 
                                             <div className="flex shrink-0 gap-2">
-                                                {document.url && (
-                                                    <a
-                                                        href={document.url}
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                        className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-black text-white transition hover:bg-blue-700"
-                                                    >
-                                                        <Eye size={15} />
-                                                        Ouvrir
-                                                    </a>
-                                                )}
+                                                {(() => {
+                                                    const ext = (document.original_name ?? document.nom ?? '').split('.').pop().toLowerCase();
+                                                    const viewable = ['pdf', 'jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext);
+                                                    return viewable ? (
+                                                        <a
+                                                            href={document.url}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-black text-white transition hover:bg-blue-700"
+                                                        >
+                                                            <Eye size={15} />
+                                                            Ouvrir
+                                                        </a>
+                                                    ) : null;
+                                                })()}
+                                                <a
+                                                    href={document.download_url}
+                                                    className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-black text-white transition hover:bg-emerald-700"
+                                                >
+                                                    <Download size={15} />
+                                                    Télécharger
+                                                </a>
                                                 <button
                                                     type="button"
                                                     onClick={() => deleteDocument(document)}
@@ -1222,12 +1642,138 @@ function Show({ dossier, experts = [], allExperts = [], dossierExperts = [], doc
                             </div>
 
                             <div className="mt-7 space-y-4">
+                                {/* ── Identité ── */}
                                 <InfoBox label="Nom" value={etablissement.nom || dossier.etablissement_nom} />
+                                {etablissement.acronyme && <InfoBox label="Acronyme" value={etablissement.acronyme} />}
                                 <InfoBox label="Ville" value={etablissement.ville || dossier.ville} />
                                 <InfoBox label="Université" value={etablissement.universite || dossier.universite} />
+                                {etablissement.domaine_connaissances && <InfoBox label="Domaine" value={etablissement.domaine_connaissances} />}
                                 <InfoBox label="Email" value={etablissement.email || dossier.email} />
+
+                                {/* ── Profil complété par l'établissement ── */}
+                                {etablissement.profil_complete && (
+                                    <>
+                                        <div className="flex items-center gap-2 pt-2">
+                                            <div className="h-px flex-1 bg-slate-200" />
+                                            <span className="text-xs font-bold uppercase tracking-widest text-emerald-600">
+                                                Profil complété
+                                            </span>
+                                            <div className="h-px flex-1 bg-slate-200" />
+                                        </div>
+                                        {etablissement.adresse && <InfoBox label="Adresse" value={etablissement.adresse} />}
+                                        {etablissement.telephone && <InfoBox label="Téléphone" value={etablissement.telephone} />}
+                                        {etablissement.site_web && (
+                                            <div className="rounded-2xl bg-slate-50 p-5">
+                                                <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">Site web</p>
+                                                <a href={etablissement.site_web} target="_blank" rel="noreferrer"
+                                                    className="mt-3 block break-words text-sm font-bold leading-7 text-blue-600 hover:underline">
+                                                    {etablissement.site_web}
+                                                </a>
+                                            </div>
+                                        )}
+                                        {(etablissement.responsable_nom || etablissement.responsable_fonction) && (
+                                            <div className="rounded-2xl bg-emerald-50 p-5 space-y-1">
+                                                <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">Responsable</p>
+                                                {etablissement.responsable_nom && (
+                                                    <p className="mt-2 text-sm font-bold text-slate-800">{etablissement.responsable_nom}</p>
+                                                )}
+                                                {etablissement.responsable_fonction && (
+                                                    <p className="text-xs text-slate-500">{etablissement.responsable_fonction}</p>
+                                                )}
+                                                {etablissement.responsable_email && (
+                                                    <p className="text-xs text-blue-600">{etablissement.responsable_email}</p>
+                                                )}
+                                                {etablissement.responsable_telephone && (
+                                                    <p className="text-xs text-slate-500">{etablissement.responsable_telephone}</p>
+                                                )}
+                                            </div>
+                                        )}
+                                    </>
+                                )}
+
                                 <InfoBox label="Créé par" value={dossier.created_by || dossier.created_by_name} />
                                 <InfoBox label="Mise à jour" value={dossier.updated_at} />
+                            </div>
+                        </div>
+
+                        {/* ── Chef de comité ── */}
+                        <div className="rounded-[2rem] border border-slate-200 bg-white p-7 shadow-sm">
+                            <div className="flex items-start gap-4">
+                                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-purple-50 text-purple-600">
+                                    <svg width={24} height={24} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                                        <circle cx="12" cy="8" r="4"/><path d="M6 20v-2a4 4 0 014-4h4a4 4 0 014 4v2"/>
+                                        <path d="M16 3.5l1.5 1.5L20 2" strokeWidth="2"/>
+                                    </svg>
+                                </div>
+                                <div>
+                                    <h3 className="text-2xl font-black text-slate-900">Chef de comité</h3>
+                                    <p className="mt-1 text-sm font-medium text-slate-500">
+                                        Expert désigné comme chef du comité d'évaluation.
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div className="mt-7">
+                                {chefComite ? (
+                                    <div className="space-y-4">
+                                        <div className="rounded-2xl bg-purple-50 p-5">
+                                            <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">Nom complet</p>
+                                            <p className="mt-2 text-sm font-bold text-slate-800">
+                                                {chefComite.expert?.name || '—'}
+                                            </p>
+                                        </div>
+                                        {chefComite.expert?.email && (
+                                            <div className="rounded-2xl bg-slate-50 p-5">
+                                                <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">Email</p>
+                                                <p className="mt-2 text-sm font-bold text-slate-800 break-words">
+                                                    {chefComite.expert.email}
+                                                </p>
+                                            </div>
+                                        )}
+                                        {chefComite.expert?.specialite && (
+                                            <div className="rounded-2xl bg-slate-50 p-5">
+                                                <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">Spécialité</p>
+                                                <p className="mt-2 text-sm font-bold text-slate-800">
+                                                    {chefComite.expert.specialite}
+                                                </p>
+                                            </div>
+                                        )}
+                                        {chefComite.expert?.etablissement && (
+                                            <div className="rounded-2xl bg-slate-50 p-5">
+                                                <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">Établissement</p>
+                                                <p className="mt-2 text-sm font-bold text-slate-800">
+                                                    {chefComite.expert.etablissement}
+                                                </p>
+                                            </div>
+                                        )}
+                                        {chefComite.expert?.ville && (
+                                            <div className="rounded-2xl bg-slate-50 p-5">
+                                                <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">Ville</p>
+                                                <p className="mt-2 text-sm font-bold text-slate-800">
+                                                    {chefComite.expert.ville}
+                                                </p>
+                                            </div>
+                                        )}
+                                        <div className="rounded-2xl bg-slate-50 p-5">
+                                            <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">Statut participation</p>
+                                            <span className={`mt-2 inline-block rounded-full px-3 py-1 text-xs font-black ${
+                                                chefComite.status === 'confirme' || chefComite.status === 'confirmed'
+                                                    ? 'bg-emerald-100 text-emerald-700'
+                                                    : chefComite.status === 'en_attente' || chefComite.status === 'pending'
+                                                    ? 'bg-amber-100 text-amber-700'
+                                                    : 'bg-slate-100 text-slate-600'
+                                            }`}>
+                                                {formatExpertStatus(chefComite.status)}
+                                            </span>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="rounded-2xl border-2 border-dashed border-slate-200 p-6 text-center">
+                                        <svg className="mx-auto mb-3 text-slate-300" width={32} height={32} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="12" cy="8" r="4"/><path d="M6 20v-2a4 4 0 014-4h4a4 4 0 014 4v2"/></svg>
+                                        <p className="text-sm font-semibold text-slate-400">Aucun chef de comité désigné</p>
+                                        <p className="mt-1 text-xs text-slate-400">Modifiez le rôle d'un expert pour le désigner.</p>
+                                    </div>
+                                )}
                             </div>
                         </div>
 
@@ -1249,10 +1795,10 @@ function Show({ dossier, experts = [], allExperts = [], dossierExperts = [], doc
                             </div>
 
                             <div className="mt-7 space-y-3">
-                                <ExpectedDocument label="Formulaire ajouté" documents={documents} keywords={['formulaire']} />
-                                <ExpectedDocument label="Rapport d'autoévaluation" documents={documents} keywords={['auto', 'autoevaluation', 'autoévaluation']} />
-                                <ExpectedDocument label="Annexes" documents={documents} keywords={['annexe']} />
-                                <ExpectedDocument label="Rapport expert" documents={documents} keywords={['rapport expert']} />
+                                <ExpectedDocument label="Formulaire ajouté" item={expectedDocuments.formulaire} />
+                                <ExpectedDocument label="Rapport d'autoévaluation" item={expectedDocuments.rapport_autoevaluation} />
+                                <ExpectedDocument label="Annexes" item={expectedDocuments.annexes} />
+                                <ExpectedDocument label="Rapport expert" item={expectedDocuments.rapport_expert} />
                             </div>
                         </div>
 
@@ -1451,11 +1997,12 @@ function ExpertAssignedCard({ item, onAccept, onRefuse, onDelete, onRenvoyerEmai
     const isPending = item.status === 'en_attente_confirmation_dee';
     const isSent = item.status === 'acces_envoye' || item.status === 'en_attente_confirmation_expert';
     const isConfirmed = item.status === 'confirme_par_expert';
+    const isRefused = item.status === 'refuse_par_expert';
 
     return (
         <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                <div>
+                <div className="flex-1">
                     <h4 className="font-black text-slate-900">
                         {expertFullName(expert)}
                     </h4>
@@ -1483,12 +2030,24 @@ function ExpertAssignedCard({ item, onAccept, onRefuse, onDelete, onRenvoyerEmai
                                       ? 'bg-emerald-100 text-emerald-700'
                                       : isSent
                                         ? 'bg-cyan-100 text-cyan-700'
-                                        : 'bg-slate-100 text-slate-700'
+                                        : isRefused
+                                          ? 'bg-red-100 text-red-700'
+                                          : 'bg-slate-100 text-slate-700'
                             }`}
                         >
                             {formatExpertStatus(item.status)}
                         </span>
                     </div>
+
+                    {isRefused && item.motif_refus && (
+                        <div className="mt-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+                            <p className="text-xs font-black text-red-600 uppercase tracking-wide mb-1">Motif de refus</p>
+                            <p className="text-sm text-red-800">{item.motif_refus}</p>
+                            {item.expert_refused_at && (
+                                <p className="mt-1 text-xs text-red-400">Le {item.expert_refused_at}</p>
+                            )}
+                        </div>
+                    )}
                 </div>
 
                 <div className="flex flex-wrap gap-2">
@@ -1541,22 +2100,23 @@ function ExpertAssignedCard({ item, onAccept, onRefuse, onDelete, onRenvoyerEmai
     );
 }
 
-function ExpectedDocument({ label, documents, keywords }) {
-    const exists = documents.some((document) => {
-        const text = [
-            document.type,
-            document.document_type,
-            document.categorie,
-            document.nom,
-            document.name,
-            document.filename,
-        ]
-            .filter(Boolean)
-            .join(' ')
-            .toLowerCase();
-
-        return keywords.some((keyword) => text.includes(keyword.toLowerCase()));
-    });
+function ExpectedDocument({ label, item = {} }) {
+    const status = item?.statut || 'waiting';
+    const styles = {
+        valid: {
+            label: 'Validé',
+            badge: 'bg-emerald-100 text-emerald-700',
+        },
+        progress: {
+            label: 'En cours',
+            badge: 'bg-blue-100 text-blue-700',
+        },
+        waiting: {
+            label: 'En attente',
+            badge: 'bg-amber-100 text-amber-700',
+        },
+    };
+    const meta = styles[status] || styles.waiting;
 
     return (
         <div className="flex items-center justify-between rounded-2xl bg-slate-50 p-4">
@@ -1566,16 +2126,14 @@ function ExpectedDocument({ label, documents, keywords }) {
                 </p>
 
                 <p className="mt-1 text-xs font-semibold text-slate-500">
-                    {exists ? 'Document déposé' : 'En attente'}
+                    {item?.detail || 'En attente'}
                 </p>
             </div>
 
             <span
-                className={`rounded-full px-3 py-1 text-xs font-black ${
-                    exists ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
-                }`}
+                className={`rounded-full px-3 py-1 text-xs font-black ${meta.badge}`}
             >
-                {exists ? 'Validé' : 'En attente'}
+                {meta.label}
             </span>
         </div>
     );

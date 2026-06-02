@@ -4,6 +4,7 @@ import axios from 'axios';
 import {
     Activity,
     BarChart2,
+    Bell,
     Building2,
     CalendarCheck,
     ChevronRight,
@@ -29,6 +30,7 @@ const NAV_GROUPS = [
             { label: 'Établissements',      href: '/dee/etablissements',         icon: Building2,       color: '#ef9f27' },
             { label: 'Experts',             href: '/dee/experts',                icon: Users,           color: GREEN     },
             { label: 'Dossiers',            href: '/dee/dossiers',               icon: ClipboardCheck,  color: '#8b5cf6' },
+            { label: 'Notifications',        href: '/dee/notifications',          icon: Bell,            color: '#e11d48' },
         ],
     },
     {
@@ -67,8 +69,9 @@ export default function DashboardShell({ children }) {
                 .catch(() => {});
         };
         fetchCount();
-        const interval = setInterval(fetchCount, 30000);
-        return () => clearInterval(interval);
+        const interval = setInterval(fetchCount, 10000);
+        const unsubscribe = router.on('finish', fetchCount);
+        return () => { clearInterval(interval); unsubscribe(); };
     }, []);
 
     const isActive = (href) => {
@@ -169,6 +172,7 @@ export default function DashboardShell({ children }) {
 
                                 {items.map(({ label, href, icon: Icon, color }, i) => {
                                     const active = isActive(href);
+                                    const showBadge = href === '/dee/notifications' && notifCount > 0;
                                     return (
                                         <Link
                                             key={href}
@@ -200,6 +204,17 @@ export default function DashboardShell({ children }) {
                                             <span style={{ fontSize: 13, fontWeight: active ? 600 : 500, color: active ? '#fff' : 'rgba(255,255,255,0.65)', flex: 1 }}>
                                                 {label}
                                             </span>
+
+                                            {showBadge && (
+                                                <span style={{
+                                                    minWidth: 20, height: 20, borderRadius: 999,
+                                                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                                                    padding: '0 5px', background: '#e11d48', color: '#fff',
+                                                    fontSize: 10, fontWeight: 800,
+                                                }}>
+                                                    {notifCount > 99 ? '99+' : notifCount}
+                                                </span>
+                                            )}
 
                                             {active && <ChevronRight size={13} color="rgba(255,255,255,0.4)" />}
                                         </Link>

@@ -8,6 +8,7 @@ use App\Models\Dossier;
 use App\Models\DossierExpert;
 use App\Models\DossierPhoto;
 use App\Models\Etablissement;
+use App\Models\EtablissementOnboarding;
 use App\Models\Expert;
 use App\Models\NotificationAneaq;
 use App\Models\RapportExpert;
@@ -67,15 +68,235 @@ class DossierController extends Controller
 
     public function show(Dossier $dossier)
     {
+        $documents       = $this->documentsPayload($dossier);
+        $rapportsExperts = $this->rapportsExpertsPayload($dossier);
+        $recommandations = $this->recommandationsPayload($dossier);
+
         return Inertia::render('DEE/Dossiers/Show', [
-            'dossier'        => $this->dossierPayload($dossier, false),
-            'experts'        => $this->availableExpertsPayload($dossier),
-            'allExperts'     => $this->allExpertsPayload(),
-            'dossierExperts' => $this->dossierExpertsPayload($dossier),
-            'documents'      => $this->documentsPayload($dossier),
-            'photos'         => $this->photosPayload($dossier),
-            'rapportsExperts' => $this->rapportsExpertsPayload($dossier),
+            'dossier'              => $this->dossierPayload($dossier, false),
+            'experts'              => $this->availableExpertsPayload($dossier),
+            'allExperts'           => $this->allExpertsPayload(),
+            'dossierExperts'       => $this->dossierExpertsPayload($dossier),
+            'documents'            => $documents,
+            'photos'               => $this->photosPayload($dossier),
+            'rapportsExperts'      => $rapportsExperts,
+            'evaluationsAnnexes'   => $this->evaluationsAnnexesPayload($dossier),
+            'expectedDocuments'    => $this->expectedDocumentsPayload($dossier, $documents, $rapportsExperts),
+            'recommandations'      => $recommandations['items'],
+            'recommandationsStats' => $recommandations['stats'],
+            'recommandationsRappels' => $recommandations['rappels'],
+            'recommandationsProchainRappel' => $recommandations['prochainRappel'],
         ]);
+    }
+
+    private function recommandationsPayload(Dossier $dossier): array
+    {
+        if (!Schema::hasTable('recommandations_domaines')) {
+            return ['items' => [], 'stats' => [], 'rappels' => [], 'prochainRappel' => null];
+        }
+
+        $items = DB::table('recommandations_domaines')
+            ->where('dossier_id', $dossier->id)
+            ->orderBy('domaine_code')
+            ->orderByDesc('created_at')
+            ->get();
+
+        $experts = Schema::hasTable('experts')
+            ? DB::table('experts')
+                ->whereIn('id', $items->pluck('expert_id')->filter()->unique())
+                ->get()->keyBy('id')
+            : collect();
+
+        $preuves = Schema::hasTable('recommandation_preuves')
+            ? DB::table('recommandation_preuves')
+                ->whereIn('recommandation_id', $items->pluck('id'))
+                ->orderByDesc('created_at')
+                ->get()->groupBy('recommandation_id')
+            : collect();
+
+        $domaineCodes  = $items->pluck('domaine_code')->filter()->unique()->values();
+        $domaineLabels = Schema::hasTable('criteres') && $domaineCodes->isNotEmpty()
+            ? DB::table('criteres')
+                ->whereIn('domaine', $domaineCodes)
+                ->select('domaine', 'domaine_label')
+                ->distinct()
+                ->get()
+                ->pluck('domaine_label', 'domaine')
+            : collect();
+
+        $mapped = $items->map(function ($item) use ($experts, $preuves, $dossier, $domaineLabels) {
+            $expert = $experts->get($item->expert_id);
+            $item->expert_nom = $expert
+                ? trim(($expert->prenom ?? '') . ' ' . ($expert->nom ?? $expert->name ?? '')) ?: 'Expert'
+                : 'Expert';
+            $item->domaine_label = $domaineLabels->get($item->domaine_code, $item->domaine_code);
+            $item->preuves = $preuves
+                ->get($item->id, collect())
+                ->map(fn ($p) => [
+                    'id'          => $p->id,
+                    'fichier_nom' => $p->fichier_nom,
+                    'description' => $p->description,
+                    'url'         => route('dee.recommandations-suivi.preuves.telecharger', [
+                        'dossier' => $item->dossier_id,
+                        'preuve'  => $p->id,
+                    ]),
+                ])->values()->toArray();
+            $item->preuves_count = count($item->preuves);
+            return (array) $item;
+        })->toArray();
+
+        $col = collect($mapped);
+        $stats = [
+            'total'    => count($mapped),
+            'brouillon'=> $col->where('statut', 'brouillon')->count(),
+            'soumises' => $col->where('statut', 'soumise_dee')->count(),
+            'renvoyees'=> $col->where('statut', 'renvoyee_expert')->count(),
+            'validees' => $col->where('statut', 'validee_dee')->count(),
+            'envoyees' => $col->whereIn('statut', ['envoyee_etablissement', 'en_cours'])->count(),
+            'cloturees'=> $col->where('statut', 'cloturee')->count(),
+            'realisees'=> $col->where('statut_mise_en_oeuvre', 'realisee')->count(),
+            'premiere_date_envoi' => $col->whereNotNull('date_envoi_etablissement')->min('date_envoi_etablissement'),
+        ];
+
+        $rappels = Schema::hasTable('recommandation_rappels')
+            ? DB::table('recommandation_rappels')
+                ->where('dossier_id', $dossier->id)
+                ->orderByDesc('envoye_le')
+                ->get()->map(fn ($r) => (array) $r)->toArray()
+            : [];
+
+        $prochainRappel = null;
+        if (!empty($rappels)) {
+            $prochainRappel = \Carbon\Carbon::parse($rappels[0]['envoye_le'])->addMonths(6)->format('Y-m-d');
+        } elseif ($stats['premiere_date_envoi']) {
+            $prochainRappel = \Carbon\Carbon::parse($stats['premiere_date_envoi'])->addMonths(6)->format('Y-m-d');
+        }
+
+        return ['items' => $mapped, 'stats' => $stats, 'rappels' => $rappels, 'prochainRappel' => $prochainRappel];
+    }
+
+    private function evaluationsAnnexesPayload(Dossier $dossier): array
+    {
+        $criteres = \App\Models\Critere::all()->keyBy('id');
+        $etab     = $dossier->etablissement;
+
+        if (!$etab) return [];
+
+        $preuves = \App\Models\CriterePreuve::where('etablissement_id', $etab->id)
+            ->where('existe', true)
+            ->get()
+            ->keyBy(fn ($p) => "{$p->critere_id}_{$p->preuve_index}");
+
+        $evals = \App\Models\ExpertPreuveEvaluation::where('dossier_id', $dossier->id)
+            ->where('statut', 'soumis')
+            ->with('expert')
+            ->get();
+
+        if ($evals->isEmpty()) return [];
+
+        $NOTE_LABELS = \App\Models\ExpertPreuveEvaluation::$NOTE_LABELS;
+
+        return $evals->groupBy('expert_id')->map(function ($items, $expertId) use ($criteres, $preuves, $NOTE_LABELS, $dossier) {
+            $expert = $items->first()->expert;
+
+            /* Flat rows with full hierarchy fields */
+            $rows = $items->map(function ($ev) use ($criteres, $preuves, $NOTE_LABELS, $dossier) {
+                $critere = $criteres->get($ev->critere_id);
+                $preuve  = $preuves->get("{$ev->critere_id}_{$ev->preuve_index}");
+                return [
+                    'domaine'        => $critere?->domaine,
+                    'domaine_label'  => $critere?->domaine_label,
+                    'champ'          => $critere?->champ,
+                    'champ_label'    => $critere?->champ_label,
+                    'reference'      => $critere?->reference,
+                    'reference_label'=> $critere?->reference_label,
+                    'critere_id'     => $ev->critere_id,
+                    'critere_num'    => $critere?->critere_num,
+                    'critere_label'  => $critere?->critere_label,
+                    'preuve_index'   => $ev->preuve_index,
+                    'preuve_label'   => $critere ? (collect($critere->preuves)[$ev->preuve_index] ?? null) : null,
+                    'fichier_nom'    => $preuve?->fichier_nom,
+                    'fichier_id'     => $preuve?->id,
+                    'note'           => $ev->note,
+                    'note_label'     => $NOTE_LABELS[$ev->note] ?? 'Non évalué',
+                    'observation'    => $ev->observation,
+                ];
+            })->values();
+
+            /* Build grouped hierarchy: domaine → champ → reference → critere → preuves */
+            $grouped = $rows->groupBy('domaine')->map(function ($byDomaine, $domaine) {
+                $first = $byDomaine->first();
+                return [
+                    'domaine'       => $domaine,
+                    'domaine_label' => $first['domaine_label'],
+                    'total'         => $byDomaine->count(),
+                    'champs'        => $byDomaine->groupBy('champ')->map(function ($byChamp, $champ) {
+                        $firstC = $byChamp->first();
+                        return [
+                            'champ'       => $champ,
+                            'champ_label' => $firstC['champ_label'],
+                            'total'       => $byChamp->count(),
+                            'references'  => $byChamp->groupBy('reference')->map(function ($byRef, $reference) {
+                                $firstR = $byRef->first();
+                                return [
+                                    'reference'       => $reference,
+                                    'reference_label' => $firstR['reference_label'],
+                                    'criteres'        => $byRef->groupBy('critere_id')->map(function ($byCritere) {
+                                        $firstCr = $byCritere->first();
+                                        return [
+                                            'critere_id'    => $firstCr['critere_id'],
+                                            'critere_num'   => $firstCr['critere_num'],
+                                            'critere_label' => $firstCr['critere_label'],
+                                            'preuves'       => $byCritere->sortBy('preuve_index')->values()->toArray(),
+                                        ];
+                                    })->values()->toArray(),
+                                ];
+                            })->values()->toArray(),
+                        ];
+                    })->values()->toArray(),
+                ];
+            })->sortBy('domaine')->values()->toArray();
+
+            /* Per-note stats */
+            $stats = [0 => 0, 1 => 0, 2 => 0, 3 => 0];
+            foreach ($rows as $r) { if (isset($stats[$r['note']])) $stats[$r['note']]++; }
+
+            /* SWOT par domaine pour cet expert */
+            $swotRecords = \App\Models\SwotDomaine::where('dossier_id', $dossier->id)
+                ->where('expert_id', $expertId)
+                ->get()
+                ->keyBy('domaine');
+
+            /* Attacher SWOT à chaque domaine du grouped */
+            $groupedWithSwot = array_map(function ($domaine) use ($swotRecords) {
+                $sw = $swotRecords->get($domaine['domaine']);
+                $domaine['swot'] = $sw ? [
+                    'forces'       => $sw->forces,
+                    'faiblesses'   => $sw->faiblesses,
+                    'opportunites' => $sw->opportunites,
+                    'menaces'      => $sw->menaces,
+                    'statut'       => $sw->statut,
+                ] : null;
+                return $domaine;
+            }, $grouped);
+
+            return [
+                'expert_id'  => $expertId,
+                'expert_nom' => trim(($expert->prenom ?? '') . ' ' . ($expert->nom ?? '')),
+                'soumis_le'  => $items->max('soumis_le')?->format('d/m/Y H:i'),
+                'total'      => $rows->count(),
+                'stats'      => $stats,
+                'grouped'    => $groupedWithSwot,
+            ];
+        })->values()->toArray();
+    }
+
+    public function downloadAnnexe(Dossier $dossier, \App\Models\CriterePreuve $criterePreuve)
+    {
+        abort_if($criterePreuve->etablissement_id !== $dossier->etablissement_id, 403);
+        $path = storage_path('app/public/' . $criterePreuve->fichier_path);
+        abort_if(!file_exists($path), 404);
+        return response()->download($path, $criterePreuve->fichier_nom);
     }
 
     public function update(Request $request, Dossier $dossier)
@@ -177,6 +398,46 @@ class DossierController extends Controller
         $etablissementModel = Etablissement::find($dossier->etablissement_id);
         if ($etablissementModel) {
             ActivityLogger::log('dossier_supprime', "Dossier {$dossier->reference} supprimé par la DEE", $etablissementModel);
+        }
+
+        // Cascade: delete dossier_experts (expert affectations)
+        if (Schema::hasTable('dossier_experts')) {
+            DB::table('dossier_experts')->where('dossier_id', $dossier->id)->delete();
+        }
+
+        // Cascade: delete documents (and their files from disk)
+        foreach (['dossier_documents', 'documents'] as $docTable) {
+            if (Schema::hasTable($docTable)) {
+                $docs = DB::table($docTable)->where('dossier_id', $dossier->id)->get();
+                foreach ($docs as $doc) {
+                    $path = $doc->file_path ?? $doc->path ?? $doc->fichier ?? null;
+                    if ($path) {
+                        if (\Illuminate\Support\Facades\Storage::disk('public')->exists($path)) {
+                            \Illuminate\Support\Facades\Storage::disk('public')->delete($path);
+                        } elseif (\Illuminate\Support\Facades\Storage::disk('local')->exists($path)) {
+                            \Illuminate\Support\Facades\Storage::disk('local')->delete($path);
+                        }
+                    }
+                }
+                DB::table($docTable)->where('dossier_id', $dossier->id)->delete();
+            }
+        }
+
+        // Cascade: delete rapports experts
+        if (Schema::hasTable('rapports_experts')) {
+            $rapports = DB::table('rapports_experts')->where('dossier_id', $dossier->id)->get();
+            foreach ($rapports as $r) {
+                $path = $r->fichier ?? $r->file_path ?? null;
+                if ($path && \Illuminate\Support\Facades\Storage::disk('public')->exists($path)) {
+                    \Illuminate\Support\Facades\Storage::disk('public')->delete($path);
+                }
+            }
+            DB::table('rapports_experts')->where('dossier_id', $dossier->id)->delete();
+        }
+
+        // Cascade: delete messages
+        if (Schema::hasTable('messages_dossier')) {
+            DB::table('messages_dossier')->where('dossier_id', $dossier->id)->delete();
         }
 
         // Remove the établissement from the vague so it can be re-added
@@ -394,6 +655,10 @@ class DossierController extends Controller
                     'role_expert' => $this->value($item, ['role_expert', 'role'], 'expert'),
                     'status' => $this->value($item, ['status', 'statut'], 'en_attente_confirmation_dee'),
                     'statut' => $this->value($item, ['statut', 'status'], 'en_attente_confirmation_dee'),
+                    'motif_refus' => $item->motif_refus ?? null,
+                    'expert_refused_at' => $item->expert_refused_at
+                        ? \Carbon\Carbon::parse($item->expert_refused_at)->format('d/m/Y H:i')
+                        : null,
 
                     'expert' => $expert ? [
                         'id' => $expert->id,
@@ -437,7 +702,7 @@ class DossierController extends Controller
         $usersById = User::query()->whereIn('id', $userIds)->get()->keyBy('id');
 
         return $rows
-            ->map(function ($document) use ($table, $usersById) {
+            ->map(function ($document) use ($table, $usersById, $dossier) {
                 $path = $this->documentPath($document);
 
                 $uploadedById   = $this->objectValue($document, ['uploaded_by'], null);
@@ -482,7 +747,8 @@ class DossierController extends Controller
 
                     'path'      => $path,
                     'file_path' => $path,
-                    'url'       => $this->fileUrl($path),
+                    'url'          => route('dee.dossiers.documents.voir', [$dossier->id, $document->id]),
+                    'download_url' => route('dee.dossiers.documents.telecharger', [$dossier->id, $document->id]),
 
                     'depose_par'       => $this->objectValue($document, ['depose_par', 'uploaded_by_role'], '—'),
                     'uploader_nom'     => $uploaderName,
@@ -557,6 +823,63 @@ class DossierController extends Controller
         })->values();
     }
 
+    private function expectedDocumentsPayload(Dossier $dossier, $documents, $rapportsExperts): array
+    {
+        $formulaireComplete = Schema::hasTable('etablissement_onboardings')
+            && EtablissementOnboarding::where('etablissement_id', $dossier->etablissement_id)
+                ->where('statut', 'complete')
+                ->exists();
+
+        $rapportAutoevaluation = $documents->contains(function (array $document) {
+            $texte = strtolower(implode(' ', array_filter([
+                $document['type'] ?? null,
+                $document['titre'] ?? null,
+                $document['nom'] ?? null,
+                $document['original_name'] ?? null,
+            ])));
+
+            return str_contains($texte, 'rapport_autoevaluation')
+                || str_contains($texte, 'autoevaluation')
+                || str_contains($texte, 'autoévaluation');
+        });
+
+        $annexesAttendues = Schema::hasTable('criteres')
+            ? \App\Models\Critere::all()->sum(fn ($critere) => count($critere->preuves ?? []))
+            : 0;
+
+        $annexesDeposees = Schema::hasTable('critere_preuves')
+            ? \App\Models\CriterePreuve::where('etablissement_id', $dossier->etablissement_id)
+                ->where('existe', true)
+                ->whereNotNull('fichier_path')
+                ->count()
+            : 0;
+
+        $annexesStatut = $annexesDeposees > 0 && $annexesDeposees >= $annexesAttendues
+            ? 'valid'
+            : ($annexesDeposees > 0 ? 'progress' : 'waiting');
+
+        return [
+            'formulaire' => [
+                'statut' => $formulaireComplete ? 'valid' : 'waiting',
+                'detail' => $formulaireComplete ? 'Formulaire complété' : 'En attente',
+            ],
+            'rapport_autoevaluation' => [
+                'statut' => $rapportAutoevaluation ? 'valid' : 'waiting',
+                'detail' => $rapportAutoevaluation ? 'Document déposé' : 'En attente',
+            ],
+            'annexes' => [
+                'statut' => $annexesStatut,
+                'detail' => $annexesDeposees > 0
+                    ? "{$annexesDeposees}/{$annexesAttendues} preuves déposées"
+                    : 'En attente',
+            ],
+            'rapport_expert' => [
+                'statut' => $rapportsExperts->isNotEmpty() ? 'valid' : 'waiting',
+                'detail' => $rapportsExperts->isNotEmpty() ? 'Rapport déposé' : 'En attente',
+            ],
+        ];
+    }
+
     private function photosPayload(Dossier $dossier)
     {
         if (!Schema::hasTable('dossier_photos')) {
@@ -587,18 +910,26 @@ class DossierController extends Controller
         }
 
         if ($etablissement) {
+            $onboarding = EtablissementOnboarding::where('etablissement_id', $etablissement->id)->first();
+
             return [
-                'id' => $etablissement->id,
-                'nom' => $this->value(
-                    $etablissement,
-                    ['nom', 'etablissement_2', 'etablissement', 'name', 'intitule'],
-                    '—'
-                ),
-                'type' => $this->value($etablissement, ['type', 'categorie'], '—'),
-                'ville' => $this->value($etablissement, ['ville', 'city'], '—'),
-                'universite' => $this->value($etablissement, ['universite', 'universite_nom', 'university'], '—'),
-                'email' => $this->value($etablissement, ['email'], '—'),
+                'id'                    => $etablissement->id,
+                'nom'                   => $this->value($etablissement, ['nom', 'etablissement_2', 'etablissement', 'name', 'intitule'], '—'),
+                'acronyme'              => $this->value($etablissement, ['acronyme'], null),
+                'type'                  => $this->value($etablissement, ['type', 'categorie'], '—'),
+                'ville'                 => $this->value($etablissement, ['ville', 'city'], '—'),
+                'universite'            => $this->value($etablissement, ['universite', 'universite_nom', 'university'], '—'),
+                'email'                 => $this->value($etablissement, ['email'], '—'),
                 'domaine_connaissances' => $this->value($etablissement, ['domaine_connaissances'], null),
+                // Profil complété par l'établissement
+                'adresse'               => $onboarding?->adresse,
+                'site_web'              => $onboarding?->site_web,
+                'telephone'             => $onboarding?->telephone,
+                'responsable_nom'       => $onboarding?->responsable_nom,
+                'responsable_fonction'  => $onboarding?->responsable_fonction,
+                'responsable_email'     => $onboarding?->responsable_email,
+                'responsable_telephone' => $onboarding?->responsable_telephone,
+                'profil_complete'       => $onboarding?->statut === 'complete',
             ];
         }
 

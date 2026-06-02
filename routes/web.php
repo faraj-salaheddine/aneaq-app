@@ -11,6 +11,7 @@ use App\Http\Controllers\DEE\DossierPhotoController;
 use App\Http\Controllers\DEE\EtablissementController;
 use App\Http\Controllers\DEE\ExpertController;
 use App\Http\Controllers\DEE\ExpertInvitationController;
+use App\Http\Controllers\DEE\NotificationController;
 use App\Http\Controllers\DEE\ProfileController;
 use App\Http\Controllers\DEE\AuditTrailController;
 use App\Http\Controllers\QuestionsReponsesController;
@@ -37,6 +38,7 @@ use App\Http\Controllers\Expert\RecommandationDomaineController;
 use App\Http\Controllers\Expert\ParticipationController;
 use App\Http\Controllers\Expert\RapportExpertController;
 use App\Http\Controllers\Expert\ExpertCalendrierController;
+use App\Http\Controllers\Expert\EvaluationAnnexeController;
 use App\Http\Controllers\Etablissement\EtablissementDashboardController;
 use App\Http\Controllers\Etablissement\EtablissementProfilController;
 use App\Http\Controllers\Etablissement\EtablissementDocumentController;
@@ -173,6 +175,14 @@ Route::middleware(['auth', 'dee.admin'])
         Route::get('/dashboard', [AdminDashboardController::class, 'index'])
             ->name('dashboard');
 
+        // Notifications DEE
+        Route::prefix('notifications')->name('notifications.')->group(function () {
+            Route::get('/', [NotificationController::class, 'index'])->name('index');
+            Route::patch('/tout-lire', [NotificationController::class, 'toutMarquerLu'])->name('toutLire');
+            Route::delete('/vider', [NotificationController::class, 'vider'])->name('vider');
+            Route::patch('/{notification}/lire', [NotificationController::class, 'marquerLu'])->name('lire');
+        });
+
         // Établissements DEE
         Route::prefix('etablissements')->name('etablissements.')->group(function () {
             Route::get('/', [EtablissementController::class, 'index'])->name('index');
@@ -222,9 +232,16 @@ Route::middleware(['auth', 'dee.admin'])
             Route::get('/{dossier}', [DossierController::class, 'show'])->name('show');
             Route::patch('/{dossier}', [DossierController::class, 'update'])->name('update');
             Route::delete('/{dossier}', [DossierController::class, 'destroy'])->name('destroy');
+            Route::get('/{dossier}/annexes/{criterePreuve}/download', [DossierController::class, 'downloadAnnexe'])->name('annexes.download');
 
             Route::post('/{dossier}/documents', [DossierDocumentController::class, 'store'])
                 ->name('documents.store');
+            Route::get('/{dossier}/documents/{document}/voir', [DossierDocumentController::class, 'voir'])
+                ->whereNumber('document')
+                ->name('documents.voir');
+            Route::get('/{dossier}/documents/{document}/telecharger', [DossierDocumentController::class, 'telecharger'])
+                ->whereNumber('document')
+                ->name('documents.telecharger');
             Route::delete('/{dossier}/documents/{document}', [DossierDocumentController::class, 'destroy'])
                 ->whereNumber('document')
                 ->name('documents.destroy');
@@ -290,8 +307,13 @@ Route::middleware(['auth', 'dee.admin'])
         Route::prefix('dossiers/{dossier}/recommandations-suivi')->name('recommandations-suivi.')->group(function () {
             Route::get('/', [SuiviRecommandationController::class, 'index'])->name('index');
             Route::post('/{recommandation}/valider', [SuiviRecommandationController::class, 'valider'])->name('valider');
+            Route::post('/{recommandation}/valider-et-envoyer', [SuiviRecommandationController::class, 'validerEtEnvoyer'])->name('valider-et-envoyer');
             Route::post('/{recommandation}/renvoyer-expert', [SuiviRecommandationController::class, 'renvoyerExpert'])->name('renvoyer-expert');
+            Route::post('/{recommandation}/statut-suivi', [SuiviRecommandationController::class, 'mettreAJourStatutSuivi'])->name('statut-suivi');
+            Route::get('/preuves/{preuve}/telecharger', [SuiviRecommandationController::class, 'telechargerPreuve'])->name('preuves.telecharger');
+            Route::post('/accepter-et-envoyer-tous', [SuiviRecommandationController::class, 'validerEtEnvoyerTous'])->name('accepter-et-envoyer-tous');
             Route::post('/envoyer-etablissement', [SuiviRecommandationController::class, 'envoyerEtablissement'])->name('envoyer-etablissement');
+            Route::post('/{recommandation}/envoyer-etablissement-one', [SuiviRecommandationController::class, 'envoyerEtablissementOne'])->name('envoyer-etablissement-one');
             Route::post('/envoyer-rappel', [SuiviRecommandationController::class, 'envoyerRappel'])->name('envoyer-rappel');
             Route::post('/{recommandation}/cloturer', [SuiviRecommandationController::class, 'cloturer'])->name('cloturer');
         });
@@ -408,7 +430,7 @@ Route::middleware(['auth', 'role:expert'])
                 ->name('refuser');
         });
 
-        // Évaluation quantitative
+        // Évaluation quantitative (critères)
         Route::prefix('evaluations')->name('evaluations.')->group(function () {
             Route::get('/{dossier}', [EvaluationQuantitativeController::class, 'index'])
                 ->name('index');
@@ -416,6 +438,14 @@ Route::middleware(['auth', 'role:expert'])
                 ->name('sauvegarder');
             Route::post('/{dossier}/soumettre', [EvaluationQuantitativeController::class, 'soumettre'])
                 ->name('soumettre');
+        });
+
+        // Évaluation des annexes (preuves établissement — note 0-3)
+        Route::prefix('evaluations-annexes')->name('evaluations-annexes.')->group(function () {
+            Route::get('/',                       [EvaluationAnnexeController::class, 'liste'])      ->name('liste');
+            Route::get('/{dossier}',              [EvaluationAnnexeController::class, 'index'])      ->name('index');
+            Route::post('/{dossier}/sauvegarder', [EvaluationAnnexeController::class, 'sauvegarder'])->name('sauvegarder');
+            Route::post('/{dossier}/publier',     [EvaluationAnnexeController::class, 'publier'])    ->name('publier');
         });
 
         // Rapports Expert
@@ -504,9 +534,11 @@ Route::middleware(['auth', 'role:etablissement'])
 
 
         Route::get('/annexes', [AnnexeController::class, 'index'])->name('annexes');
-Route::post('/annexes', [AnnexeController::class, 'store'])->name('annexes.store');
-Route::get('/annexes/{criterePreuve}/download', [AnnexeController::class, 'download'])->name('annexes.download');
-Route::post('/annexes/note', [AnnexeController::class, 'saveNote'])->name('annexes.note');
+        Route::post('/annexes', [AnnexeController::class, 'store'])->name('annexes.store');
+        Route::get('/annexes/{criterePreuve}/download', [AnnexeController::class, 'download'])->name('annexes.download');
+        Route::post('/annexes/note', [AnnexeController::class, 'saveNote'])->name('annexes.note');
+        Route::post('/annexes/notes/batch', [AnnexeController::class, 'saveNotesBatch'])->name('annexes.notes.batch');
+        Route::post('/annexes/publier', [AnnexeController::class, 'publier'])->name('annexes.publier');
 
 
 // Document complémentaire
@@ -531,8 +563,8 @@ Route::get('/historique', [EtablissementHistoriqueController::class, 'index'])->
         // Suivi des recommandations (établissement)
         Route::prefix('recommandations/{dossier}')->name('recommandations.')->group(function () {
             Route::get('/', [RecommandationSuiviController::class, 'index'])->name('index');
-            Route::post('/{recommandation}/repondre', [RecommandationSuiviController::class, 'repondre'])->name('repondre');
-            Route::post('/{recommandation}/preuve', [RecommandationSuiviController::class, 'uploaderPreuve'])->name('preuve');
+            Route::post('/{recommandation}/preuves', [RecommandationSuiviController::class, 'uploaderPlusieursPreuves'])->name('preuves');
+            Route::post('/{recommandation}/envoyer-dee', [RecommandationSuiviController::class, 'envoyerAuDEE'])->name('envoyer-dee');
             Route::delete('/preuves/{preuve}', [RecommandationSuiviController::class, 'supprimerPreuve'])->name('preuve.supprimer');
         });
     });
