@@ -27,7 +27,6 @@ import {
     Save,
     Search,
     Send,
-    ShieldCheck,
     Trash2,
     Upload,
     UserCheck,
@@ -387,6 +386,7 @@ function Show({ dossier, experts = [], allExperts = [], dossierExperts = [], doc
     const [rejectModal, setRejectModal] = useState({ open: false, rapport: null });
     const [motifRejet, setMotifRejet] = useState('');
     const [confirmAcceptModal, setConfirmAcceptModal] = useState({ open: false, rapport: null });
+    const [envoyerModal, setEnvoyerModal] = useState({ open: false, rapport: null });
 
     const [deleteModal, setDeleteModal] = useState({
         open: false,
@@ -544,6 +544,14 @@ function Show({ dossier, experts = [], allExperts = [], dossierExperts = [], doc
 
     const validerRapport = (rapport) => {
         setConfirmAcceptModal({ open: true, rapport });
+    };
+
+    const envoyerRapportAEtablissement = () => {
+        router.post(
+            `/dee/dossiers/${dossier.id}/rapports/${envoyerModal.rapport.id}/envoyer-etablissement`,
+            {},
+            { preserveScroll: true, onSuccess: () => setEnvoyerModal({ open: false, rapport: null }) }
+        );
     };
 
     const confirmValider = () => {
@@ -762,9 +770,44 @@ function Show({ dossier, experts = [], allExperts = [], dossierExperts = [], doc
                 </div>
             )}
 
+            {envoyerModal.open && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+                    <div className="w-full max-w-md rounded-3xl bg-white p-8 shadow-2xl">
+                        <div className="flex items-center gap-3">
+                            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-100 text-blue-600">
+                                <Send size={22} />
+                            </div>
+                            <div>
+                                <h3 className="text-xl font-black text-slate-900">Envoyer à l'établissement</h3>
+                                <p className="text-sm font-medium text-slate-500">Expert : {envoyerModal.rapport?.expert_nom}</p>
+                            </div>
+                        </div>
+                        <p className="mt-5 text-sm font-medium text-slate-600 leading-7">
+                            Confirmez-vous l'envoi de ce rapport final à l'établissement ? Il recevra une notification.
+                        </p>
+                        <div className="mt-6 flex justify-end gap-3">
+                            <button
+                                type="button"
+                                onClick={() => setEnvoyerModal({ open: false, rapport: null })}
+                                className="rounded-2xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-black text-slate-700 hover:bg-slate-50"
+                            >
+                                Annuler
+                            </button>
+                            <button
+                                type="button"
+                                onClick={envoyerRapportAEtablissement}
+                                className="rounded-2xl bg-blue-600 px-5 py-2.5 text-sm font-black text-white transition hover:bg-blue-700"
+                            >
+                                Confirmer l'envoi
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <MessageriePanel dossierId={dossier.id} currentRole="admin_dee" />
 
-            <div className="mx-auto max-w-[98rem] px-4 py-10 sm:px-6 lg:px-8">
+            <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
                 <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                     <div>
                         <p className="text-sm font-black uppercase tracking-[0.25em] text-blue-600">
@@ -899,6 +942,8 @@ function Show({ dossier, experts = [], allExperts = [], dossierExperts = [], doc
                         </div>
                     </div>
                 </div>
+
+                <WorkflowProgressBar expectedDocuments={expectedDocuments} hasDateVisite={hasDateVisite} evaluationsAnnexes={evaluationsAnnexes} />
 
                 <div className="mt-7 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                     <StatCard
@@ -1616,6 +1661,7 @@ function Show({ dossier, experts = [], allExperts = [], dossierExperts = [], doc
                                             rapport={rapport}
                                             onValider={() => validerRapport(rapport)}
                                             onRejeter={() => openRejectModal(rapport)}
+                                            onEnvoyer={() => setEnvoyerModal({ open: true, rapport })}
                                         />
                                     ))}
                                 </div>
@@ -1802,32 +1848,6 @@ function Show({ dossier, experts = [], allExperts = [], dossierExperts = [], doc
                             </div>
                         </div>
 
-                        <div className="rounded-[2rem] bg-gradient-to-br from-[#13255c] to-[#223983] p-7 text-white shadow-xl">
-                            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/10 text-white">
-                                <ShieldCheck size={24} />
-                            </div>
-
-                            <p className="mt-6 text-sm font-bold uppercase tracking-[0.24em] text-blue-100">
-                                Workflow
-                            </p>
-
-                            <h3 className="mt-3 text-2xl font-black">
-                                Statut automatique
-                            </h3>
-
-                            <p className="mt-4 text-sm leading-7 text-blue-50/80">
-                                Le statut change selon les documents déposés par l'établissement ou les experts,
-                                et selon la date de visite planifiée.
-                            </p>
-
-                            <div className="mt-6 space-y-3">
-                                <WorkflowItem text="Formulaire rempli" />
-                                <WorkflowItem text="Rapport d'autoévaluation ajouté" />
-                                <WorkflowItem text="Annexes ajoutées" />
-                                <WorkflowItem text="Rapport expert ajouté" />
-                                <WorkflowItem text="Date de visite planifiée" />
-                            </div>
-                        </div>
                     </div>
                 </div>
             </div>
@@ -2139,17 +2159,72 @@ function ExpectedDocument({ label, item = {} }) {
     );
 }
 
-function WorkflowItem({ text }) {
-    return (
-        <div className="flex items-center gap-3 rounded-2xl bg-white/10 p-3">
-            <BadgeCheck size={18} className="text-blue-200" />
+function WorkflowProgressBar({ expectedDocuments, hasDateVisite, evaluationsAnnexes }) {
+    const steps = [
+        { label: 'Formulaire',     done: expectedDocuments?.formulaire?.statut === 'valid' },
+        { label: 'Autoévaluation', done: expectedDocuments?.rapport_autoevaluation?.statut === 'valid' },
+        { label: 'Annexes',        done: expectedDocuments?.annexes?.statut === 'valid' },
+        { label: 'Date de visite', done: !!hasDateVisite },
+        { label: 'Éval. Annexes',  done: (evaluationsAnnexes?.length ?? 0) > 0 && evaluationsAnnexes.some(e => e.soumis_le) },
+        { label: 'Rapport expert', done: expectedDocuments?.rapport_expert?.statut === 'valid' },
+    ];
 
-            <span className="text-sm font-semibold text-blue-50">
-                {text}
-            </span>
+    const doneCount = steps.filter(s => s.done).length;
+    const pct = Math.round((doneCount / steps.length) * 100);
+
+    return (
+        <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            {/* top progress bar */}
+            <div className="h-1.5 w-full bg-slate-100">
+                <div
+                    className="h-full bg-gradient-to-r from-emerald-400 to-emerald-500 transition-all duration-500"
+                    style={{ width: `${pct}%` }}
+                />
+            </div>
+
+            <div className="px-6 py-3">
+                <div className="mb-3 flex items-center justify-between">
+                    <p className="text-xs font-black uppercase tracking-widest text-slate-400">Progression du dossier</p>
+                    <span className="rounded-full bg-emerald-50 px-3 py-0.5 text-xs font-black text-emerald-600">
+                        {doneCount}/{steps.length} étapes
+                    </span>
+                </div>
+
+                <div className="flex items-center">
+                    {steps.map((step, i) => (
+                        <div key={step.label} className={`flex items-center ${i < steps.length - 1 ? 'flex-1' : 'flex-shrink-0'}`}>
+                            <div className="flex flex-col items-center gap-1.5 flex-shrink-0">
+                                <div className={`flex h-10 w-10 items-center justify-center rounded-full shadow-sm transition-all duration-300 ${
+                                    step.done
+                                        ? 'bg-emerald-500 text-white shadow-emerald-200'
+                                        : 'bg-slate-100 text-slate-400 border border-slate-200'
+                                }`}>
+                                    {step.done
+                                        ? <CheckCircle2 size={20} strokeWidth={2.5} />
+                                        : <span className="text-xs font-black">{i + 1}</span>
+                                    }
+                                </div>
+                                <span className={`text-[11px] font-bold text-center leading-tight w-[72px] ${
+                                    step.done ? 'text-emerald-600' : 'text-slate-400'
+                                }`}>{step.label}</span>
+                            </div>
+                            {i < steps.length - 1 && (
+                                <div className="flex-1 mx-1 mb-5">
+                                    <div className="h-0.5 w-full rounded-full bg-slate-100 overflow-hidden">
+                                        <div className={`h-full rounded-full transition-all duration-500 ${
+                                            step.done ? 'bg-emerald-400 w-full' : 'w-0'
+                                        }`} />
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    ))}
+                </div>
+            </div>
         </div>
     );
 }
+
 
 function CategorieBadge({ categorie }) {
     const styles = {
@@ -2166,7 +2241,7 @@ function CategorieBadge({ categorie }) {
     );
 }
 
-function RapportExpertCard({ rapport, onValider, onRejeter }) {
+function RapportExpertCard({ rapport, onValider, onRejeter, onEnvoyer }) {
     const statutStyles = {
         depose: { bg: 'bg-amber-100 text-amber-700', label: 'En attente' },
         valide: { bg: 'bg-emerald-100 text-emerald-700', label: 'Validé' },
@@ -2220,6 +2295,16 @@ function RapportExpertCard({ rapport, onValider, onRejeter }) {
                             <Eye size={15} />
                             Ouvrir
                         </a>
+                    )}
+                    {rapport.statut === 'valide' && (
+                        <button
+                            type="button"
+                            onClick={onEnvoyer}
+                            className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-black text-white transition hover:bg-blue-700"
+                        >
+                            <Send size={15} />
+                            Envoyer à l'établissement
+                        </button>
                     )}
                     {rapport.statut === 'depose' && (
                         <>

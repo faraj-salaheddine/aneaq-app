@@ -8,6 +8,7 @@ use App\Models\DossierDocument;
 use App\Models\Etablissement;
 use App\Models\NotificationAneaq;
 use App\Services\ActivityLogger;
+use App\Services\NotifierDee;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -19,9 +20,10 @@ use Inertia\Response;
 
 class EtablissementDocumentController extends Controller
 {
+    use ResolvesActiveEtablissement;
     public function index(): Response
     {
-        $etablissement = Etablissement::where('user_id', Auth::id())->firstOrFail();
+        $etablissement = $this->activeEtablissement();
         $dossier       = Dossier::where('etablissement_id', $etablissement->id)->latest()->first();
         if (!$dossier) return Inertia::render('Etablissement/SansDossier', ['page' => "Rapport d'autoévaluation"]);
 
@@ -39,7 +41,7 @@ class EtablissementDocumentController extends Controller
 
     public function store(Request $request): RedirectResponse
 {
-    $etablissement = Etablissement::where('user_id', Auth::id())->firstOrFail();
+    $etablissement = $this->activeEtablissement();
     $dossier       = Dossier::where('etablissement_id', $etablissement->id)->latest()->firstOrFail();
 
     $request->validate([
@@ -95,6 +97,13 @@ class EtablissementDocumentController extends Controller
         'Dossier', $dossier->id
     );
 
+    NotifierDee::pourDossier(
+        $dossier,
+        'document',
+        "Rapport d'autoévaluation ajouté — {$dossier->reference}",
+        "L'établissement {$this->etablissementNom($etablissement)} a ajouté son rapport d'autoévaluation au dossier {$dossier->reference} : {$pdf->getClientOriginalName()} et {$word->getClientOriginalName()}."
+    );
+
     ActivityLogger::log(
         'rapport_depose',
         "Rapport d'autoévaluation déposé pour le dossier {$dossier->reference}",
@@ -106,7 +115,7 @@ class EtablissementDocumentController extends Controller
 
     public function telecharger(DossierDocument $document)
     {
-        $etablissement = Etablissement::where('user_id', Auth::id())->firstOrFail();
+        $etablissement = $this->activeEtablissement();
         $dossier       = Dossier::where('etablissement_id', $etablissement->id)->latest()->firstOrFail();
 
         abort_if($document->dossier_id !== $dossier->id, 403);
@@ -121,7 +130,7 @@ class EtablissementDocumentController extends Controller
 
     public function voir(DossierDocument $document)
 {
-    $etablissement = Etablissement::where('user_id', Auth::id())->firstOrFail();
+    $etablissement = $this->activeEtablissement();
     $dossier       = Dossier::where('etablissement_id', $etablissement->id)->latest()->firstOrFail();
     abort_if($document->dossier_id !== $dossier->id, 403);
     abort_if(!Storage::disk('local')->exists($document->file_path), 404);
@@ -139,7 +148,7 @@ class EtablissementDocumentController extends Controller
 
 public function complementaires(): Response
 {
-    $etablissement = Etablissement::where('user_id', Auth::id())->firstOrFail();
+    $etablissement = $this->activeEtablissement();
     $dossier       = Dossier::where('etablissement_id', $etablissement->id)->latest()->first();
     if (!$dossier) return Inertia::render('Etablissement/SansDossier', ['page' => 'Documents complémentaires']);
 
@@ -157,7 +166,7 @@ public function complementaires(): Response
 
 public function storeComplementaire(Request $request): RedirectResponse
 {
-    $etablissement = Etablissement::where('user_id', Auth::id())->firstOrFail();
+    $etablissement = $this->activeEtablissement();
     $dossier       = Dossier::where('etablissement_id', $etablissement->id)->latest()->firstOrFail();
 
     $request->validate([
@@ -191,6 +200,13 @@ public function storeComplementaire(Request $request): RedirectResponse
         'Dossier', $dossier->id
     );
 
+    NotifierDee::pourDossier(
+        $dossier,
+        'document',
+        "Document complémentaire ajouté — {$dossier->reference}",
+        "L'établissement {$this->etablissementNom($etablissement)} a ajouté le document complémentaire « {$file->getClientOriginalName()} » au dossier {$dossier->reference}."
+    );
+
     ActivityLogger::log(
         'document_complementaire_depose',
         "Document complémentaire déposé pour le dossier {$dossier->reference}",
@@ -202,7 +218,7 @@ public function storeComplementaire(Request $request): RedirectResponse
 
 public function rapportAneaq(): Response
 {
-    $etablissement = Etablissement::where('user_id', Auth::id())->firstOrFail();
+    $etablissement = $this->activeEtablissement();
     $dossier       = Dossier::where('etablissement_id', $etablissement->id)->latest()->first();
     if (!$dossier) return Inertia::render('Etablissement/SansDossier', ['page' => 'Rapport ANEAQ']);
 
@@ -236,7 +252,7 @@ public function rapportAneaq(): Response
                     'original_name' => $r->original_name ?? $r->titre ?? 'Rapport expert',
                     'observation'   => "Rapport déposé par l'expert : {$expertName}",
                     'created_at'    => $r->created_at,
-                    'url'           => $r->fichier ? asset('storage/' . $r->fichier) : null,
+                    'url'           => $r->file_path ? asset('storage/' . $r->file_path) : null,
                     'source'        => 'expert',
                 ];
             });
@@ -249,6 +265,15 @@ public function rapportAneaq(): Response
         'dossier'       => $dossier,
         'documents'     => $documents,
     ]);
+}
+
+private function etablissementNom(Etablissement $etablissement): string
+{
+    return $etablissement->etablissement_2
+        ?? $etablissement->etablissement
+        ?? $etablissement->nom
+        ?? $etablissement->acronyme
+        ?? 'concerné';
 }
 
 }

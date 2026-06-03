@@ -266,6 +266,8 @@ Route::middleware(['auth', 'dee.admin'])
                 ->name('rapports.valider');
             Route::post('/{dossier}/rapports/{rapport}/rejeter', [RapportExpertValidationController::class, 'rejeter'])
                 ->name('rapports.rejeter');
+            Route::post('/{dossier}/rapports/{rapport}/envoyer-etablissement', [RapportExpertValidationController::class, 'envoyerAEtablissement'])
+                ->name('rapports.envoyer-etablissement');
         });
 
         // Workflow DEE
@@ -556,6 +558,7 @@ Route::get('/historique', [EtablissementHistoriqueController::class, 'index'])->
 
         // Espace Q&R (Établissement)
         Route::prefix('questions-reponses')->name('questions-reponses.')->group(function () {
+            Route::get('/', [QuestionsReponsesController::class, 'indexEtablissementSansDossier'])->name('all');
             Route::get('/{dossier}', [QuestionsReponsesController::class, 'indexEtablissement'])->name('index');
             Route::post('/{dossier}', [QuestionsReponsesController::class, 'poserQuestion'])->name('store');
         });

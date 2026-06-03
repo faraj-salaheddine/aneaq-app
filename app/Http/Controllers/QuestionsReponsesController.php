@@ -7,6 +7,7 @@ use App\Models\Etablissement;
 use App\Models\NotificationAneaq;
 use App\Models\QuestionReponse;
 use App\Services\ActivityLogger;
+use App\Services\NotifierDee;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
@@ -73,6 +74,8 @@ class QuestionsReponsesController extends Controller
 
     public function indexEtablissement(Dossier $dossier)
     {
+        $this->autoriserEtablissement($dossier);
+
         $questions = QuestionReponse::where('dossier_id', $dossier->id)
             ->where('user_id', Auth::id())
             ->with('reponduPar:id,name')
@@ -86,8 +89,38 @@ class QuestionsReponsesController extends Controller
         ]);
     }
 
+    public function indexEtablissementSansDossier()
+    {
+        $etablissement = Etablissement::where('user_id', Auth::id())->first();
+
+        // If they have a dossier via etablissement, redirect to proper route
+        if ($etablissement) {
+            $dossier = Dossier::where('etablissement_id', $etablissement->id)->latest()->first();
+            if ($dossier) {
+                return redirect()->route('etablissement.questions-reponses.index', $dossier->id);
+            }
+        }
+
+        // Try to find a dossier from existing questions (covers edge cases)
+        $lastQuestion = QuestionReponse::where('user_id', Auth::id())->latest()->first();
+        $dossier = $lastQuestion ? Dossier::find($lastQuestion->dossier_id) : null;
+
+        $questions = QuestionReponse::where('user_id', Auth::id())
+            ->with('reponduPar:id,name', 'dossier:id,reference')
+            ->orderByDesc('created_at')
+            ->get()
+            ->map(fn ($q) => $this->formatQuestion($q));
+
+        return Inertia::render('Etablissement/QuestionsReponses', [
+            'dossier'   => $dossier ? $dossier->only('id', 'reference') : null,
+            'questions' => $questions,
+        ]);
+    }
+
     public function poserQuestion(Request $request, Dossier $dossier)
     {
+        $this->autoriserEtablissement($dossier);
+
         $request->validate(['question' => 'required|string|max:2000']);
 
         QuestionReponse::create([
@@ -101,6 +134,13 @@ class QuestionsReponsesController extends Controller
             'Question envoyée',
             'Votre question a été transmise à la DEE. Vous serez notifié dès réception d\'une réponse.',
             'Dossier', $dossier->id
+        );
+
+        NotifierDee::pourDossier(
+            $dossier,
+            'question',
+            "Question établissement — {$dossier->reference}",
+            "L'établissement a ajouté une question au dossier {$dossier->reference} : « " . Str::limit($request->question, 140) . " »"
         );
 
         ActivityLogger::log('question_posee', "Question posée pour le dossier {$dossier->reference}", $dossier);
@@ -127,5 +167,14 @@ class QuestionsReponsesController extends Controller
                     ?? $q->dossier->etablissement?->acronyme,
             ] : null,
         ];
+    }
+
+    private function autoriserEtablissement(Dossier $dossier): void
+    {
+        $autorise = Etablissement::where('user_id', Auth::id())
+            ->where('id', $dossier->etablissement_id)
+            ->exists();
+
+        abort_unless($autorise, 403);
     }
 }

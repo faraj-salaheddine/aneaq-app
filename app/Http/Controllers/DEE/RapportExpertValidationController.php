@@ -3,12 +3,17 @@
 namespace App\Http\Controllers\DEE;
 
 use App\Http\Controllers\Controller;
+use App\Mail\RapportEnvoyeEtablissementMail;
 use App\Models\Dossier;
+use App\Models\Etablissement;
 use App\Models\Expert;
 use App\Models\NotificationAneaq;
+use App\Models\User;
+use App\Services\ActivityLogger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Schema;
 
 class RapportExpertValidationController extends Controller
@@ -65,6 +70,56 @@ class RapportExpertValidationController extends Controller
         $this->notifyExpert($row->expert_id, $dossier, 'rejete', $request->input('motif'));
 
         return back()->with('success', 'Rapport expert refusé.');
+    }
+
+    public function envoyerAEtablissement(Dossier $dossier, $rapport)
+    {
+        $row = DB::table('rapports_experts')
+            ->where('id', $rapport)
+            ->where('dossier_id', $dossier->id)
+            ->where('statut', 'valide')
+            ->first();
+
+        abort_if(!$row, 404);
+
+        // Notify + email the établissement user
+        $etablissement = Etablissement::where('id', $dossier->etablissement_id)->first();
+        if ($etablissement?->user_id) {
+            $expertRow  = DB::table('experts')->where('id', $row->expert_id)->first();
+            $expertName = $expertRow?->nom_complet ?? $expertRow?->prenom . ' ' . $expertRow?->nom ?? 'un expert';
+
+            NotificationAneaq::envoyer(
+                $etablissement->user_id,
+                'rapport_envoye',
+                'Rapport expert disponible',
+                "Le rapport final de {$expertName} pour le dossier {$dossier->reference} vous a été transmis par la DEE.",
+                'Dossier',
+                $dossier->id
+            );
+
+            $etabUser = User::find($etablissement->user_id);
+            if ($etabUser?->email) {
+                $etabNom = $etablissement->etablissement_2 ?? $etablissement->etablissement ?? $etablissement->acronyme ?? $etabUser->name;
+                try {
+                    Mail::to($etabUser->email)->send(new RapportEnvoyeEtablissementMail(
+                        etablissementNom:   $etabNom,
+                        dossierReference:   $dossier->reference,
+                        expertNom:          $expertName,
+                        platformUrl:        url('/etablissement/dashboard'),
+                    ));
+                } catch (\Throwable) {
+                    // Email failure must not block the action
+                }
+            }
+        }
+
+        ActivityLogger::log(
+            'rapport_envoye_etablissement',
+            "Rapport expert (ID {$rapport}) envoyé à l'établissement pour le dossier {$dossier->reference}",
+            $dossier
+        );
+
+        return back()->with('success', 'Rapport envoyé à l\'établissement avec succès.');
     }
 
     private function notifyExpert(int $expertId, Dossier $dossier, string $action, ?string $motif = null): void

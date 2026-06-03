@@ -87,6 +87,7 @@ export default function DashboardShell({ children }) {
             <style>{`
                 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap');
                 .dee-layout * { font-family: 'DM Sans', sans-serif; box-sizing: border-box; }
+                .dee-layout { zoom: 0.9; }
                 .dee-nav-link { transition: all 0.18s ease; }
                 .dee-nav-link:hover { background: rgba(255,255,255,0.07) !important; }
                 .dee-logout-btn { transition: all 0.18s ease; }
@@ -103,7 +104,7 @@ export default function DashboardShell({ children }) {
             <div
                 className="dee-layout"
                 dir={isArabic ? 'rtl' : 'ltr'}
-                style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: '#f1f5f9' }}
+                style={{ display: 'flex', height: 'calc(100vh / 0.9)', overflow: 'hidden', background: '#f1f5f9', zoom: 0.9 }}
             >
                 {/* ── Sidebar ── */}
                 <aside style={{

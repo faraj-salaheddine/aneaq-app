@@ -32,7 +32,7 @@ const IC = {
     info:    "M12 2a10 10 0 100 20A10 10 0 0012 2zm0 7v5m0 4v.01",
 };
 
-export default function RapportAneaq({ etablissement, dossier, documents = [] }) {
+export default function RapportAneaq({ dossier, documents = [] }) {
     const hasRapport = documents.length > 0;
     const dernierRapport = documents[0] ?? null;
 
@@ -225,31 +225,39 @@ export default function RapportAneaq({ etablissement, dossier, documents = [] })
 
                                             {/* actions */}
                                             <div style={{ display:"flex", gap:6, flexShrink:0 }}>
-                                                <a className="ra-see"
-                                                    href={route("etablissement.documents.voir", doc.id)}
-                                                    target="_blank"
-                                                    style={{
-                                                        display:"inline-flex", alignItems:"center", gap:4,
-                                                        padding:"6px 13px", borderRadius:7,
-                                                        border:"1px solid #c6f0df", background:"#ecfaf4",
-                                                        color:"#0e7c5b", fontSize:12, fontWeight:600,
-                                                        textDecoration:"none", transition:"all .1s",
-                                                    }}>
-                                                    <Svg d={IC.eye} w={13} h={13} color="currentColor" sw={2}/>
-                                                    Voir
-                                                </a>
-                                                <a className="ra-dl"
-                                                    href={route("etablissement.documents.telecharger", doc.id)}
-                                                    style={{
-                                                        display:"inline-flex", alignItems:"center", gap:4,
-                                                        padding:"6px 13px", borderRadius:7,
-                                                        border:"1px solid #d6e4fb", background:"#eef3fd",
-                                                        color:"#1c5fdc", fontSize:12, fontWeight:600,
-                                                        textDecoration:"none", transition:"all .1s",
-                                                    }}>
-                                                    <Svg d={IC.dl} w={13} h={13} color="currentColor" sw={2}/>
-                                                    Télécharger
-                                                </a>
+                                                {doc.url && (
+                                                    <a className="ra-see"
+                                                        href={doc.source === 'expert' ? doc.url : route("etablissement.documents.voir", doc.id)}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        style={{
+                                                            display:"inline-flex", alignItems:"center", gap:4,
+                                                            padding:"6px 13px", borderRadius:7,
+                                                            border:"1px solid #c6f0df", background:"#ecfaf4",
+                                                            color:"#0e7c5b", fontSize:12, fontWeight:600,
+                                                            textDecoration:"none", transition:"all .1s",
+                                                        }}>
+                                                        <Svg d={IC.eye} w={13} h={13} color="currentColor" sw={2}/>
+                                                        Voir
+                                                    </a>
+                                                )}
+                                                {doc.url && (
+                                                    <a className="ra-dl"
+                                                        href={doc.source === 'expert' ? doc.url : route("etablissement.documents.telecharger", doc.id)}
+                                                        download={doc.source === 'expert' ? true : undefined}
+                                                        target={doc.source === 'expert' ? "_blank" : undefined}
+                                                        rel="noopener noreferrer"
+                                                        style={{
+                                                            display:"inline-flex", alignItems:"center", gap:4,
+                                                            padding:"6px 13px", borderRadius:7,
+                                                            border:"1px solid #d6e4fb", background:"#eef3fd",
+                                                            color:"#1c5fdc", fontSize:12, fontWeight:600,
+                                                            textDecoration:"none", transition:"all .1s",
+                                                        }}>
+                                                        <Svg d={IC.dl} w={13} h={13} color="currentColor" sw={2}/>
+                                                        Télécharger
+                                                    </a>
+                                                )}
                                             </div>
                                         </div>
                                     </div>

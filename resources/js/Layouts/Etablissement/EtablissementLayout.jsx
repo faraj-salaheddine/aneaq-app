@@ -136,12 +136,10 @@ export default function EtablissementLayout({ children, active }) {
     const dossierId    = props.etablissement_dossier_id;
     const notifsCount  = props.notifs_non_lues ?? 0;
 
-    const DOSSIER_REQUIRED = ['qr', 'documents', 'complementaires', 'rapport-aneaq', 'annexes'];
-
     const handleNavClick = (item) => {
         if (item.key === 'qr') {
             if (dossierId) router.visit(`/etablissement/questions-reponses/${dossierId}`);
-            else router.visit('/etablissement/sans-dossier');
+            else router.visit('/etablissement/questions-reponses');
             return;
         }
         router.visit(route(item.route));
