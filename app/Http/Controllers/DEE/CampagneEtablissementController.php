@@ -130,14 +130,16 @@ class CampagneEtablissementController extends Controller
                 ->where('email', $validated['email'])
                 ->first();
 
-            $isNewUser = !$user; // exposed to outer scope via reference
+            $isNewUser = !$user;
 
             if ($isNewUser) {
                 $user = new User();
                 $user->name = $this->etablissementName($etablissement);
                 $user->email = $validated['email'];
-                $user->password = Hash::make($password);
             }
+
+            // Always reset the password so the email credentials are always valid
+            $user->password = Hash::make($password);
 
             if ($this->hasColumn('users', 'role')) {
                 $user->role = 'etablissement';
@@ -194,38 +196,29 @@ class CampagneEtablissementController extends Controller
                 $messageLettre = null;
             }
 
-            Log::info('MESSAGE LETTRE DEE RECU AVANT EMAIL', [
-                'email' => $validated['email'],
+            // Always send the email with fresh credentials
+            Mail::to($validated['email'])->send(
+                new EtablissementAccountCreatedMail(
+                    $this->etablissementName($etablissement),
+                    $validated['email'],
+                    $password,
+                    $this->read($dossier, ['reference'], null),
+                    $this->read($campagneEvaluation, ['reference'], null),
+                    $messageLettre
+                )
+            );
+
+            Log::info('EMAIL ETABLISSEMENT ENVOYE AVEC SUCCES', [
+                'email'          => $validated['email'],
+                'is_new_user'    => $isNewUser,
+                'etablissement'  => $this->etablissementName($etablissement),
+                'dossier'        => $this->read($dossier, ['reference'], null),
+                'campagne'       => $this->read($campagneEvaluation, ['reference'], null),
                 'message_lettre' => $messageLettre,
-                'request_all' => $request->except(['lettre_dee']),
-                'has_file_lettre_dee' => $request->hasFile('lettre_dee'),
             ]);
-
-            if ($isNewUser) {
-                Mail::to($validated['email'])->send(
-                    new EtablissementAccountCreatedMail(
-                        $this->etablissementName($etablissement),
-                        $validated['email'],
-                        $password,
-                        $this->read($dossier, ['reference'], null),
-                        $this->read($campagneEvaluation, ['reference'], null),
-                        $messageLettre
-                    )
-                );
-
-                Log::info('EMAIL ETABLISSEMENT ENVOYE AVEC SUCCES', [
-                    'email' => $validated['email'],
-                    'etablissement' => $this->etablissementName($etablissement),
-                    'dossier' => $this->read($dossier, ['reference'], null),
-                    'campagne' => $this->read($campagneEvaluation, ['reference'], null),
-                    'message_lettre' => $messageLettre,
-                ]);
-            }
         });
 
-        $msg = $isNewUser
-            ? 'Compte établissement créé, dossier assigné et email envoyé avec succès.'
-            : 'Dossier assigné avec succès. Le compte existant a été conservé (aucune réinitialisation de mot de passe).';
+        $msg = 'Compte établissement ' . ($isNewUser ? 'créé' : 'mis à jour') . ', dossier assigné et email envoyé avec succès.';
 
         return back()->with('success', $msg);
     }

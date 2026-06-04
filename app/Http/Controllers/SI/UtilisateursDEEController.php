@@ -15,6 +15,20 @@ class UtilisateursDEEController extends Controller
 {
     public function index()
     {
+        // Auto-create UtilisateurDEE profile for any admin_dee user that doesn't have one yet
+        User::where('role', 'admin_dee')
+            ->whereNotIn('id', UtilisateurDEE::pluck('user_id'))
+            ->each(function (User $user) {
+                $parts = explode(' ', $user->name, 2);
+                UtilisateurDEE::create([
+                    'user_id'   => $user->id,
+                    'nom'       => $parts[0] ?? $user->name,
+                    'prenom'    => $parts[1] ?? '',
+                    'telephone' => null,
+                    'role'      => 'dee',
+                ]);
+            });
+
         return Inertia::render('SI/UtilisateursDEE/Index', [
             'dee' => UtilisateurDEE::with('user')->get(),
         ]);

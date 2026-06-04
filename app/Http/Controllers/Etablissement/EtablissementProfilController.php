@@ -7,6 +7,7 @@ use App\Models\Dossier;
 use App\Models\Etablissement;
 use App\Models\EtablissementOnboarding;
 use App\Services\ActivityLogger;
+use App\Services\NotifierDee;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -15,9 +16,10 @@ use Inertia\Response;
 
 class EtablissementProfilController extends Controller
 {
+    use ResolvesActiveEtablissement;
     public function show(): Response
     {
-        $etablissement = Etablissement::where('user_id', Auth::id())->firstOrFail();
+        $etablissement = $this->activeEtablissement();
         $onboarding    = EtablissementOnboarding::where('etablissement_id', $etablissement->id)->first();
 
         return Inertia::render('Etablissement/Profil/Show', [
@@ -28,7 +30,7 @@ class EtablissementProfilController extends Controller
 
     public function edit(): Response
     {
-        $etablissement = Etablissement::where('user_id', Auth::id())->firstOrFail();
+        $etablissement = $this->activeEtablissement();
         $onboarding    = EtablissementOnboarding::where('etablissement_id', $etablissement->id)->first();
 
         return Inertia::render('Etablissement/Profil/Edit', [
@@ -39,7 +41,7 @@ class EtablissementProfilController extends Controller
 
     public function update(Request $request): RedirectResponse
 {
-    $etablissement = Etablissement::where('user_id', Auth::id())->firstOrFail();
+    $etablissement = $this->activeEtablissement();
 
     $request->validate([
         'adresse'               => 'required|string|max:500',
@@ -82,6 +84,15 @@ class EtablissementProfilController extends Controller
     }
 
     ActivityLogger::log('profil_mis_a_jour', "Profil de l'établissement mis à jour", $etablissement);
+
+    if ($dossier) {
+        NotifierDee::pourDossier(
+            $dossier,
+            'info',
+            "Profil établissement complété — {$dossier->reference}",
+            "L'établissement a complété ou mis à jour son profil pour le dossier {$dossier->reference}."
+        );
+    }
 
     return redirect()->route('etablissement.profil.show')
         ->with('success', 'Profil mis à jour avec succès.');

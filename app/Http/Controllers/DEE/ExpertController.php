@@ -117,6 +117,10 @@ class ExpertController extends Controller
 
     public function destroy(Expert $expert)
     {
+        if (request()->input('dee_password') !== env('DEE_DELETE_PASSWORD')) {
+            return back()->with('error', 'Mot de passe incorrect. Suppression annulée.');
+        }
+
         $dossiersCount = DB::table('dossier_experts')
             ->where('expert_id', $expert->id)
             ->count();

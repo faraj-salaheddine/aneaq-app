@@ -90,10 +90,11 @@ class ParticipationController extends Controller
                         'acces_envoye',
                     ], true),
 
-                    'is_waiting_dee' => $status === 'accepte_par_expert',
+                    'is_waiting_dee' => false,
 
                     'is_confirmed' => in_array($status, [
                         'confirme_par_expert',
+                        'accepte_par_expert',
                         'comite_confirme',
                         'confirme',
                     ], true),

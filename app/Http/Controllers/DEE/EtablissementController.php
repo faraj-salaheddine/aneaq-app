@@ -510,6 +510,10 @@ class EtablissementController extends Controller
 
     public function destroy(Etablissement $etablissement)
     {
+        if (request()->input('dee_password') !== env('DEE_DELETE_PASSWORD')) {
+            return back()->with('error', 'Mot de passe incorrect. Suppression annulée.');
+        }
+
         $campagnesCount = 0;
 
         if ($this->hasTable('campagne_etablissements') && $this->hasColumn('campagne_etablissements', 'etablissement_id')) {

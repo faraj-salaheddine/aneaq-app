@@ -61,14 +61,14 @@ class ExpertDashboardController extends Controller
                 'email' => $expert->email ?? $user->email ?? '—',
             ],
             'stats' => [
-                'dossiers_actifs' => $affectations->where('status', 'confirme_par_expert')->count(),
-                'evaluations_en_cours' => $affectations->where('status', 'confirme_par_expert')->count(),
+                'dossiers_actifs' => $affectations->whereIn('status', ['confirme_par_expert', 'accepte_par_expert'])->count(),
+                'evaluations_en_cours' => $affectations->whereIn('status', ['confirme_par_expert', 'accepte_par_expert'])->count(),
                 'invitations_en_attente' => $affectations->whereIn('status', [
                     'en_attente_confirmation_expert',
                     'acces_envoye',
                 ])->count(),
-                'en_attente_dee' => $affectations->where('status', 'accepte_par_expert')->count(),
-                'rapports_a_deposer' => $affectations->where('status', 'confirme_par_expert')->count(),
+                'en_attente_dee' => 0,
+                'rapports_a_deposer' => $affectations->whereIn('status', ['confirme_par_expert', 'accepte_par_expert'])->count(),
             ],
             'affectations'         => $affectations->values(),
             'notifications'        => $notifications,
@@ -80,10 +80,15 @@ class ExpertDashboardController extends Controller
     {
         $this->authorizeExpertAffectation($dossierExpert);
 
-        $payload = ['status' => 'accepte_par_expert'];
+        // Directly confirm the expert — DEE already validated by creating the account
+        $payload = ['status' => 'confirme_par_expert'];
 
         if (Schema::hasColumn('dossier_experts', 'accepte_par_expert_at')) {
             $payload['accepte_par_expert_at'] = now();
+        }
+
+        if (Schema::hasColumn('dossier_experts', 'expert_confirmed_at')) {
+            $payload['expert_confirmed_at'] = now();
         }
 
         if (Schema::hasColumn('dossier_experts', 'expert_refused_at')) {
@@ -96,25 +101,36 @@ class ExpertDashboardController extends Controller
 
         $dossierExpert->forceFill($payload)->save();
 
-        // Trace self-action for expert
         $dossier = DB::table('dossiers')->where('id', $dossierExpert->dossier_id)->first();
         $ref = $dossier?->reference ?? '—';
+        $dossierId = $dossier?->id;
+
         try {
             NotificationAneaq::create([
                 'user_id' => Auth::id(),
                 'type'    => 'general',
-                'titre'   => "Invitation acceptée — {$ref}",
-                'message' => "Vous avez accepté votre participation pour le dossier {$ref}. En attente de confirmation par la DEE.",
+                'titre'   => "Participation confirmée — {$ref}",
+                'message' => "Vous avez rejoint le dossier {$ref}. Vous pouvez maintenant accéder à votre espace d'évaluation.",
                 'lu'      => true,
             ]);
         } catch (\Throwable) {}
 
-        // Notify all DEE admins
-        $this->notifyDeeAdmins($dossierExpert, 'accept');
+        // Notify all DEE admins (non-blocking)
+        try {
+            $this->notifyDeeAdmins($dossierExpert, 'accept');
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('ExpertDashboard accept notifyDeeAdmins: ' . $e->getMessage());
+        }
+
+        if ($dossierId) {
+            return redirect()
+                ->route('expert.dossiers.show', $dossierId)
+                ->with('success', "Participation confirmée ! Vous avez accès au dossier {$ref}.");
+        }
 
         return redirect()
-            ->route('expert.participations.index')
-            ->with('success', 'Invitation acceptée. Votre affectation est en attente de confirmation par la DEE.');
+            ->route('expert.dossiers.index')
+            ->with('success', "Participation confirmée ! Vous avez accès au dossier {$ref}.");
     }
 
     public function refuse(Request $request, DossierExpert $dossierExpert)
@@ -152,8 +168,12 @@ class ExpertDashboardController extends Controller
             ]);
         } catch (\Throwable) {}
 
-        // Notify all DEE admins with motif
-        $this->notifyDeeAdmins($dossierExpert, 'refuse', $motif);
+        // Notify all DEE admins with motif (non-blocking)
+        try {
+            $this->notifyDeeAdmins($dossierExpert, 'refuse', $motif);
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('ExpertDashboard refuse notifyDeeAdmins: ' . $e->getMessage());
+        }
 
         return back()->with('success', 'Invitation refusée. La DEE a été notifiée.');
     }

@@ -73,6 +73,56 @@ class DossierDocumentController extends Controller
         return back()->with('success', 'Document ajouté avec succès.');
     }
 
+    public function voir(Request $request, Dossier $dossier, $document)
+    {
+        $table = $this->documentsTable();
+        $row   = $table ? DB::table($table)->where('id', $document)->where('dossier_id', $dossier->id)->first() : null;
+
+        abort_if(!$row, 404);
+
+        $path = $row->file_path ?? $row->path ?? $row->fichier ?? null;
+        abort_if(!$path, 404);
+
+        if (Storage::disk('public')->exists($path)) {
+            $fullPath = Storage::disk('public')->path($path);
+        } elseif (Storage::disk('local')->exists($path)) {
+            $fullPath = Storage::disk('local')->path($path);
+        } else {
+            abort(404);
+        }
+
+        $mime     = mime_content_type($fullPath);
+        $filename = $row->original_name ?? $row->filename ?? basename($path);
+
+        return response()->file($fullPath, [
+            'Content-Type'        => $mime,
+            'Content-Disposition' => 'inline; filename="' . $filename . '"',
+        ]);
+    }
+
+    public function telecharger(Request $request, Dossier $dossier, $document)
+    {
+        $table = $this->documentsTable();
+        $row   = $table ? DB::table($table)->where('id', $document)->where('dossier_id', $dossier->id)->first() : null;
+
+        abort_if(!$row, 404);
+
+        $path = $row->file_path ?? $row->path ?? $row->fichier ?? null;
+        abort_if(!$path, 404);
+
+        if (Storage::disk('public')->exists($path)) {
+            $fullPath = Storage::disk('public')->path($path);
+        } elseif (Storage::disk('local')->exists($path)) {
+            $fullPath = Storage::disk('local')->path($path);
+        } else {
+            abort(404);
+        }
+
+        $filename = $row->original_name ?? $row->filename ?? basename($path);
+
+        return response()->download($fullPath, $filename);
+    }
+
     public function destroy(Request $request, Dossier $dossier, $document)
     {
         request()->validate([
@@ -110,8 +160,12 @@ class DossierDocumentController extends Controller
             ?? $documentRow->fichier
             ?? null;
 
-        if ($path && Storage::disk('public')->exists($path)) {
-            Storage::disk('public')->delete($path);
+        if ($path) {
+            if (Storage::disk('public')->exists($path)) {
+                Storage::disk('public')->delete($path);
+            } elseif (Storage::disk('local')->exists($path)) {
+                Storage::disk('local')->delete($path);
+            }
         }
 
         DB::table($table)

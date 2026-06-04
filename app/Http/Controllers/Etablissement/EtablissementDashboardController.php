@@ -14,13 +14,13 @@ use Inertia\Response;
 
 class EtablissementDashboardController extends Controller
 {
+    use ResolvesActiveEtablissement;
+
     public function index(): Response
     {
-        $etablissement = Etablissement::where('user_id', Auth::id())->firstOrFail();
-
-        $dossier = Dossier::where('etablissement_id', $etablissement->id)->latest()->first();
-
-        $onboarding = EtablissementOnboarding::where('etablissement_id', $etablissement->id)->first();
+        $etablissement = $this->activeEtablissement();
+        $dossier       = Dossier::where('etablissement_id', $etablissement->id)->latest()->first();
+        $onboarding    = EtablissementOnboarding::where('etablissement_id', $etablissement->id)->first();
 
         $notifications = NotificationAneaq::where('user_id', Auth::id())
             ->latest()->take(5)->get()
@@ -140,19 +140,24 @@ class EtablissementDashboardController extends Controller
 
         $mapping = [
             // French label variants
-            'date de visite planifiée' => 'visite_planifiee',
-            'visite planifiée'         => 'visite_planifiee',
-            'rapport déposé'           => 'rapport_depose',
-            'profil complété'          => 'formulaire_complete',
-            'validé'                   => 'valide',
-            'rejeté'                   => 'valide',
-            // Raw DB slug variants
-            'rapport_en_attente'       => 'rapport_depose',
-            'date_visite_planifiee'    => 'visite_planifiee',
-            'visite_planifiee'         => 'visite_planifiee',
-            'valide'                   => 'valide',
-            'valide_definitif'         => 'valide',
-            'cloture'                  => 'valide',
+            'établissement sélectionné'  => 'en_attente_formulaire',
+            'sélectionné'                => 'en_attente_formulaire',
+            'en attente formulaire'      => 'en_attente_formulaire',
+            'acces_envoye'               => 'en_attente_formulaire',
+            'accès envoyé'               => 'en_attente_formulaire',
+            'profil complété'            => 'formulaire_complete',
+            'formulaire complété'        => 'formulaire_complete',
+            'rapport déposé'             => 'rapport_depose',
+            'rapport_en_attente'         => 'rapport_depose',
+            'date de visite planifiée'   => 'visite_planifiee',
+            'visite planifiée'           => 'visite_planifiee',
+            'date_visite_planifiee'      => 'visite_planifiee',
+            'visite_planifiee'           => 'visite_planifiee',
+            'validé'                     => 'valide',
+            'rejeté'                     => 'valide',
+            'valide'                     => 'valide',
+            'valide_definitif'           => 'valide',
+            'cloture'                    => 'valide',
         ];
 
         $statutBrut = strtolower(trim($dossier->statut ?? ''));
@@ -161,10 +166,15 @@ class EtablissementDashboardController extends Controller
         $ordre = array_column($etapes, 'statut');
         $idx   = array_search($statut, $ordre);
 
+        // Default to first step if statut is unrecognized
+        if ($idx === false) {
+            $idx = 0;
+        }
+
         return array_map(function ($etape, $i) use ($idx) {
             return array_merge($etape, [
-                'done'    => $idx !== false && $i <= $idx,
-                'current' => $idx !== false && $i === $idx,
+                'done'    => $i <= $idx,
+                'current' => $i === $idx,
             ]);
         }, $etapes, array_keys($etapes));
     }

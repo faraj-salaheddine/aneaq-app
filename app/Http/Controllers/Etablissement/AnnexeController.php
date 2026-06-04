@@ -5,8 +5,10 @@ namespace App\Http\Controllers\Etablissement;
 use App\Http\Controllers\Controller;
 use App\Models\Critere;
 use App\Models\CriterePreuve;
+use App\Models\Dossier;
 use App\Models\NotificationAneaq;
 use App\Services\ActivityLogger;
+use App\Services\NotifierDee;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
@@ -14,13 +16,15 @@ use Inertia\Inertia;
 
 class AnnexeController extends Controller
 {
+    use ResolvesActiveEtablissement;
+
     /**
      * Affiche la page des annexes avec tous les critères groupés
      * et les réponses déjà soumises par l'établissement connecté.
      */
     public function index()
     {
-        $etablissement = \App\Models\Etablissement::where('user_id', Auth::id())->firstOrFail();
+        $etablissement = $this->activeEtablissement();
 
         $criteres = Critere::all();
 
@@ -88,7 +92,7 @@ class AnnexeController extends Controller
      */
     public function store(Request $request)
     {
-        $etablissement = \App\Models\Etablissement::where('user_id', Auth::id())->firstOrFail();
+        $etablissement = $this->activeEtablissement();
 
         $request->validate([
             'critere_id'   => 'required|exists:criteres,id',
@@ -147,7 +151,7 @@ class AnnexeController extends Controller
             $data['fichier_nom']  = null;
         }
 
-        CriterePreuve::updateOrCreate(
+        $preuve = CriterePreuve::updateOrCreate(
             [
                 'critere_id'       => $request->critere_id,
                 'etablissement_id' => $etablissement->id,
@@ -163,7 +167,28 @@ class AnnexeController extends Controller
             'Etablissement', $etablissement->id
         );
 
+        $dossier = Dossier::where('etablissement_id', $etablissement->id)->latest()->first();
+        if ($dossier) {
+            $critere = Critere::find($request->critere_id);
+            $preuveNumero = $request->integer('preuve_index') + 1;
+            $critereLabel = $critere?->critere_num ?? "#{$request->critere_id}";
+            $detail = $preuve->existe
+                ? "a ajouté la preuve annexe {$preuveNumero} du critère {$critereLabel} : « {$preuve->fichier_nom} »"
+                : "a déclaré indisponible la preuve annexe {$preuveNumero} du critère {$critereLabel}";
+
+            NotifierDee::pourDossier(
+                $dossier,
+                'annexe',
+                "Annexe mise à jour — {$dossier->reference}",
+                "L'établissement {$detail} dans le dossier {$dossier->reference}."
+            );
+        }
+
         ActivityLogger::log('annexe_enregistree', 'Preuve annexe enregistrée', $etablissement);
+
+        if ($request->wantsJson()) {
+            return response()->json(['success' => true]);
+        }
 
         return back()->with('success', 'Preuve enregistrée avec succès.');
     }
@@ -173,7 +198,7 @@ class AnnexeController extends Controller
      */
     public function saveNote(Request $request)
     {
-        $etablissement = \App\Models\Etablissement::where('user_id', Auth::id())->firstOrFail();
+        $etablissement = $this->activeEtablissement();
 
         $request->validate([
             'critere_id'   => 'required|exists:criteres,id',
@@ -194,11 +219,87 @@ class AnnexeController extends Controller
     }
 
     /**
+     * Publie officiellement les annexes (enregistre l'événement et notifie la DEE).
+     */
+    public function publier(Request $request)
+    {
+        $etablissement = $this->activeEtablissement();
+
+        $total   = \App\Models\Critere::all()->sum(fn ($c) => count($c->preuves));
+        $soumises = \App\Models\CriterePreuve::where('etablissement_id', $etablissement->id)
+            ->where('existe', true)->count();
+
+        if ($soumises < $total) {
+            return response()->json([
+                'success' => false,
+                'message' => "Impossible de publier : {$soumises}/{$total} preuves soumises.",
+            ], 422);
+        }
+
+        ActivityLogger::log(
+            'annexes_publiees',
+            "Annexes publiées : {$soumises}/{$total} preuves soumises.",
+            $etablissement
+        );
+
+        NotificationAneaq::envoyer(
+            Auth::id(), 'annexe',
+            'Annexes publiées',
+            "L'établissement a publié ses {$soumises} annexes.",
+            'Etablissement', $etablissement->id
+        );
+
+        $dossier = Dossier::where('etablissement_id', $etablissement->id)->latest()->first();
+        if ($dossier) {
+            NotifierDee::pourDossier(
+                $dossier,
+                'annexe',
+                "Annexes publiées — {$dossier->reference}",
+                "L'établissement a publié officiellement {$soumises}/{$total} preuves annexes pour le dossier {$dossier->reference}."
+            );
+        }
+
+        return response()->json([
+            'success'  => true,
+            'soumises' => $soumises,
+            'total'    => $total,
+        ]);
+    }
+
+    /**
+     * Sauvegarde un lot de notes en une seule requête (utilisé par le bouton global).
+     */
+    public function saveNotesBatch(Request $request)
+    {
+        $etablissement = $this->activeEtablissement();
+
+        $request->validate([
+            'notes'                  => 'required|array|max:600',
+            'notes.*.critere_id'     => 'required|exists:criteres,id',
+            'notes.*.preuve_index'   => 'required|integer|min:0',
+            'notes.*.note'           => 'nullable|string|max:2000',
+        ]);
+
+        foreach ($request->notes as $item) {
+            CriterePreuve::updateOrCreate(
+                [
+                    'critere_id'       => $item['critere_id'],
+                    'etablissement_id' => $etablissement->id,
+                    'preuve_index'     => $item['preuve_index'],
+                ],
+                ['note' => $item['note'] ?? null]
+            );
+        }
+
+        return response()->json(['success' => true, 'saved' => count($request->notes)]);
+    }
+
+    /**
      * Télécharger un fichier de preuve.
      */
     public function download(CriterePreuve $criterePreuve)
     {
-        $etablissement = \App\Models\Etablissement::where('user_id', Auth::id())->firstOrFail();
+        $etablissement = $this->activeEtablissement();
 
         abort_if($criterePreuve->etablissement_id !== $etablissement->id, 403);
 

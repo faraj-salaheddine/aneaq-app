@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Expert;
 
 use App\Http\Controllers\Controller;
 use App\Models\Dossier;
+use App\Services\NotifierDee;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -106,13 +107,14 @@ class RapportExpertController extends Controller
         $rapport = $this->findRapport($expert->id, $dossier->id);
 
         return Inertia::render('Expert/Rapports/Deposer', [
-    'dossier' => [
-        'id' => $dossier->id,
-        'reference' => $dossier->reference ?? '—',
-        'statut' => $dossier->statut ?? $dossier->status ?? '—',
-    ],
-    'rapport' => $rapport,
-]);
+            'dossier' => [
+                'id'          => $dossier->id,
+                'reference'   => $dossier->reference ?? '—',
+                'statut'      => $dossier->statut ?? $dossier->status ?? '—',
+                'date_visite' => $dossier->date_visite ?? null,
+            ],
+            'rapport' => $rapport,
+        ]);
     }
 
     public function store(Request $request, Dossier $dossier)
@@ -125,6 +127,13 @@ class RapportExpertController extends Controller
         }
 
         $this->authorizeDossier($expert->id, $dossier->id);
+
+        $dateVisite = $dossier->date_visite ?? null;
+        if (!$dateVisite || \Carbon\Carbon::parse($dateVisite)->endOfDay()->isFuture()) {
+            return back()->withErrors([
+                'rapport' => 'Le rapport ne peut être déposé qu\'après la date de visite sur site.',
+            ]);
+        }
 
         $validated = $request->validate([
             'titre' => ['nullable', 'string', 'max:255'],
@@ -180,6 +189,13 @@ class RapportExpertController extends Controller
             ->where('id', $dossier->id)
             ->whereNotIn('statut', ['rapport_en_attente', 'valide', 'rejeté', 'valide_definitif'])
             ->update(['statut' => 'rapport_en_attente', 'updated_at' => now()]);
+
+        NotifierDee::pourDossier(
+            $dossier,
+            'document',
+            "Rapport expert ajouté — {$dossier->reference}",
+            "L'expert {$expert->prenom} {$expert->nom} a ajouté le rapport « {$file->getClientOriginalName()} » au dossier {$dossier->reference}."
+        );
 
         return redirect('/expert/dossiers/' . $dossier->id)
             ->with('success', 'Rapport déposé avec succès.');

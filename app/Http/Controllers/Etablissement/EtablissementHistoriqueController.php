@@ -12,9 +12,10 @@ use Inertia\Inertia;
 
 class EtablissementHistoriqueController extends Controller
 {
+    use ResolvesActiveEtablissement;
     public function index()
     {
-        $etablissement = Etablissement::where('user_id', Auth::id())->firstOrFail();
+        $etablissement = $this->activeEtablissement();
         $dossier       = Dossier::where('etablissement_id', $etablissement->id)->latest()->first();
         $dossierIds    = Dossier::where('etablissement_id', $etablissement->id)->pluck('id');
 

@@ -7,7 +7,7 @@ use App\Models\Expert;
 use App\Models\Dossier;
 use App\Models\CritereEvaluation;
 use App\Models\EvaluationQuantitative;
-use App\Models\NotificationAneaq;
+use App\Services\NotifierDee;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -91,14 +91,13 @@ class EvaluationQuantitativeController extends Controller
                 ->where('expert_id',$expert->id)->where('statut','brouillon')
                 ->update(['statut'=>'soumis','soumis_le'=>now()]);
 
-            $uids = DB::table('utilisateurs_dee')->pluck('user_id');
             $etab = DB::table('etablissements')->find($dossier->etablissement_id);
-            foreach ($uids as $uid) {
-                NotificationAneaq::envoyer($uid,'general',
-                    "Évaluation soumise — {$etab->acronyme} {$etab->ville}",
-                    "{$expert->prenom} {$expert->nom} a soumis son évaluation quantitative (Vague {$dossier->campagne}).",
-                    'dossier',$dossier->id);
-            }
+            NotifierDee::pourDossier(
+                $dossier,
+                'general',
+                "Évaluation soumise — {$etab->acronyme} {$etab->ville}",
+                "{$expert->prenom} {$expert->nom} a soumis son évaluation quantitative (Vague {$dossier->campagne})."
+            );
         });
 
         return redirect()->route('expert.dossiers.show', $dossier)

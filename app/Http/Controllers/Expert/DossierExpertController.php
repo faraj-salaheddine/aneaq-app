@@ -375,6 +375,20 @@ class DossierExpertController extends Controller
 
     private function calculateProgression($expertId, $dossierId): int
     {
+        /* Priorité au nouveau système : évaluation des annexes (preuves) */
+        if (Schema::hasTable('expert_preuve_evaluations')) {
+            $total = \App\Models\Critere::all()->sum(fn ($c) => count($c->preuves));
+            if ($total > 0) {
+                $evaluated = DB::table('expert_preuve_evaluations')
+                    ->where('dossier_id', $dossierId)
+                    ->where('expert_id', $expertId)
+                    ->whereNotNull('note')
+                    ->count();
+                return (int) round(($evaluated / $total) * 100);
+            }
+        }
+
+        /* Fallback : ancien système critères_evaluation */
         if (
             !Schema::hasTable('criteres_evaluation')
             || !Schema::hasTable('evaluations_quantitatives')
@@ -386,9 +400,7 @@ class DossierExpertController extends Controller
             ->whereNotNull('parent_id')
             ->count();
 
-        if ($totalCriteres <= 0) {
-            return 0;
-        }
+        if ($totalCriteres <= 0) return 0;
 
         $criteresSaisis = DB::table('evaluations_quantitatives')
             ->where('dossier_id', $dossierId)
@@ -450,14 +462,19 @@ class DossierExpertController extends Controller
 
     private function countRecommandations($expertId, $dossierId): int
     {
-        if (!Schema::hasTable('matrices_recommandations')) {
-            return 0;
+        if (Schema::hasTable('recommandations_domaines')) {
+            return DB::table('recommandations_domaines')
+                ->where('dossier_id', $dossierId)
+                ->where('expert_id', $expertId)
+                ->count();
         }
 
-        return DB::table('matrices_recommandations')
-            ->where('dossier_id', $dossierId)
-            ->where('expert_id', $expertId)
-            ->count();
+        return Schema::hasTable('matrices_recommandations')
+            ? DB::table('matrices_recommandations')
+                ->where('dossier_id', $dossierId)
+                ->where('expert_id', $expertId)
+                ->count()
+            : 0;
     }
 
     private function rowValue($row, array $columns, $default = '—')
