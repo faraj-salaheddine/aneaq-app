@@ -113,6 +113,10 @@ class RapportExpertValidationController extends Controller
             }
         }
 
+        DB::table('rapports_experts')
+            ->where('id', $rapport)
+            ->update(['statut' => 'envoye_etablissement', 'updated_at' => now()]);
+
         ActivityLogger::log(
             'rapport_envoye_etablissement',
             "Rapport expert (ID {$rapport}) envoyé à l'établissement pour le dossier {$dossier->reference}",

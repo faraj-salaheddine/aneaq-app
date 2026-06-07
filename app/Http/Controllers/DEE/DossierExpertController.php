@@ -14,6 +14,7 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
@@ -79,7 +80,7 @@ class DossierExpertController extends Controller
         DossierExpert::create($payload);
         ActivityLogger::log('expert_affecte', "Expert {$expert->prenom} {$expert->nom} affecté au dossier {$dossier->reference}", $dossier);
 
-        // Notify expert if they already have an account
+        // Email is sent even if the expert account has not been created yet.
         $this->notifyExpert($expert, 'affectation_dossier',
             "Proposition d'affectation — {$dossier->reference}",
             "Vous avez été proposé comme {$this->roleLabel($validated['role_expert'])} pour le dossier {$dossier->reference}. En attente de confirmation DEE.",
@@ -194,6 +195,7 @@ class DossierExpertController extends Controller
                     campaignReference: $dossier->campagne ?? $dossier->campagne_reference ?? '—',
                     confirmationUrl: $confirmationUrl,
                     expertRole: $this->roleLabel($dossierExpert->role_expert),
+                    committeeMembers: $this->committeeMembers($dossier->id),
                 )
             );
 
@@ -275,6 +277,7 @@ class DossierExpertController extends Controller
                     campaignReference: $dossier->campagne ?? $dossier->campagne_reference ?? '—',
                     confirmationUrl:   $confirmationUrl,
                     expertRole:        $this->roleLabel($dossierExpert->role_expert),
+                    committeeMembers:  $this->committeeMembers($dossier->id),
                 )
             );
 
@@ -349,24 +352,73 @@ class DossierExpertController extends Controller
     {
         if (!$expert) return;
 
-        try {
-            $userId = $expert->user_id ?? User::where('email', $expert->email)->value('id');
-            if (!$userId) return;
+        $userId = $expert->user_id ?? null;
 
-            // Platform notification
-            NotificationAneaq::envoyer($userId, $type, $titre, $message, 'Dossier', $dossierId);
+        if (!$userId && !empty($expert->email)) {
+            $userId = User::where('email', $expert->email)->value('id');
+        }
 
-            // Email notification — brief summary + link to platform
-            if (!empty($expert->email)) {
-                $expertName = trim(($expert->prenom ?? '') . ' ' . ($expert->nom ?? '')) ?: ($expert->name ?? 'Expert');
-                Mail::to($expert->email)->send(new ExpertNotificationMail(
-                    expertName:  $expertName,
-                    titre:       $titre,
-                    message:     $message,
-                    platformUrl: config('app.url') . '/expert/dashboard',
-                ));
+        if ($userId) {
+            try {
+                NotificationAneaq::envoyer($userId, $type, $titre, $message, 'Dossier', $dossierId);
+            } catch (\Throwable $e) {
+                Log::warning('Notification plateforme expert non envoyée', [
+                    'expert_id' => $expert->id,
+                    'dossier_id' => $dossierId,
+                    'error' => $e->getMessage(),
+                ]);
             }
-        } catch (\Throwable) {}
+        }
+
+        if (empty($expert->email)) {
+            return;
+        }
+
+        try {
+            $expertName = trim(($expert->prenom ?? '') . ' ' . ($expert->nom ?? '')) ?: ($expert->name ?? 'Expert');
+            Mail::to($expert->email)->send(new ExpertNotificationMail(
+                expertName: $expertName,
+                titre: $titre,
+                notificationMessage: $message,
+                platformUrl: config('app.url') . '/expert/dashboard',
+                committeeMembers: $this->committeeMembers($dossierId),
+            ));
+        } catch (\Throwable $e) {
+            Log::warning('Email expert non envoyé', [
+                'expert_id' => $expert->id,
+                'dossier_id' => $dossierId,
+                'email' => $expert->email,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    private function committeeMembers(int $dossierId): array
+    {
+        if (!Schema::hasTable('dossier_experts')) {
+            return [];
+        }
+
+        return DossierExpert::query()
+            ->with('expert')
+            ->where('dossier_id', $dossierId)
+            ->orderBy('id')
+            ->get()
+            ->map(function (DossierExpert $assignment) {
+                $expert = $assignment->expert;
+                $name = trim(($expert->prenom ?? '') . ' ' . ($expert->nom ?? ''));
+
+                if ($name === '') {
+                    $name = $expert->name ?? $expert->email ?? 'Expert';
+                }
+
+                return [
+                    'name' => $name,
+                    'role' => $this->roleLabel($assignment->role_expert),
+                    'status' => $this->statusLabel($assignment->status),
+                ];
+            })
+            ->all();
     }
 
     private function roleLabel(?string $role): string
@@ -375,6 +427,17 @@ class DossierExpertController extends Controller
             'chef_comite' => 'Chef de comité',
             'expert' => 'Expert',
             default => 'Expert',
+        };
+    }
+
+    private function statusLabel(?string $status): string
+    {
+        return match ($status) {
+            'en_attente_confirmation_dee' => 'En attente de confirmation DEE',
+            'en_attente_confirmation_expert', 'acces_envoye' => 'Invitation à confirmer',
+            'confirme_par_expert', 'accepte_par_expert' => 'Participation confirmée',
+            'refuse_par_expert' => 'Participation refusée',
+            default => $status ?: 'En attente',
         };
     }
 }

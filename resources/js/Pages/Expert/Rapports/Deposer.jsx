@@ -2,6 +2,10 @@ import { Head, router } from '@inertiajs/react';
 import { useState, useRef } from 'react';
 import { useForm } from '@inertiajs/react';
 import ExpertLayout from '@/Layouts/Expert/ExpertLayout';
+import {
+    canUploadFinalReport,
+    finalReportAvailabilityText,
+} from '@/utils/finalReportAvailability';
 
 const BLUE   = "#0C447C";
 const GREEN  = "#1D9E75";
@@ -9,6 +13,8 @@ const ORANGE = "#EF9F27";
 const RED    = "#e03131";
 
 export default function Deposer({ dossier = {}, rapport = null }) {
+    const canDepose = canUploadFinalReport(dossier);
+    const availabilityText = finalReportAvailabilityText(dossier);
     const form = useForm({
         titre:       rapport?.titre || 'Rapport expert',
         commentaire: rapport?.commentaire || '',
@@ -28,6 +34,7 @@ export default function Deposer({ dossier = {}, rapport = null }) {
 
     const handleFileDrop = (e) => {
         e.preventDefault();
+        if (!canDepose) return;
         setDragOver(false);
         const file = e.dataTransfer.files?.[0];
         if (file) form.setData('rapport', file);
@@ -89,6 +96,23 @@ export default function Deposer({ dossier = {}, rapport = null }) {
                         </a>
                     </div>
                 </div>
+
+                {/* Visit date blocking banner */}
+                {!canDepose && (
+                    <div className="fu" style={{ marginBottom: 20, border: `1px solid ${ORANGE}50`, borderRadius: 14, padding: "14px 20px", background: "#fffbeb", display: "flex", alignItems: "center", gap: 12, animationDelay: "0.05s" }}>
+                        <div style={{ width: 36, height: 36, borderRadius: 10, background: `${ORANGE}20`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                            <svg width={17} height={17} viewBox="0 0 24 24" fill="none" stroke={ORANGE} strokeWidth="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                        </div>
+                        <div>
+                            <p style={{ fontSize: 14, fontWeight: 700, color: "#92400e", margin: 0 }}>Dépôt non disponible</p>
+                            <p style={{ fontSize: 12, color: "#b45309", margin: "2px 0 0" }}>
+                                {dossier.date_visite
+                                    ? `${availabilityText} Le dépôt est possible minimum 1 jour après la visite sur site.`
+                                    : "Aucune date de visite n'a été planifiée pour ce dossier."}
+                            </p>
+                        </div>
+                    </div>
+                )}
 
                 {/* Existing rapport banner */}
                 {rapport && (
@@ -171,8 +195,8 @@ export default function Deposer({ dossier = {}, rapport = null }) {
 
                                 <div
                                     className="drop-zone"
-                                    onClick={() => fileRef.current.click()}
-                                    onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+                                    onClick={() => canDepose && fileRef.current.click()}
+                                    onDragOver={e => { e.preventDefault(); if (canDepose) setDragOver(true); }}
                                     onDragLeave={() => setDragOver(false)}
                                     onDrop={handleFileDrop}
                                     style={{
@@ -180,8 +204,9 @@ export default function Deposer({ dossier = {}, rapport = null }) {
                                         borderRadius: 14,
                                         padding: "2.5rem 1.5rem",
                                         textAlign: "center",
-                                        cursor: "pointer",
-                                        background: form.data.rapport ? `${GREEN}04` : dragOver ? `${BLUE}04` : "#fafbfc",
+                                        cursor: canDepose ? "pointer" : "not-allowed",
+                                        background: !canDepose ? "#f8fafc" : form.data.rapport ? `${GREEN}04` : dragOver ? `${BLUE}04` : "#fafbfc",
+                                        opacity: canDepose ? 1 : 0.65,
                                         transition: "all .2s",
                                     }}
                                 >
@@ -240,9 +265,9 @@ export default function Deposer({ dossier = {}, rapport = null }) {
                             </a>
                             <button
                                 type="submit"
-                                disabled={form.processing}
+                                disabled={form.processing || !canDepose}
                                 className="btn-primary"
-                                style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "11px 28px", borderRadius: 10, border: "none", background: form.processing ? "#94a3b8" : `linear-gradient(135deg, ${GREEN}, #178a63)`, color: "#fff", fontSize: 14, fontWeight: 700, cursor: form.processing ? "not-allowed" : "pointer", boxShadow: `0 4px 14px rgba(29,158,117,.4)` }}>
+                                style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "11px 28px", borderRadius: 10, border: "none", background: (form.processing || !canDepose) ? "#94a3b8" : `linear-gradient(135deg, ${GREEN}, #178a63)`, color: "#fff", fontSize: 14, fontWeight: 700, cursor: (form.processing || !canDepose) ? "not-allowed" : "pointer", boxShadow: `0 4px 14px rgba(29,158,117,.4)` }}>
                                 {form.processing ? (
                                     <>
                                         <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ animation: "spin 1s linear infinite" }}><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>

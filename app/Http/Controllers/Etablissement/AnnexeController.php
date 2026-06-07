@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Etablissement;
 
 use App\Http\Controllers\Controller;
+use App\Models\ActivityLog;
 use App\Models\Critere;
 use App\Models\CriterePreuve;
 use App\Models\Dossier;
@@ -80,10 +81,16 @@ class AnnexeController extends Controller
         $totalPreuves    = $criteres->sum(fn($c) => count($c->preuves));
         $preuvesRemplies = CriterePreuve::where('etablissement_id', $etablissement->id)->count();
 
+        $annexesPubliees = ActivityLog::where('action', 'annexes_publiees')
+            ->where('model_type', \App\Models\Etablissement::class)
+            ->where('model_id', $etablissement->id)
+            ->exists();
+
         return Inertia::render('Etablissement/Annexe/Annexe', [
-            'grouped'         => $grouped,
-            'totalPreuves'    => $totalPreuves,
-            'preuvesRemplies' => $preuvesRemplies,
+            'grouped'          => $grouped,
+            'totalPreuves'     => $totalPreuves,
+            'preuvesRemplies'  => $preuvesRemplies,
+            'annexesPubliees'  => $annexesPubliees,
         ]);
     }
 

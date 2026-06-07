@@ -3,9 +3,10 @@ import DashboardShell from '@/Layouts/DashboardShell';
 import { Activity, ArrowRight, CheckCircle2, Crown, Users } from 'lucide-react';
 
 export default function Affectations({ dossiers = [] }) {
-    const totalExperts  = dossiers.reduce((s, d) => s + (d.experts_count || 0), 0);
+    const CONFIRMED_STATUSES = ['confirme_par_expert', 'accepte_par_expert', 'confirme', 'comite_confirme', 'visite_planifiee', 'visite_realisee', 'rapport_depose', 'rapport_valide'];
+    const totalExperts   = dossiers.reduce((s, d) => s + (d.experts_count || 0), 0);
     const confirmedCount = dossiers.filter(d =>
-        d.experts?.some(e => e.status === 'confirme_par_expert')
+        d.experts?.some(e => CONFIRMED_STATUSES.includes(e.status))
     ).length;
 
     return (
@@ -147,9 +148,18 @@ function DossierRow({ dossier }) {
 /* ── Expert line inside cell ─────────────────────────────────────────── */
 function ExpertLine({ name, role, status, isChef = false }) {
     const STATUS = {
-        acces_envoye:                { label: 'Accès envoyé',  cls: 'bg-cyan-100 text-cyan-700' },
-        confirme_par_expert:         { label: 'Confirmé',       cls: 'bg-emerald-100 text-emerald-700' },
-        en_attente_confirmation_dee: { label: 'En attente',    cls: 'bg-amber-100 text-amber-700' },
+        acces_envoye:                    { label: 'Accès envoyé',   cls: 'bg-cyan-100 text-cyan-700' },
+        en_attente_confirmation_expert:  { label: 'Accès envoyé',   cls: 'bg-cyan-100 text-cyan-700' },
+        en_attente_confirmation_dee:     { label: 'En attente DEE', cls: 'bg-amber-100 text-amber-700' },
+        confirme_par_expert:             { label: 'Confirmé',        cls: 'bg-emerald-100 text-emerald-700' },
+        accepte_par_expert:              { label: 'Confirmé',        cls: 'bg-emerald-100 text-emerald-700' },
+        confirme:                        { label: 'Confirmé',        cls: 'bg-emerald-100 text-emerald-700' },
+        comite_confirme:                 { label: 'Comité confirmé', cls: 'bg-blue-100 text-blue-700' },
+        visite_planifiee:                { label: 'Visite planifiée',cls: 'bg-indigo-100 text-indigo-700' },
+        visite_realisee:                 { label: 'Visite réalisée', cls: 'bg-violet-100 text-violet-700' },
+        rapport_depose:                  { label: 'Rapport déposé',  cls: 'bg-purple-100 text-purple-700' },
+        rapport_valide:                  { label: 'Rapport validé',  cls: 'bg-green-100 text-green-700' },
+        refuse_par_expert:               { label: 'Refusé',          cls: 'bg-red-100 text-red-600' },
     };
     const s = STATUS[status] ?? { label: status ?? '—', cls: 'bg-slate-100 text-slate-500' };
     const initial = (name || '?').charAt(0).toUpperCase();

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Expert;
 
 use App\Http\Controllers\Controller;
 use App\Models\Dossier;
+use App\Services\FinalReportAvailabilityService;
 use App\Services\NotifierDee;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -58,10 +59,12 @@ class RapportExpertController extends Controller
                 ]);
             } else {
                 $dossiersEnAttente->push([
-                    'id'      => $dossier->id,
-                    'acronyme' => $etab->acronyme ?? '—',
-                    'ville'    => $etab->ville    ?? '—',
-                    'vague'    => $vague,
+                    'id'                         => $dossier->id,
+                    'acronyme'                   => $etab->acronyme ?? '—',
+                    'ville'                      => $etab->ville    ?? '—',
+                    'vague'                      => $vague,
+                    'rapport_disponible'         => FinalReportAvailabilityService::canUpload($dossier),
+                    'rapport_disponible_message' => FinalReportAvailabilityService::message($dossier),
                 ]);
             }
         }
@@ -104,6 +107,12 @@ class RapportExpertController extends Controller
 
         $this->authorizeDossier($expert->id, $dossier->id);
 
+        if (!FinalReportAvailabilityService::canUpload($dossier)) {
+            return redirect('/expert/dossiers/' . $dossier->id)
+                ->withErrors(['rapport' => FinalReportAvailabilityService::message($dossier)])
+                ->with('error', FinalReportAvailabilityService::message($dossier));
+        }
+
         $rapport = $this->findRapport($expert->id, $dossier->id);
 
         return Inertia::render('Expert/Rapports/Deposer', [
@@ -128,10 +137,9 @@ class RapportExpertController extends Controller
 
         $this->authorizeDossier($expert->id, $dossier->id);
 
-        $dateVisite = $dossier->date_visite ?? null;
-        if (!$dateVisite || \Carbon\Carbon::parse($dateVisite)->endOfDay()->isFuture()) {
+        if (!FinalReportAvailabilityService::canUpload($dossier)) {
             return back()->withErrors([
-                'rapport' => 'Le rapport ne peut être déposé qu\'après la date de visite sur site.',
+                'rapport' => FinalReportAvailabilityService::message($dossier),
             ]);
         }
 

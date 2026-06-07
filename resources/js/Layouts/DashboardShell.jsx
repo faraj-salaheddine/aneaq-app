@@ -46,12 +46,6 @@ const NAV_GROUPS = [
             { label: 'Q&R',              href: '/dee/questions-reponses',    icon: FileText,      color: '#f97316' },
         ],
     },
-    {
-        group: 'Paramétrage',
-        items: [
-            { label: 'Critères',         href: '/dee/criteres',              icon: ClipboardCheck, color: '#6366f1' },
-        ],
-    },
 ];
 
 export default function DashboardShell({ children }) {
@@ -153,7 +147,9 @@ export default function DashboardShell({ children }) {
                                     <p style={{ fontSize: 12, fontWeight: 600, color: '#fff', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                         {user?.name || 'Administrateur DEE'}
                                     </p>
-                                    <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', margin: '1px 0 0' }}>Accès administrateur</p>
+                                    <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', margin: '1px 0 0' }}>
+                                        {user?.dee_role === 'chef_dee' ? 'Chef DEE' : 'Administrateur DEE'}
+                                    </p>
                                 </div>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
                                     <div style={{ width: 7, height: 7, borderRadius: '50%', background: GREEN }} />

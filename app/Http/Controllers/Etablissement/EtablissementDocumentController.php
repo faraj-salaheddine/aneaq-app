@@ -8,6 +8,7 @@ use App\Models\DossierDocument;
 use App\Models\Etablissement;
 use App\Models\NotificationAneaq;
 use App\Services\ActivityLogger;
+use App\Services\DossierDocumentService;
 use App\Services\NotifierDee;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -68,7 +69,7 @@ class EtablissementDocumentController extends Controller
         'observation'      => $request->observation,
         'uploaded_by'      => Auth::id(),
         'uploaded_by_role' => 'etablissement',
-        'status'           => 'Déposé',
+        'status'           => DossierDocumentService::STATUS_PENDING_DEE,
     ]);
 
     // Store Word
@@ -83,7 +84,7 @@ class EtablissementDocumentController extends Controller
         'observation'      => $request->observation,
         'uploaded_by'      => Auth::id(),
         'uploaded_by_role' => 'etablissement',
-        'status'           => 'Déposé',
+        'status'           => DossierDocumentService::STATUS_PENDING_DEE,
     ]);
 
     if (in_array($dossier->statut, ['en_attente_formulaire', 'formulaire_complete'])) {
@@ -92,8 +93,8 @@ class EtablissementDocumentController extends Controller
 
     NotificationAneaq::envoyer(
         Auth::id(), 'document',
-        'Rapport déposé',
-        "Votre rapport d'autoévaluation a été déposé avec succès pour le dossier {$dossier->reference}.",
+        'Rapport en attente de confirmation DEE',
+        "Votre rapport d'autoévaluation a été déposé pour le dossier {$dossier->reference}. Il sera transmis aux experts après confirmation par la DEE.",
         'Dossier', $dossier->id
     );
 
@@ -110,7 +111,7 @@ class EtablissementDocumentController extends Controller
         $dossier
     );
 
-    return back()->with('success', 'Rapport déposé avec succès (PDF + Word).');
+    return back()->with('success', 'Rapport déposé avec succès. Il sera envoyé aux experts après confirmation par la DEE.');
 }
 
     public function telecharger(DossierDocument $document)
@@ -236,12 +237,12 @@ public function rapportAneaq(): Response
             'source'        => 'dee',
         ]);
 
-    // Validated expert rapports
+    // Validated expert rapports (valide = validated, envoye_etablissement = sent to etablissement)
     $rapportsExperts = collect();
     if (Schema::hasTable('rapports_experts')) {
         $rapportsExperts = DB::table('rapports_experts')
             ->where('dossier_id', $dossier->id)
-            ->where('statut', 'valide')
+            ->whereIn('statut', ['valide', 'envoye_etablissement'])
             ->orderByDesc('created_at')
             ->get()
             ->map(function ($r) {

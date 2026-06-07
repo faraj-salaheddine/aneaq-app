@@ -3,8 +3,8 @@
 namespace App\Http\Controllers\DEE;
 
 use App\Http\Controllers\Controller;
-
 use App\Http\Requests\ProfileUpdateRequest;
+use App\Models\UtilisateurDEE;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -38,6 +38,13 @@ return Inertia::render('DEE/Profile/Edit', [
         }
 
         $request->user()->save();
+
+        // Sync nom/prenom in utilisateurs_dee so the SI list stays up to date
+        $parts = explode(' ', trim($request->name), 2);
+        UtilisateurDEE::where('user_id', $request->user()->id)->update([
+            'nom'    => $parts[0] ?? $request->name,
+            'prenom' => $parts[1] ?? '',
+        ]);
 
         return Redirect::route('profile.edit');
     }

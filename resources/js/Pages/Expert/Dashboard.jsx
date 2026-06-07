@@ -31,7 +31,7 @@ export default function Dashboard({
     const greeting = hour < 12 ? "Bonjour" : hour < 18 ? "Bon après-midi" : "Bonsoir";
     const expertName = getExpertName(expert);
 
-    const [refusal, setRefusal] = useState({ id: null, motif: '' });
+    const [refusal, setRefusal] = useState({ id: null, motif: '', loading: false, error: null });
     const [localNotifications, setLocalNotifications] = useState(notifications ?? []);
     const [localNonLues, setLocalNonLues] = useState(notificationsNonLues ?? 0);
 
@@ -52,7 +52,7 @@ export default function Dashboard({
     };
 
     const pendingAffectations  = affectations.filter(a => ['en_attente_confirmation_expert', 'acces_envoye'].includes(a.status));
-    const confirmedAffectations = affectations.filter(a => a.status === 'confirme_par_expert');
+    const confirmedAffectations = affectations.filter(a => ['confirme_par_expert', 'accepte_par_expert'].includes(a.status));
     const firstConfirmed = confirmedAffectations?.[0]?.dossier || null;
     const dossierTargetUrl = firstConfirmed?.id ? `/expert/dossiers/${firstConfirmed.id}` : '/expert/dossiers';
 
@@ -63,14 +63,16 @@ export default function Dashboard({
 
     const openRefusal = (e, a) => {
         e.preventDefault(); e.stopPropagation();
-        setRefusal({ id: a.id, motif: '' });
+        setRefusal({ id: a.id, motif: '', loading: false, error: null });
     };
 
     const submitRefusal = () => {
-        if (!refusal.motif.trim()) return;
+        if (!refusal.motif.trim() || refusal.loading) return;
+        setRefusal(r => ({ ...r, loading: true, error: null }));
         router.post(`/expert/affectations/${refusal.id}/refuse`, { motif_refus: refusal.motif }, {
             preserveScroll: true,
-            onSuccess: () => setRefusal({ id: null, motif: '' }),
+            onSuccess: () => setRefusal({ id: null, motif: '', loading: false, error: null }),
+            onError: () => setRefusal(r => ({ ...r, loading: false, error: "Une erreur est survenue. Veuillez réessayer." })),
         });
     };
 
@@ -158,7 +160,7 @@ export default function Dashboard({
                             {pendingAffectations.length === 0
                                 ? <EmptyBox text="Aucune invitation en attente." />
                                 : <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                                    {pendingAffectations.map(a => <InvCard key={a.id} a={a} onAccept={doAccept} onRefuse={openRefusal} />)}
+                                    {pendingAffectations.map(a => <InvCard key={a.id} a={a} expertId={expert.id} onAccept={doAccept} onRefuse={openRefusal} />)}
                                   </div>
                             }
                         </Panel>
@@ -287,14 +289,17 @@ export default function Dashboard({
                         {!refusal.motif.trim() && (
                             <p style={{ fontSize: 11, color: RED, margin: "6px 0 0" }}>Le motif de refus est obligatoire.</p>
                         )}
+                        {refusal.error && (
+                            <p style={{ fontSize: 11, color: RED, margin: "6px 0 0", fontWeight: 600 }}>{refusal.error}</p>
+                        )}
                         <div style={{ display: "flex", gap: 10, marginTop: 18, justifyContent: "flex-end" }}>
-                            <button onClick={() => setRefusal({ id: null, motif: '' })}
+                            <button onClick={() => setRefusal({ id: null, motif: '', loading: false, error: null })} disabled={refusal.loading}
                                 style={{ padding: "9px 20px", borderRadius: 10, border: "1px solid #e2e8f0", background: "#fff", fontSize: 13, fontWeight: 600, color: "#64748b", cursor: "pointer" }}>
                                 Annuler
                             </button>
-                            <button onClick={submitRefusal} disabled={!refusal.motif.trim()}
-                                style={{ padding: "9px 20px", borderRadius: 10, border: "none", background: RED, color: "#fff", fontSize: 13, fontWeight: 700, cursor: refusal.motif.trim() ? "pointer" : "not-allowed", opacity: refusal.motif.trim() ? 1 : 0.5 }}>
-                                Confirmer le refus
+                            <button onClick={submitRefusal} disabled={!refusal.motif.trim() || refusal.loading}
+                                style={{ padding: "9px 20px", borderRadius: 10, border: "none", background: RED, color: "#fff", fontSize: 13, fontWeight: 700, cursor: (refusal.motif.trim() && !refusal.loading) ? "pointer" : "not-allowed", opacity: (refusal.motif.trim() && !refusal.loading) ? 1 : 0.6 }}>
+                                {refusal.loading ? "Envoi…" : "Confirmer le refus"}
                             </button>
                         </div>
                     </div>
@@ -433,36 +438,76 @@ function Panel({ color, iconPath, title, subtitle, badge, action, children }) {
     );
 }
 
-function InvCard({ a, onAccept, onRefuse }) {
+function InvCard({ a, expertId, onAccept, onRefuse }) {
     const dossier = a.dossier || {};
     const etab = a.etablissement || {};
     const meta = STATUS_META[a.status] || { label: a.status, color: "#64748b", bg: "#f8fafc" };
+    const committee = Array.isArray(a.comite) ? a.comite : [];
 
     return (
         <div className="inv-card" style={{ border: "1px solid #e8edf3", borderRadius: 14, padding: "1.1rem 1.25rem", background: "#fafbfc" }}>
-            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
-                <div style={{ flex: 1 }}>
-                    <div style={{ display: "flex", gap: 7, marginBottom: 8 }}>
-                        <span style={{ fontSize: 10, fontWeight: 700, padding: "3px 10px", borderRadius: 99, background: meta.bg, color: meta.color }}>{meta.label}</span>
-                        <span style={{ fontSize: 10, fontWeight: 700, padding: "3px 10px", borderRadius: 99, background: "#EBF4FF", color: BLUE }}>{formatRole(a.role)}</span>
-                    </div>
-                    <h3 style={{ fontSize: 16, fontWeight: 700, color: "#0f172a", margin: "0 0 3px" }}>{dossier.reference || "Dossier"}</h3>
-                    <p style={{ fontSize: 12, color: "#64748b", margin: "0 0 10px" }}>{etab.nom || "—"} · {etab.ville || "—"}</p>
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 7 }}>
-                        <Pill label="Visite"  value={fmtDate(dossier.date_visite)} />
-                        <Pill label="Comité"  value={`${a.comite_confirmed_count || 0}/${a.comite_total || 0}`} />
-                    </div>
+            <div>
+                <div style={{ display: "flex", gap: 7, marginBottom: 8 }}>
+                    <span style={{ fontSize: 10, fontWeight: 700, padding: "3px 10px", borderRadius: 99, background: meta.bg, color: meta.color }}>{meta.label}</span>
+                    <span style={{ fontSize: 10, fontWeight: 700, padding: "3px 10px", borderRadius: 99, background: "#EBF4FF", color: BLUE }}>{formatRole(a.role)}</span>
                 </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
-                    <button onClick={e => onAccept(e, a)} className="btn-act"
-                        style={{ padding: "8px 16px", borderRadius: 9, background: GREEN, color: "#fff", fontSize: 12, fontWeight: 700, display: "flex", alignItems: "center", gap: 5 }}>
-                        <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3"><polyline points="20 6 9 17 4 12"/></svg>Accepter
-                    </button>
-                    <button onClick={e => onRefuse(e, a)} className="btn-act"
-                        style={{ padding: "8px 16px", borderRadius: 9, background: "#fef2f2", color: RED, fontSize: 12, fontWeight: 700, display: "flex", alignItems: "center", gap: 5 }}>
-                        <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke={RED} strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>Refuser
-                    </button>
+                <h3 style={{ fontSize: 16, fontWeight: 700, color: "#0f172a", margin: "0 0 3px" }}>{dossier.reference || "Dossier"}</h3>
+                <p style={{ fontSize: 12, color: "#64748b", margin: "0 0 10px" }}>{etab.nom || "—"} · {etab.ville || "—"}</p>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 7 }}>
+                    <Pill label="Visite"  value={fmtDate(dossier.date_visite)} />
+                    <Pill label="Comité"  value={`${a.comite_confirmed_count || 0}/${a.comite_total || 0}`} />
                 </div>
+            </div>
+
+            <div style={{ marginTop: 12, padding: "12px 13px", borderRadius: 11, background: "#fff", border: "1px solid #e8edf3" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 9 }}>
+                    <div>
+                        <p style={{ fontSize: 12, fontWeight: 800, color: "#0f172a", margin: 0 }}>Composition du comité</p>
+                        <p style={{ fontSize: 10, color: "#94a3b8", margin: "2px 0 0" }}>Consultez le groupe avant de répondre à l’invitation.</p>
+                    </div>
+                    <span style={{ flexShrink: 0, fontSize: 10, fontWeight: 800, padding: "4px 9px", borderRadius: 99, background: "#eff6ff", color: BLUE }}>
+                        {committee.length} membre{committee.length !== 1 ? "s" : ""}
+                    </span>
+                </div>
+
+                {committee.length === 0
+                    ? <p style={{ fontSize: 11, color: "#94a3b8", margin: 0 }}>La composition du comité sera affichée dès que les experts seront sélectionnés.</p>
+                    : <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 7 }}>
+                        {committee.map(member => {
+                            const isCurrentExpert = String(member.expert_id) === String(expertId);
+                            const memberMeta = STATUS_META[member.status] || { color: "#64748b", bg: "#f8fafc" };
+
+                            return (
+                                <div key={member.id || member.expert_id} style={{ display: "flex", alignItems: "center", gap: 9, minWidth: 0, padding: "8px 9px", borderRadius: 9, background: isCurrentExpert ? "#f0f9ff" : "#f8fafc", border: `1px solid ${isCurrentExpert ? "#bae6fd" : "#eef2f7"}` }}>
+                                    <div style={{ width: 30, height: 30, flexShrink: 0, borderRadius: 9, display: "flex", alignItems: "center", justifyContent: "center", background: isCurrentExpert ? BLUE : "#e2e8f0", color: isCurrentExpert ? "#fff" : "#475569", fontSize: 10, fontWeight: 800 }}>
+                                        {getInitials(member.name)}
+                                    </div>
+                                    <div style={{ minWidth: 0, flex: 1 }}>
+                                        <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                                            <p style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 11, fontWeight: 750, color: "#0f172a", margin: 0 }}>{member.name || "Expert"}</p>
+                                            {isCurrentExpert && <span style={{ flexShrink: 0, fontSize: 8, fontWeight: 800, padding: "2px 5px", borderRadius: 99, background: "#dbeafe", color: BLUE }}>Vous</span>}
+                                        </div>
+                                        <p style={{ fontSize: 9, fontWeight: 700, color: "#64748b", margin: "2px 0 0" }}>{member.role_label || formatRole(member.role)}</p>
+                                        <span style={{ display: "inline-block", marginTop: 4, fontSize: 8, fontWeight: 800, padding: "2px 6px", borderRadius: 99, background: memberMeta.bg, color: memberMeta.color }}>
+                                            {member.status_label || memberMeta.label || "En attente"}
+                                        </span>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                      </div>
+                }
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 7, marginTop: 12 }}>
+                <button onClick={e => onRefuse(e, a)} className="btn-act"
+                    style={{ padding: "8px 16px", borderRadius: 9, background: "#fef2f2", color: RED, fontSize: 12, fontWeight: 700, display: "flex", alignItems: "center", gap: 5 }}>
+                    <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke={RED} strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>Refuser
+                </button>
+                <button onClick={e => onAccept(e, a)} className="btn-act"
+                    style={{ padding: "8px 16px", borderRadius: 9, background: GREEN, color: "#fff", fontSize: 12, fontWeight: 700, display: "flex", alignItems: "center", gap: 5 }}>
+                    <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3"><polyline points="20 6 9 17 4 12"/></svg>Accepter
+                </button>
             </div>
         </div>
     );
@@ -510,6 +555,14 @@ function metric(stats, snakeKey, camelKey) { return stats?.[snakeKey] ?? stats?.
 function getExpertName(e) {
     if (e?.name) return e.name;
     return `${e?.prenom || ''} ${e?.nom || ''}`.trim() || 'Expert';
+}
+function getInitials(name) {
+    return String(name || 'Expert')
+        .trim()
+        .split(/\s+/)
+        .slice(0, 2)
+        .map(part => part[0]?.toUpperCase())
+        .join('') || 'EX';
 }
 function formatRole(r) { return { chef_comite: 'Chef de comité', expert: 'Expert' }[r] || r || 'Expert'; }
 function fmtDate(v) {

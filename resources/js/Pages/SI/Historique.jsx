@@ -1,7 +1,7 @@
 // resources/js/Pages/SI/Historique.jsx
 
 import { useState, useMemo } from "react";
-import { Head } from "@inertiajs/react";
+import { Head, router } from "@inertiajs/react";
 import DashboardLayout from "@/Layouts/SI/DashboardLayout";
 
 const BLUE   = "#0C447C";
@@ -10,23 +10,93 @@ const ORANGE = "#EF9F27";
 const RED    = "#ef4444";
 const PURPLE = "#7e22ce";
 
-const ACTION_META = {
-    "Compte créé":    { color: GREEN,  bg: `${GREEN}12`,  icon: <><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></> },
-    "Compte modifié": { color: BLUE,   bg: `${BLUE}12`,   icon: <><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></> },
-    "Compte supprimé":{ color: RED,    bg: `${RED}12`,    icon: <><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></> },
+const ACTION_LABEL = {
+    // SI legacy
+    "Compte créé":    "Compte créé",
+    "Compte modifié": "Compte modifié",
+    "Compte supprimé":"Compte supprimé",
+    // Dossier
+    dossier_cree:                       "Dossier créé",
+    dossier_mis_a_jour:                 "Dossier modifié",
+    dossier_modifie:                    "Dossier modifié",
+    dossier_supprime:                   "Dossier supprimé",
+    statut_modifie:                     "Statut modifié",
+    // Expert / affectation
+    expert_affecte:                     "Expert affecté",
+    expert_confirme:                    "Expert confirmé",
+    expert_retire:                      "Expert retiré",
+    affectation_confirmee:              "Affectation confirmée",
+    // Rapport
+    rapport_depose:                     "Rapport déposé",
+    rapport_envoye_etablissement:       "Rapport envoyé étab.",
+    rapport_expert_ajoute:              "Rapport expert ajouté",
+    rapport_valide:                     "Rapport validé",
+    rapport_rejete:                     "Rapport refusé",
+    // Documents / annexes
+    annexe_enregistree:                 "Annexe enregistrée",
+    annexes_publiees:                   "Annexes publiées",
+    document_ajoute:                    "Document ajouté",
+    document_supprime:                  "Document supprimé",
+    document_complementaire_depose:     "Document complémentaire",
+    // Évaluation
+    evaluation_annexe_brouillon:        "Évaluation brouillon",
+    evaluation_annexe_soumise:          "Évaluation soumise",
+    preuves_brouillon:                  "Preuves brouillon",
+    // Recommandations
+    recommandation_brouillon_ajoutee:   "Recommandation ajoutée",
+    recommandation_brouillon_supprimee: "Recommandation supprimée",
+    recommandations_soumises_dee:       "Recommandations soumises",
+    recommandations_acceptees_envoyees: "Recommandations envoyées",
+    rappel_recommandations:             "Rappel recommandations",
+    // Q&R / profil / visite
+    question_posee:                     "Question posée",
+    question_repondue:                  "Question répondue",
+    visite_planifiee:                   "Visite planifiée",
+    profil_mis_a_jour:                  "Profil mis à jour",
+    // SI — utilisateurs DEE
+    utilisateur_dee_cree:               "Utilisateur DEE créé",
+    utilisateur_dee_modifie:            "Utilisateur DEE modifié",
+    utilisateur_dee_supprime:           "Utilisateur DEE supprimé",
+    profil_si_modifie:                  "Profil SI modifié",
+    // SI — gestion comptes
+    compte_active:                      "Compte activé",
+    compte_desactive:                   "Compte désactivé",
+    mot_de_passe_reinitialise:          "Mot de passe réinitialisé",
+};
+
+const humanize = (s) => ACTION_LABEL[s] || (s || "—").replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+
+const actionColor = (s) => {
+    if (!s) return { color: "#64748b", bg: "#f1f5f9" };
+    if (s.includes("cree") || s.includes("créé") || s.includes("ajoute")) return { color: GREEN,  bg: `${GREEN}15`  };
+    if (s.includes("supprime") || s.includes("rejete") || s.includes("retire")) return { color: RED, bg: `${RED}12` };
+    if (s.includes("envoye") || s.includes("posee") || s.includes("repondue")) return { color: "#0891b2", bg: "#e0f2fe" };
+    return { color: BLUE, bg: `${BLUE}12` };
 };
 
 const ROLE_META = {
-    si:        { label: "SI",          color: BLUE,   bg: `${BLUE}12`   },
-    expert:    { label: "Expert",      color: GREEN,  bg: `${GREEN}12`  },
-    dee:       { label: "DEE",         color: PURPLE, bg: `${PURPLE}12` },
-    chef_dee:  { label: "Chef DEE",    color: ORANGE, bg: `${ORANGE}12` },
+    si:           { label: "SI",           color: BLUE,   bg: `${BLUE}12`    },
+    expert:       { label: "Expert",       color: GREEN,  bg: `${GREEN}12`   },
+    dee:          { label: "DEE",          color: PURPLE, bg: `${PURPLE}12`  },
+    admin_dee:    { label: "Admin DEE",    color: PURPLE, bg: `${PURPLE}12`  },
+    chef_dee:     { label: "Chef DEE",     color: ORANGE, bg: `${ORANGE}12`  },
+    etablissement:{ label: "Établissement",color: "#0891b2", bg: "#e0f2fe"   },
 };
 
-const MODEL_META = {
-    Expert:        { label: "Expert",         color: GREEN  },
-    UtilisateurDEE:{ label: "Utilisateur DEE",color: PURPLE },
-    User:          { label: "Utilisateur",    color: BLUE   },
+// Accepts both short names ("Dossier") and full namespace ("App\\Models\\Dossier")
+const MODEL_LABELS = {
+    Expert:         { label: "Expert",          color: GREEN   },
+    UtilisateurDEE: { label: "Utilisateur DEE", color: PURPLE  },
+    User:           { label: "Utilisateur",     color: BLUE    },
+    Dossier:        { label: "Dossier",         color: "#0891b2" },
+    Etablissement:  { label: "Établissement",   color: ORANGE  },
+    Campagne:       { label: "Campagne",        color: "#8b5cf6" },
+    RapportExpert:  { label: "Rapport expert",  color: GREEN   },
+};
+const getModelMeta = (raw) => {
+    if (!raw) return { label: "—", color: "#94a3b8" };
+    const short = raw.includes("\\") ? raw.split("\\").pop() : raw;
+    return MODEL_LABELS[short] || { label: short, color: "#64748b" };
 };
 
 export default function Historique({ logs = [] }) {
@@ -37,6 +107,7 @@ export default function Historique({ logs = [] }) {
     const [dateFrom, setDateFrom]   = useState("");
     const [dateTo, setDateTo]       = useState("");
     const [page, setPage]           = useState(1);
+    const [showClearModal, setShowClearModal] = useState(false);
     const pageSize = 20;
 
     const actions = [...new Set(logs.map(l => l.action).filter(Boolean))];
@@ -95,12 +166,19 @@ export default function Historique({ logs = [] }) {
                             </div>
                         </div>
 
-                        {/* Stats pills */}
-                        <div style={{ display: "flex", gap: 8 }}>
+                        {/* Stats pills + clear button */}
+                        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                        <button
+                            onClick={() => setShowClearModal(true)}
+                            style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 16px", borderRadius: 10, border: "1.5px solid #fecaca", background: "#fff", color: RED, fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+                        >
+                            <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+                            Vider l'historique
+                        </button>
                             {[
-                                { label: "Créations",    value: logs.filter(l => l.action === "Compte créé").length,     color: GREEN  },
-                                { label: "Modifications",value: logs.filter(l => l.action === "Compte modifié").length,  color: BLUE   },
-                                { label: "Suppressions", value: logs.filter(l => l.action === "Compte supprimé").length, color: RED    },
+                                { label: "Créations",    color: GREEN,  value: logs.filter(l => ["Compte créé","dossier_cree","annexe_enregistree","annexes_publiees","document_complementaire_depose","document_ajoute","rapport_depose","recommandation_brouillon_ajoutee","rapport_expert_ajoute","utilisateur_dee_cree"].includes(l.action)).length },
+                                { label: "Modifications",color: BLUE,   value: logs.filter(l => ["Compte modifié","dossier_mis_a_jour","dossier_modifie","statut_modifie","expert_affecte","expert_confirme","affectation_confirmee","preuves_brouillon","profil_mis_a_jour","profil_si_modifie","evaluation_annexe_brouillon","evaluation_annexe_soumise","recommandations_soumises_dee","recommandations_acceptees_envoyees","rappel_recommandations","question_posee","question_repondue","rapport_envoye_etablissement","rapport_valide","rapport_rejete","visite_planifiee","utilisateur_dee_modifie","compte_active","compte_desactive","mot_de_passe_reinitialise"].includes(l.action)).length },
+                                { label: "Suppressions", color: RED,    value: logs.filter(l => ["Compte supprimé","dossier_supprime","document_supprime","expert_retire","recommandation_brouillon_supprimee","utilisateur_dee_supprime"].includes(l.action)).length },
                             ].map((s, i) => (
                                 <div key={i} style={{ padding: "8px 16px", borderRadius: 10, background: "#fff", border: "1px solid #e2e8f0", display: "flex", alignItems: "center", gap: 8, boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
                                     <div style={{ width: 8, height: 8, borderRadius: "50%", background: s.color }} />
@@ -111,6 +189,34 @@ export default function Historique({ logs = [] }) {
                         </div>
                     </div>
                 </div>
+
+            {/* ── Clear confirmation modal ── */}
+            {showClearModal && (
+                <div onClick={() => setShowClearModal(false)} style={{ position: "fixed", inset: 0, zIndex: 9999, background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 18, padding: "32px 28px", width: 420, maxWidth: "90vw", boxShadow: "0 24px 64px rgba(0,0,0,0.18)" }}>
+                        <div style={{ width: 52, height: 52, borderRadius: 14, background: "#fef2f2", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 16 }}>
+                            <svg width={24} height={24} viewBox="0 0 24 24" fill="none" stroke={RED} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+                            </svg>
+                        </div>
+                        <h3 style={{ fontSize: 17, fontWeight: 700, color: "#0f172a", margin: "0 0 8px" }}>Vider l'historique</h3>
+                        <p style={{ fontSize: 14, color: "#475569", margin: "0 0 24px", lineHeight: 1.6 }}>
+                            Cette action supprimera définitivement toutes les <strong>{logs.length}</strong> entrées de l'historique. Elle est irréversible.
+                        </p>
+                        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+                            <button onClick={() => setShowClearModal(false)} style={{ padding: "9px 20px", borderRadius: 9, border: "1.5px solid #e2e8f0", background: "#fff", color: "#475569", fontSize: 14, fontWeight: 600, cursor: "pointer" }}>
+                                Annuler
+                            </button>
+                            <button
+                                onClick={() => { setShowClearModal(false); router.delete("/si/historique"); }}
+                                style={{ padding: "9px 22px", borderRadius: 9, border: "none", background: RED, color: "#fff", fontSize: 14, fontWeight: 600, cursor: "pointer" }}
+                            >
+                                Vider définitivement
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
                 {/* ── Main panel ── */}
                 <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 18, boxShadow: "0 2px 12px rgba(0,0,0,0.06)", overflow: "hidden" }}>
@@ -134,7 +240,7 @@ export default function Historique({ logs = [] }) {
                             style={{ padding: "8px 12px", border: actionFilter ? `1.5px solid ${BLUE}` : "1px solid #e2e8f0", borderRadius: 9, fontSize: 12, color: actionFilter ? "#0f172a" : "#94a3b8", background: "#fff", cursor: "pointer", outline: "none" }}
                         >
                             <option value="">Toutes les actions</option>
-                            {actions.map(a => <option key={a} value={a}>{a}</option>)}
+                            {actions.map(a => <option key={a} value={a}>{humanize(a)}</option>)}
                         </select>
 
                         {/* Role filter */}
@@ -150,7 +256,7 @@ export default function Historique({ logs = [] }) {
                             style={{ padding: "8px 12px", border: modelFilter ? `1.5px solid ${GREEN}` : "1px solid #e2e8f0", borderRadius: 9, fontSize: 12, color: modelFilter ? "#0f172a" : "#94a3b8", background: "#fff", cursor: "pointer", outline: "none" }}
                         >
                             <option value="">Tous les types</option>
-                            {models.map(m => <option key={m} value={m}>{MODEL_META[m]?.label || m}</option>)}
+                            {models.map(m => <option key={m} value={m}>{getModelMeta(m).label}</option>)}
                         </select>
 
                         {/* Date from */}
@@ -191,27 +297,29 @@ export default function Historique({ logs = [] }) {
                             <p style={{ fontSize: 13, color: "#9ca3af", margin: 0 }}>Essayez d'autres critères de recherche</p>
                         </div>
                     ) : paginated.map((log, i) => {
-                        const actionMeta = ACTION_META[log.action] || { color: "#64748b", bg: "#f1f5f9", icon: null };
-                        const roleMeta   = ROLE_META[log.role]     || { label: log.role, color: "#64748b", bg: "#f1f5f9" };
-                        const modelMeta  = MODEL_META[log.model_type] || { label: log.model_type, color: "#64748b" };
+                        const aMeta    = actionColor(log.action);
+                        const roleMeta = ROLE_META[log.role] || { label: log.role || "—", color: "#64748b", bg: "#f1f5f9" };
+                        const mMeta    = getModelMeta(log.model_type);
                         return (
                             <div key={log.id} className="log-row"
                                 style={{ display: "grid", gridTemplateColumns: "44px 160px 140px 120px 1fr 160px", padding: "13px 24px", borderBottom: i < paginated.length - 1 ? "1px solid #f8fafc" : "none", alignItems: "center", transition: "background 0.1s" }}
                             >
                                 {/* Icon */}
-                                <div style={{ width: 32, height: 32, borderRadius: 9, background: actionMeta.bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                                    <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke={actionMeta.color} strokeWidth="2">{actionMeta.icon}</svg>
+                                <div style={{ width: 32, height: 32, borderRadius: 9, background: aMeta.bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                    <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke={aMeta.color} strokeWidth="2">
+                                        <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/>
+                                    </svg>
                                 </div>
 
                                 {/* Action + who */}
                                 <div>
-                                    <span style={{ fontSize: 12, fontWeight: 700, color: actionMeta.color, display: "block" }}>{log.action}</span>
+                                    <span style={{ fontSize: 12, fontWeight: 700, color: aMeta.color, display: "block" }}>{humanize(log.action)}</span>
                                     <span style={{ fontSize: 11, color: "#94a3b8", fontWeight: 500 }}>par {log.performed_by}</span>
                                 </div>
 
                                 {/* Model type + name */}
                                 <div>
-                                    <span style={{ fontSize: 11, fontWeight: 700, color: modelMeta.color, display: "block" }}>{modelMeta.label}</span>
+                                    <span style={{ fontSize: 11, fontWeight: 700, color: mMeta.color, display: "block" }}>{mMeta.label}</span>
                                     <span style={{ fontSize: 11, color: "#64748b", fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "block", maxWidth: 130 }}>{log.model_name}</span>
                                 </div>
 
@@ -246,7 +354,9 @@ export default function Historique({ logs = [] }) {
             </div>
         </details>
     ) : (
-        <span style={{ fontSize: 12, color: "#64748b" }}>{log.details || "—"}</span>
+        <span style={{ fontSize: 12, color: "#475569", lineHeight: 1.5 }}>
+            {log.description || log.details || "—"}
+        </span>
     )}
 </div>
 

@@ -1,6 +1,11 @@
-import { Head, Link, router } from '@inertiajs/react';
+import { useState } from 'react';
+import { Head, Link, router, useForm } from '@inertiajs/react';
 import ExpertLayout from '@/Layouts/Expert/ExpertLayout';
-import MessageriePanel from '@/Components/MessageriePanel';
+import {
+    canUploadFinalReport,
+    finalReportAvailabilityText,
+    visitIsCompleted,
+} from '@/utils/finalReportAvailability';
 
 /* ─── Design tokens ─── */
 const BLUE   = '#0C447C';
@@ -23,25 +28,45 @@ const STATUS_META = {
     comite_confirme:       { label: 'Comité confirmé',         color: '#166534', bg: '#dcfce7', dot: GREEN    },
 };
 
+const reportIsDone = (rapport) => {
+    if (!rapport) return false;
+
+    const statut = String(rapport.statut || rapport.status || '').toLowerCase();
+    return !['rejete', 'rejeté'].includes(statut);
+};
+
+const DOC_TYPE_LABELS = {
+    rapport_autoevaluation:      "Rapport d'autoévaluation",
+    document_complementaire:     "Document complémentaire",
+    annexe:                      "Annexe",
+    rapport_aneaq:               "Rapport ANEAQ",
+    formulaire:                  "Formulaire",
+    lettre:                      "Lettre",
+};
+const docTypeLabel = (type) =>
+    DOC_TYPE_LABELS[type] || (type ? type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) : 'Document');
+
+// Steps — doneFn receives (status, dossier, extras)
 const STEPS = [
-    { label: 'Affectation confirmée',     always: true },
-    { label: 'Rapport d\'autoévaluation', statuses: ['autoeval_depose','en_evaluation','visite_planifiee','rapport_en_attente','rapport_depose','valide','cloture','comite_confirme'] },
-    { label: 'Évaluation quantitative',   statuses: ['visite_planifiee','rapport_en_attente','rapport_depose','valide','cloture'], active: ['en_evaluation','comite_confirme'] },
-    { label: 'Visite sur site',           statuses: ['rapport_en_attente','rapport_depose','valide','cloture'], active: ['visite_planifiee'] },
-    { label: 'Rapport final',             statuses: ['rapport_depose','valide','cloture'], active: ['rapport_en_attente'] },
-    { label: 'Validation DEE',            statuses: ['valide','cloture'] },
+    { label: 'Affectation confirmée',          always: true },
+    { label: "Rapport d'autoéval. disponible", doneFn: (_s, _d, { documents }) => documents.some(d => d.type === 'rapport_autoevaluation') },
+    { label: 'Éval. Annexes',                  doneFn: (_s, _d, { evaluationsSoumises }) => (evaluationsSoumises ?? 0) > 0 },
+    { label: 'Visite sur site',                doneFn: (_s, dossier) => visitIsCompleted(dossier) },
+    { label: 'Rapport expert déposé',          doneFn: (_s, _d, { rapport }) => reportIsDone(rapport) },
+    { label: 'Validation DEE',                 doneFn: (status) => ['valide','cloture'].includes(status) },
 ];
 
 /* ─── Page ─── */
 export default function DossierShow({
-    expert            = {},
-    dossier           = {},
-    comite            = [],
-    progression       = 0,
-    rapport           = null,
-    nbRecommandations = 0,
-    documents         = [],
-    assignmentStatus  = null,
+    expert               = {},
+    dossier              = {},
+    comite               = [],
+    rapport              = null,
+    nbRecommandations    = 0,
+    documents            = [],
+    assignmentStatus     = null,
+    visiteConfirmation   = null,
+    evaluationsSoumises  = 0,
 }) {
     // Blocked = DEE hasn't confirmed yet OR expert hasn't accepted yet
     // accepte_par_expert / confirme_par_expert / comite_confirme = fully unlocked
@@ -51,17 +76,26 @@ export default function DossierShow({
     const etab   = dossier?.etablissement || {};
     const status = dossier?.statut || dossier?.status || 'en_preparation';
     const smeta  = STATUS_META[status] || { label: status || '—', color: '#64748b', bg: '#f1f5f9', dot: '#94a3b8' };
-    const pct    = Math.min(Math.max(Number(progression || 0), 0), 100);
+    // Progression calculated from steps
+    const stepsExtras = { rapport, documents, evaluationsSoumises };
+    const doneCount = STEPS.filter(step =>
+        step.always || (step.doneFn ? step.doneFn(status, dossier, stepsExtras) : false)
+    ).length;
+    const pct = Math.round((doneCount / STEPS.length) * 100);
     const etabName = etab.nom || etab.etablissement_2 || etab.etablissement || 'Établissement non renseigné';
+    const canSubmitFinalReport = canUploadFinalReport(dossier);
+    const finalReportLockText = finalReportAvailabilityText(dossier);
+    const finalReportLocked = isWaiting || !canSubmitFinalReport;
+    const finalReportDone = reportIsDone(rapport);
+    const rapportStatus = String(rapport?.statut || rapport?.status || '').toLowerCase();
+    const rapportRejected = ['rejete', 'rejeté'].includes(rapportStatus);
 
     const confirmedCount = comite.filter(m => m.status === 'confirme_par_expert').length;
 
     return (
         <>
             <Head title={`Dossier ${dossier.reference || ''} — Expert`} />
-            <MessageriePanel dossierId={dossier.id} currentRole="expert" />
-
-            <style>{`
+<style>{`
                 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,800;0,9..40,900;1,9..40,400&display=swap');
                 *, *::before, *::after { box-sizing: border-box; font-family: 'DM Sans', system-ui, sans-serif; }
 
@@ -186,9 +220,9 @@ export default function DossierShow({
 
                     {/* ── Stat strip ── */}
                     <div className="fu d2" style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 14, marginBottom: 28 }}>
-                        <StatCard icon={<IcoChart />}  label="Progression"     value={`${pct}%`}              accent={BLUE}   sub={pct < 100 ? 'En cours' : 'Complété'} />
+                        <StatCard icon={<IcoChart />}  label="Progression"     value={`${pct}%`}              accent={BLUE}   sub={pct >= 100 ? 'Terminé' : 'En attente'} />
                         <StatCard icon={<IcoUsers />}  label="Membres comité"  value={comite.length}           accent={GREEN}  sub={`${confirmedCount} confirmé(s)`} />
-                        <StatCard icon={<IcoFile />}   label="Rapport final"   value={rapport ? '✓' : '—'}    accent={rapport?.statut === 'valide' ? GREEN : rapport?.statut === 'rejete' ? RED : rapport ? BLUE : ORANGE} sub={rapport?.statut === 'valide' ? 'Validé ✓' : rapport?.statut === 'rejete' ? 'Refusé' : rapport ? 'En attente DEE' : 'Non déposé'} />
+                        <StatCard icon={<IcoFile />}   label="Rapport final"   value={rapport ? '✓' : '—'}    accent={rapportRejected ? RED : finalReportDone ? GREEN : ORANGE} sub={finalReportDone ? 'Terminé' : 'En attente'} />
                         <StatCard icon={<IcoClip />}   label="Recommandations" value={nbRecommandations || 0}  accent={ORANGE} sub="au total" />
                     </div>
 
@@ -212,6 +246,55 @@ export default function DossierShow({
                                     <InfoCell label="Date visite"   value={formatDate(dossier.date_visite)} />
                                 </div>
                             </Card>
+
+                            {/* Rapport d'autoévaluation disponible */}
+                            {(() => {
+                                const rapports = documents.filter(d => d.type === 'rapport_autoevaluation');
+                                return (
+                                    <Card className="fu d3b" accent={BLUE}>
+                                        <CardHead icon={<IcoFile />} title="Rapport d'autoévaluation" sub="Documents transmis par l'établissement et confirmés par la DEE." />
+                                        <div style={{ padding: '1rem 1.5rem 1.5rem' }}>
+                                            {rapports.length === 0 ? (
+                                                <div style={{ textAlign: 'center', padding: '20px 0', color: '#94a3b8' }}>
+                                                    <div style={{ fontSize: 28, marginBottom: 8 }}>📄</div>
+                                                    <p style={{ margin: 0, fontSize: 13, fontWeight: 600 }}>Rapport non encore disponible</p>
+                                                    <p style={{ margin: '4px 0 0', fontSize: 11, fontWeight: 500 }}>La DEE n'a pas encore confirmé le rapport.</p>
+                                                </div>
+                                            ) : (
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                                                    {rapports.map((doc, i) => {
+                                                        const ext = (doc.original_name || '').split('.').pop()?.toLowerCase();
+                                                        const isWord = ['doc','docx'].includes(ext);
+                                                        const isPdf  = ext === 'pdf';
+                                                        return (
+                                                            <div key={doc.id ?? i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderRadius: 12, background: '#f0f7ff', border: '1.5px solid #bfdbfe' }}>
+                                                                <div style={{ width: 38, height: 38, borderRadius: 10, background: isPdf ? '#fee2e2' : isWord ? '#dbeafe' : '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 18 }}>
+                                                                    {isPdf ? '📕' : isWord ? '📘' : '📄'}
+                                                                </div>
+                                                                <div style={{ flex: 1, minWidth: 0 }}>
+                                                                    <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                                        {doc.original_name || doc.titre || 'Rapport'}
+                                                                    </p>
+                                                                    <p style={{ margin: '2px 0 0', fontSize: 11, color: '#64748b', fontWeight: 500 }}>
+                                                                        {ext?.toUpperCase() || 'Fichier'}{doc.size ? ` · ${(doc.size / 1024).toFixed(0)} KB` : ''}
+                                                                    </p>
+                                                                </div>
+                                                                {doc.url && (
+                                                                    <a href={doc.url} target="_blank" rel="noopener noreferrer"
+                                                                        style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '7px 14px', borderRadius: 9, border: `1.5px solid ${BLUE}`, background: '#fff', color: BLUE, fontSize: 12, fontWeight: 700, textDecoration: 'none', flexShrink: 0 }}>
+                                                                        <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                                                                        Télécharger
+                                                                    </a>
+                                                                )}
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </Card>
+                                );
+                            })()}
 
                             {/* Progression detail */}
                             <Card className="fu d4" accent={GREEN}>
@@ -240,7 +323,7 @@ export default function DossierShow({
                                     </div>
 
                                     <button
-                                        onClick={() => !isWaiting && router.visit(`/expert/evaluations/${dossier.id}`)}
+                                        onClick={() => !isWaiting && router.visit(`/expert/evaluations-annexes/${dossier.id}`)}
                                         disabled={isWaiting}
                                         style={{ marginTop: 14, width: '100%', padding: '12px', borderRadius: 12, background: isWaiting ? '#e2e8f0' : BLUE, color: isWaiting ? '#94a3b8' : '#fff', fontSize: 14, fontWeight: 800, border: 'none', cursor: isWaiting ? 'not-allowed' : 'pointer', letterSpacing: '.01em' }}>
                                         {isWaiting ? '🔒 En attente de confirmation' : 'Accéder à l\'évaluation →'}
@@ -273,9 +356,9 @@ export default function DossierShow({
                                     )}
                                     <ActionCard
                                         icon={<IcoChart size={26} />}
-                                        title="Évaluation quantitative"
+                                        title="Éval. des annexes"
                                         desc={`${pct}% complétée`}
-                                        href={`/expert/evaluations/${dossier.id}`}
+                                        href={`/expert/evaluations-annexes/${dossier.id}`}
                                         color={BLUE}
                                         gradFrom="#dbeafe"
                                         gradTo="#eff6ff"
@@ -284,12 +367,12 @@ export default function DossierShow({
                                     <ActionCard
                                         icon={<IcoFile size={26} />}
                                         title="Rapport final"
-                                        desc={rapport ? `Statut : ${rapport.statut || rapport.status || 'Déposé'}` : 'Aucun rapport déposé'}
+                                        desc={rapport ? (finalReportDone ? 'Terminé' : 'En attente') : finalReportLockText}
                                         href={`/expert/rapports/${dossier.id}/deposer`}
                                         color={GREEN}
                                         gradFrom="#dcfce7"
                                         gradTo="#f0fdf4"
-                                        locked={isWaiting}
+                                        locked={finalReportLocked}
                                     />
                                     <ActionCard
                                         icon={<IcoClip size={26} />}
@@ -308,16 +391,23 @@ export default function DossierShow({
                         {/* Right sidebar */}
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
+                            {/* Widget confirmation date de visite */}
+                            {visiteConfirmation?.date_visite && (
+                                <VisiteConfirmationWidget
+                                    confirmation={visiteConfirmation}
+                                    postUrl={`/expert/dossiers/${dossier.id}/visite/repondre`}
+                                />
+                            )}
+
                             {/* Workflow timeline */}
                             <Card className="fu d3" accent={BLUE}>
                                 <CardHead icon={<IcoCheck />} title="Avancement" sub="Suivi du workflow dossier." compact />
                                 <div style={{ padding: '1.25rem 1.5rem' }}>
                                     {STEPS.map((step, i) => {
-                                        const done   = step.always || step.statuses?.includes(status);
-                                        const active = step.active?.includes(status);
+                                        const done   = step.always || (step.doneFn ? step.doneFn(status, dossier, stepsExtras) : false);
                                         const isLast = i === STEPS.length - 1;
                                         return (
-                                            <TimelineItem key={i} index={i + 1} label={step.label} done={done} active={active} showLine={!isLast} />
+                                            <TimelineItem key={i} index={i + 1} label={step.label} done={done} showLine={!isLast} />
                                         );
                                     })}
                                 </div>
@@ -328,14 +418,16 @@ export default function DossierShow({
                                 <CardHead icon={<IcoFile />} title="Rapport final" sub="État du rapport expert." compact />
                                 <div style={{ padding: '1.25rem 1.5rem' }}>
                                     {(() => {
-                                        const statut = rapport?.statut || rapport?.status;
-                                        const isRejete = statut === 'rejete';
-                                        const isValide = statut === 'valide';
-                                        const borderColor = isRejete ? '#fca5a5' : isValide ? '#86efac' : rapport ? '#93c5fd' : '#fed7aa';
-                                        const bgColor     = isRejete ? '#fef2f2' : isValide ? '#f0fdf4' : rapport ? '#eff6ff' : '#fff7ed';
-                                        const dotColor    = isRejete ? '#ef4444' : isValide ? GREEN : rapport ? '#3b82f6' : ORANGE;
-                                        const titleColor  = isRejete ? '#991b1b' : isValide ? '#166534' : rapport ? '#1e40af' : '#92400e';
-                                        const statusLabel = isRejete ? 'Refusé par la DEE' : isValide ? 'Validé' : rapport ? 'En attente de validation DEE' : 'Non déposé';
+                                        const borderColor = rapportRejected ? '#fca5a5' : finalReportDone ? '#86efac' : '#fed7aa';
+                                        const bgColor     = rapportRejected ? '#fef2f2' : finalReportDone ? '#f0fdf4' : '#fff7ed';
+                                        const dotColor    = rapportRejected ? '#ef4444' : finalReportDone ? GREEN : ORANGE;
+                                        const titleColor  = rapportRejected ? '#991b1b' : finalReportDone ? '#166534' : '#92400e';
+                                        const statusLabel = finalReportDone ? 'Terminé' : 'En attente';
+                                        const helperText  = isWaiting
+                                            ? 'Disponible après confirmation DEE.'
+                                            : canSubmitFinalReport
+                                                ? 'Dépôt disponible depuis la section Actions.'
+                                                : finalReportLockText;
                                         return (
                                             <>
                                                 <div style={{ borderRadius: 14, border: `1.5px solid ${borderColor}`, background: bgColor, padding: '1.25rem' }}>
@@ -350,7 +442,7 @@ export default function DossierShow({
                                                             📄 {rapport.original_name}
                                                         </p>
                                                     )}
-                                                    {isRejete && rapport?.motif_rejet && (
+                                                    {rapportRejected && rapport?.motif_rejet && (
                                                         <div style={{ marginTop: 10, borderRadius: 10, background: '#fee2e2', border: '1px solid #fca5a5', padding: '10px 12px' }}>
                                                             <p style={{ margin: '0 0 4px', fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#b91c1c' }}>Motif du refus</p>
                                                             <p style={{ margin: 0, fontSize: 13, color: '#7f1d1d', fontWeight: 500, lineHeight: 1.6 }}>{rapport.motif_rejet}</p>
@@ -358,15 +450,15 @@ export default function DossierShow({
                                                     )}
                                                     {!rapport && (
                                                         <p style={{ margin: 0, fontSize: 12, color: '#64748b', fontWeight: 600, lineHeight: 1.6 }}>
-                                                            Déposez votre rapport depuis la section Actions.
+                                                            {helperText}
                                                         </p>
                                                     )}
                                                 </div>
                                                 <button
-                                                    onClick={() => !isWaiting && router.visit(`/expert/rapports/${dossier.id}/deposer`)}
-                                                    disabled={isWaiting}
-                                                    style={{ marginTop: 12, width: '100%', padding: '10px', borderRadius: 10, background: isWaiting ? '#e2e8f0' : isRejete ? '#ef4444' : (rapport ? '#f1f5f9' : GREEN), color: isWaiting ? '#94a3b8' : isRejete ? '#fff' : (rapport ? '#374151' : '#fff'), fontSize: 13, fontWeight: 800, border: 'none', cursor: isWaiting ? 'not-allowed' : 'pointer' }}>
-                                                    {isWaiting ? '🔒 En attente' : isRejete ? '↺ Redéposer le rapport' : rapport ? 'Consulter / Mettre à jour' : 'Déposer le rapport'}
+                                                    onClick={() => !finalReportLocked && router.visit(`/expert/rapports/${dossier.id}/deposer`)}
+                                                    disabled={finalReportLocked}
+                                                    style={{ marginTop: 12, width: '100%', padding: '10px', borderRadius: 10, background: finalReportLocked ? '#e2e8f0' : rapportRejected ? '#ef4444' : (rapport ? '#f1f5f9' : GREEN), color: finalReportLocked ? '#94a3b8' : rapportRejected ? '#fff' : (rapport ? '#374151' : '#fff'), fontSize: 13, fontWeight: 800, border: 'none', cursor: finalReportLocked ? 'not-allowed' : 'pointer' }}>
+                                                    {finalReportLocked ? 'En attente' : rapportRejected ? 'Redéposer le rapport' : rapport ? 'Consulter / Mettre à jour' : 'Déposer le rapport'}
                                                 </button>
                                             </>
                                         );
@@ -432,7 +524,7 @@ export default function DossierShow({
                                                         {doc.original_name || doc.titre || 'Document'}
                                                     </p>
                                                     <p style={{ margin: '1px 0 0', fontSize: 11, color: '#94a3b8', fontWeight: 500 }}>
-                                                        {doc.type || 'document'}
+                                                        {docTypeLabel(doc.type)}
                                                         {doc.size ? ` · ${(doc.size / 1024).toFixed(0)} KB` : ''}
                                                     </p>
                                                 </div>
@@ -451,6 +543,117 @@ export default function DossierShow({
                 </div>
             </div>
         </>
+    );
+}
+
+/* ─── Visite confirmation widget ─── */
+
+function VisiteConfirmationWidget({ confirmation, postUrl }) {
+    const [showRefuse, setShowRefuse] = useState(false);
+    const { data, setData, post, processing } = useForm({ statut: 'refuse', message: '' });
+
+    const statut = confirmation?.statut;
+    const date   = confirmation?.date_visite;
+    const motif  = confirmation?.message;
+
+    const handleRefuse = (e) => {
+        e.preventDefault();
+        post(postUrl, { preserveScroll: true });
+    };
+
+    if (statut === 'accepte') {
+        return (
+            <Card accent={GREEN} className="fu d3">
+                <div style={{ padding: '1.25rem 1.5rem', textAlign: 'center' }}>
+                    <div style={{ fontSize: 36, marginBottom: 10 }}>✅</div>
+                    <div style={{ fontWeight: 800, color: GREEN, fontSize: 15 }}>Visite acceptée</div>
+                    <div style={{ fontSize: 13, color: '#64748b', marginTop: 4 }}>
+                        Vous avez accepté la date du <strong>{date}</strong>.
+                    </div>
+                </div>
+            </Card>
+        );
+    }
+
+    if (statut === 'refuse') {
+        return (
+            <Card accent={RED} className="fu d3">
+                <div style={{ padding: '1.25rem 1.5rem', textAlign: 'center' }}>
+                    <div style={{ fontSize: 36, marginBottom: 10 }}>❌</div>
+                    <div style={{ fontWeight: 800, color: RED, fontSize: 15 }}>Vous avez refusé</div>
+                    <div style={{ fontSize: 13, color: '#64748b', marginTop: 4 }}>
+                        La date du <strong>{date}</strong> a été annulée. La DEE a été notifiée.
+                    </div>
+                    {motif && (
+                        <div style={{ marginTop: 10, padding: '8px 12px', borderRadius: 10, background: '#fef2f2', border: '1px solid #fca5a5', fontSize: 12, color: '#7f1d1d', textAlign: 'left' }}>
+                            Motif : {motif}
+                        </div>
+                    )}
+                </div>
+            </Card>
+        );
+    }
+
+    return (
+        <Card accent={ORANGE} className="fu d3">
+            <div style={{ padding: '1.25rem 1.5rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderRadius: 14, background: '#fff7ed', border: '1.5px solid #fde68a', marginBottom: 14 }}>
+                    <div style={{ fontSize: 26, flexShrink: 0 }}>📅</div>
+                    <div>
+                        <div style={{ fontWeight: 800, fontSize: 13, color: '#92400e' }}>Date de visite planifiée</div>
+                        <div style={{ fontSize: 12, color: '#b45309', marginTop: 2 }}>
+                            La DEE a fixé la visite au <strong>{date}</strong>
+                        </div>
+                    </div>
+                </div>
+
+                {!showRefuse ? (
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                        <button
+                            onClick={() => router.post(postUrl, { statut: 'accepte', message: '' }, { preserveScroll: true })}
+                            style={{ padding: '10px', borderRadius: 11, border: 'none', background: GREEN, color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+                        >
+                            ✓ Accepter
+                        </button>
+                        <button
+                            onClick={() => setShowRefuse(true)}
+                            style={{ padding: '10px', borderRadius: 11, border: `1.5px solid ${RED}`, background: '#fff', color: RED, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+                        >
+                            ✕ Refuser
+                        </button>
+                    </div>
+                ) : (
+                    <form onSubmit={handleRefuse}>
+                        <div style={{ marginBottom: 8, fontSize: 12, color: '#64748b', fontWeight: 600 }}>
+                            Motif du refus (optionnel) :
+                        </div>
+                        <textarea
+                            value={data.message}
+                            onChange={e => setData('message', e.target.value)}
+                            rows={3}
+                            placeholder="Expliquez pourquoi vous refusez cette date..."
+                            style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: 13, resize: 'vertical', marginBottom: 10, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
+                        />
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                            <button
+                                type="submit"
+                                disabled={processing}
+                                style={{ padding: '10px', borderRadius: 11, border: 'none', background: RED, color: '#fff', fontSize: 13, fontWeight: 700, cursor: processing ? 'not-allowed' : 'pointer', opacity: processing ? 0.7 : 1 }}
+                            >
+                                Confirmer le refus
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setShowRefuse(false)}
+                                style={{ padding: '10px', borderRadius: 11, border: '1.5px solid #e2e8f0', background: '#fff', color: '#64748b', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+                            >
+                                Annuler
+                            </button>
+                        </div>
+                    </form>
+                )}
+            </div>
+        </Card>
     );
 }
 
@@ -574,16 +777,16 @@ function ActionCard({ icon, title, desc, href, color, gradFrom, gradTo, locked =
     );
 }
 
-function TimelineItem({ index, label, done, active, showLine }) {
-    const circBg    = done ? GREEN : active ? BLUE : '#e2e8f0';
-    const circColor = done || active ? '#fff' : '#94a3b8';
-    const subText   = done ? 'Terminé' : active ? 'En cours' : 'En attente';
-    const subColor  = done ? GREEN : active ? BLUE : '#94a3b8';
+function TimelineItem({ index, label, done, showLine }) {
+    const circBg    = done ? GREEN : '#e2e8f0';
+    const circColor = done ? '#fff' : '#94a3b8';
+    const subText   = done ? 'Terminé' : 'En attente';
+    const subColor  = done ? GREEN : '#94a3b8';
 
     return (
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0 }}>
-                <div style={{ width: 32, height: 32, borderRadius: '50%', background: circBg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 900, color: circColor, transition: 'background .3s', boxShadow: done || active ? `0 2px 10px ${circBg}55` : 'none' }}>
+                <div style={{ width: 32, height: 32, borderRadius: '50%', background: circBg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 900, color: circColor, transition: 'background .3s', boxShadow: done ? `0 2px 10px ${circBg}55` : 'none' }}>
                     {done ? '✓' : index}
                 </div>
                 {showLine && (
@@ -591,7 +794,7 @@ function TimelineItem({ index, label, done, active, showLine }) {
                 )}
             </div>
             <div style={{ paddingTop: 5 }}>
-                <p style={{ margin: 0, fontSize: 13, fontWeight: 800, color: done || active ? '#0f172a' : '#94a3b8', lineHeight: 1.3 }}>{label}</p>
+                <p style={{ margin: 0, fontSize: 13, fontWeight: 800, color: done ? '#0f172a' : '#94a3b8', lineHeight: 1.3 }}>{label}</p>
                 <p style={{ margin: '3px 0 0', fontSize: 11, fontWeight: 700, color: subColor }}>{subText}</p>
             </div>
         </div>

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Expert;
 
 use App\Http\Controllers\Controller;
 use App\Models\Dossier;
+use App\Services\DossierDocumentService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -93,8 +94,6 @@ class DossierExpertController extends Controller
 
         $comite = $this->getComiteForDossier($dossier->id);
 
-        $progression = $this->calculateProgression($expert->id, $dossier->id);
-
         $rapport = $this->findRapport($expert->id, $dossier->id);
 
         $nbRecommandations = $this->countRecommandations($expert->id, $dossier->id);
@@ -133,11 +132,25 @@ class DossierExpertController extends Controller
             ],
             'dossier' => $dossierPayload,
             'comite' => $comite,
-            'progression' => $progression,
+            'progression' => 0,
             'rapport' => $rapport,
             'nbRecommandations' => $nbRecommandations,
             'documents' => $this->loadDocuments($dossier),
             'assignmentStatus' => $assignment->status ?? null,
+            'evaluationsSoumises' => Schema::hasTable('expert_preuve_evaluations')
+                ? DB::table('expert_preuve_evaluations')
+                    ->where('dossier_id', $dossier->id)
+                    ->where('expert_id', $expert->id)
+                    ->where('statut', 'soumis')
+                    ->count()
+                : 0,
+            'visiteConfirmation' => [
+                'statut'      => $assignment->visite_statut ?? null,
+                'message'     => $assignment->visite_message ?? null,
+                'date_visite' => $dossier->date_visite
+                    ? \Carbon\Carbon::parse($dossier->date_visite)->format('d/m/Y H:i')
+                    : null,
+            ],
         ]);
     }
 
@@ -166,6 +179,11 @@ class DossierExpertController extends Controller
             ->first();
 
         abort_if(!$doc, 404);
+        abort_unless(
+            DossierDocumentService::isAvailableToExperts($doc),
+            403,
+            "Ce rapport doit être confirmé par la DEE avant d'être accessible aux experts."
+        );
 
         $path = $doc->path ?? $doc->file_path ?? $doc->fichier ?? null;
 
@@ -441,11 +459,12 @@ class DossierExpertController extends Controller
             ->where('dossier_id', $dossier->id)
             ->orderByDesc('id')
             ->get()
+            ->filter(fn (object $doc) => DossierDocumentService::isAvailableToExperts($doc))
             ->map(function ($doc) use ($dossier) {
                 $path = $doc->path ?? $doc->file_path ?? $doc->fichier ?? null;
                 return [
                     'id'            => $doc->id,
-                    'type'          => $doc->type ?? $doc->document_type ?? 'document',
+                    'type'          => $doc->type_document ?? $doc->type ?? $doc->document_type ?? 'document',
                     'titre'         => $doc->titre ?? $doc->nom ?? $doc->name ?? 'Document',
                     'original_name' => $doc->original_name ?? $doc->filename ?? basename($path ?? ''),
                     'size'          => $doc->size ?? $doc->file_size ?? null,

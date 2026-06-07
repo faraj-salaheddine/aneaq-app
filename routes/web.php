@@ -27,6 +27,7 @@ use App\Http\Controllers\SI\UniversiteController as SIUniversiteController;
 use App\Http\Controllers\SI\ExpertController as SIExpertController;
 use App\Http\Controllers\SI\HistoriqueController as SIHistoriqueController;
 use App\Http\Controllers\SI\GestionUsersController;
+use App\Http\Controllers\SI\SIProfileController;
 use App\Http\Controllers\Expert\ExpertDashboardController;
 use App\Http\Controllers\Expert\ExpertProfilController;
 use App\Http\Controllers\Expert\DossierExpertController as ExpertDossierController;
@@ -40,6 +41,7 @@ use App\Http\Controllers\Expert\RapportExpertController;
 use App\Http\Controllers\Expert\ExpertCalendrierController;
 use App\Http\Controllers\Expert\EvaluationAnnexeController;
 use App\Http\Controllers\Etablissement\EtablissementDashboardController;
+use App\Http\Controllers\Etablissement\EtablissementDossierController;
 use App\Http\Controllers\Etablissement\EtablissementProfilController;
 use App\Http\Controllers\Etablissement\EtablissementDocumentController;
 use App\Http\Controllers\Etablissement\AnnexeController;
@@ -48,6 +50,8 @@ use App\Http\Controllers\Etablissement\EtablissementHistoriqueController;
 use App\Http\Controllers\DEE\SuiviRecommandationController;
 use App\Http\Controllers\DEE\RapportExpertValidationController;
 use App\Http\Controllers\Etablissement\RecommandationSuiviController;
+use App\Http\Controllers\Etablissement\VisiteConfirmationController as EtabVisiteController;
+use App\Http\Controllers\Expert\VisiteConfirmationController as ExpertVisiteController;
 use App\Models\CampagneEvaluation;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
@@ -236,6 +240,10 @@ Route::middleware(['auth', 'dee.admin'])
 
             Route::post('/{dossier}/documents', [DossierDocumentController::class, 'store'])
                 ->name('documents.store');
+            Route::post('/{dossier}/documents/rapport-autoevaluation/confirmer', [DossierDocumentController::class, 'confirmRapportAutoevaluation'])
+                ->name('documents.rapport_autoevaluation.confirm');
+            Route::post('/{dossier}/documents/rapport-autoevaluation/refuser', [DossierDocumentController::class, 'rejectRapportAutoevaluation'])
+                ->name('documents.rapport_autoevaluation.reject');
             Route::get('/{dossier}/documents/{document}/voir', [DossierDocumentController::class, 'voir'])
                 ->whereNumber('document')
                 ->name('documents.voir');
@@ -287,19 +295,12 @@ Route::middleware(['auth', 'dee.admin'])
         // Export PDF
         Route::get('/dossiers/{dossier}/export/matrice', [ExportPdfController::class, 'matrice'])->name('dossiers.export.matrice');
         Route::get('/dossiers/{dossier}/export/rapport', [ExportPdfController::class, 'rapport'])->name('dossiers.export.rapport');
+        Route::get('/dossiers/{dossier}/export/evaluation-annexes', [ExportPdfController::class, 'evaluationAnnexes'])->name('dossiers.export.evaluation-annexes');
 
         // Calendrier des visites
         Route::get('/calendrier-visites', [CalendrierVisitesController::class, 'index'])->name('calendrier-visites.index');
 
-        // Paramétrage critères d'évaluation
-        Route::prefix('criteres')->name('criteres.')->group(function () {
-            Route::get('/', [CritereEvaluationController::class, 'index'])->name('index');
-            Route::post('/', [CritereEvaluationController::class, 'store'])->name('store');
-            Route::patch('/{critere}', [CritereEvaluationController::class, 'update'])->name('update');
-            Route::delete('/{critere}', [CritereEvaluationController::class, 'destroy'])->name('destroy');
-        });
-
-        // Espace Q&R (DEE)
+// Espace Q&R (DEE)
         Route::prefix('questions-reponses')->name('questions-reponses.')->group(function () {
             Route::get('/', [QuestionsReponsesController::class, 'indexDee'])->name('index');
             Route::post('/{question}/repondre', [QuestionsReponsesController::class, 'repondre'])->name('repondre');
@@ -336,6 +337,12 @@ Route::middleware(['auth', 'role:si'])
         Route::get('/dashboard', [SIDashboardController::class, 'index'])
             ->name('dashboard');
 
+        // Profile SI
+        Route::get('/profile',    [SIProfileController::class, 'edit'])->name('profile');
+        Route::patch('/profile',  [SIProfileController::class, 'update'])->name('profile.update');
+        Route::delete('/profile', [SIProfileController::class, 'destroy'])->name('profile.destroy');
+
+
         // Utilisateurs DEE (gérés par SI)
         Route::prefix('utilisateurs-dee')->name('utilisateurs-dee.')->group(function () {
             Route::get('/', [UtilisateursDEEController::class, 'index'])->name('index');
@@ -349,12 +356,16 @@ Route::middleware(['auth', 'role:si'])
         // Experts SI
         Route::prefix('experts')->name('experts.')->group(function () {
             Route::get('/', [SIExpertController::class, 'index'])->name('index');
+            Route::get('/export', [SIExpertController::class, 'export'])->name('export');
             Route::get('/create', [SIExpertController::class, 'create'])->name('create');
             Route::post('/', [SIExpertController::class, 'store'])->name('store');
             Route::get('/{expert}', [SIExpertController::class, 'show'])->name('show');
             Route::get('/{expert}/edit', [SIExpertController::class, 'edit'])->name('edit');
             Route::patch('/{expert}', [SIExpertController::class, 'update'])->name('update');
             Route::delete('/{expert}', [SIExpertController::class, 'destroy'])->name('destroy');
+            Route::get('/{expert}/documents/{document}/preview', [SIExpertController::class, 'previewDocument'])->name('documents.preview');
+            Route::get('/{expert}/documents/{document}/download', [SIExpertController::class, 'downloadDocument'])->name('documents.download');
+            Route::delete('/{expert}/documents/{document}', [SIExpertController::class, 'deleteDocument'])->name('documents.delete');
         });
 
         // Établissements SI
@@ -374,12 +385,14 @@ Route::middleware(['auth', 'role:si'])
 
         // Historique SI
         Route::get('/historique', [SIHistoriqueController::class, 'index'])->name('historique.index');
+        Route::delete('/historique', [SIHistoriqueController::class, 'clear'])->name('historique.clear');
 
         // Gestion utilisateurs (activer/désactiver/reset password)
         Route::prefix('users')->name('users.')->group(function () {
             Route::get('/', [GestionUsersController::class, 'index'])->name('index');
             Route::patch('/{user}/toggle', [GestionUsersController::class, 'toggle'])->name('toggle');
             Route::post('/{user}/reset-password', [GestionUsersController::class, 'resetPassword'])->name('reset-password');
+            Route::post('/{user}/send-password', [GestionUsersController::class, 'sendPasswordEmail'])->name('send-password');
         });
     });
 
@@ -420,6 +433,8 @@ Route::middleware(['auth', 'role:expert'])
                 ->name('show');
             Route::get('/{dossier}/documents/{document}', [ExpertDossierController::class, 'openDocument'])
                 ->name('documents.open');
+            Route::post('/{dossier}/visite/repondre', [ExpertVisiteController::class, 'repondre'])
+                ->name('visite.repondre');
         });
 
         // Participations
@@ -512,6 +527,12 @@ Route::middleware(['auth', 'role:etablissement'])
 
         Route::get('/dashboard', [EtablissementDashboardController::class, 'index'])
             ->name('dashboard');
+
+        Route::get('/dossier', [EtablissementDossierController::class, 'show'])
+            ->name('dossier.show');
+
+        Route::post('/visite/repondre', [EtabVisiteController::class, 'repondre'])
+            ->name('visite.repondre');
 
         Route::get('/sans-dossier', fn () => \Inertia\Inertia::render('Etablissement/SansDossier'))
             ->name('sans-dossier');

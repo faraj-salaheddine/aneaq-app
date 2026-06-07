@@ -15,9 +15,12 @@ const CSS = `
 `;
 
 const STATUT = {
-    "Déposé":  { color:"#b35c00", bg:"#fdf5ec", border:"#fde8cc" },
-    "Validé":  { color:"#0e7c5b", bg:"#ecfaf4", border:"#c6f0df" },
-    "Rejeté":  { color:"#b91c1c", bg:"#fef2f2", border:"#fecaca" },
+    "Déposé":                       { label:"Déposé", color:"#b35c00", bg:"#fdf5ec", border:"#fde8cc" },
+    "en_attente_confirmation_dee":  { label:"En attente de confirmation DEE", color:"#b35c00", bg:"#fdf5ec", border:"#fde8cc" },
+    "confirme_par_dee":             { label:"Confirmé et envoyé aux experts", color:"#0e7c5b", bg:"#ecfaf4", border:"#c6f0df" },
+    "rejete_par_dee":               { label:"Refusé par la DEE", color:"#b91c1c", bg:"#fef2f2", border:"#fecaca" },
+    "Validé":                       { label:"Validé", color:"#0e7c5b", bg:"#ecfaf4", border:"#c6f0df" },
+    "Rejeté":                       { label:"Rejeté", color:"#b91c1c", bg:"#fef2f2", border:"#fecaca" },
 };
 
 function Svg({ d, w=16, h=16, sw=1.6, color="currentColor" }) {
@@ -34,6 +37,7 @@ const IC = {
     file:    "M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8zM14 2v6h6",
     dl:      "M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3",
     eye:     "M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8zM12 9a3 3 0 100 6 3 3 0 000-6z",
+    book:    "M4 19.5A2.5 2.5 0 016.5 17H20M4 19.5A2.5 2.5 0 004 17V4.5A2.5 2.5 0 016.5 2H20v18M9 7h6m-6 4h6m-6 4h4",
     check:   "M20 6L9 17l-5-5",
     warn:    "M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0zM12 9v4m0 4v.01",
     chevron: "M9 18l6-6-6-6",
@@ -222,29 +226,105 @@ export default function EtablissementDocuments({ etablissement, dossier, documen
                     {/* last status banner */}
                     {dernierRapport && (() => {
                         const s = STATUT[dernierRapport.status] ?? { color:"#5c6480", bg:"#f4f6fb", border:"#e4e7f0" };
+                        const rejected = dernierRapport.status === "rejete_par_dee";
                         return (
                             <div style={{
                                 padding:"12px 16px", borderRadius:8,
                                 background:s.bg, border:`1px solid ${s.border}`,
-                                display:"flex", alignItems:"center", gap:10,
+                                display:"flex", alignItems:"flex-start", gap:10,
                             }}>
-                                <Svg d={dernierRapport.status === "Validé" ? IC.check : IC.warn}
+                                <Svg d={["Validé", "confirme_par_dee"].includes(dernierRapport.status) ? IC.check : IC.warn}
                                     w={15} h={15} color={s.color} sw={2}/>
-                                <span style={{ fontSize:13, fontWeight:600, color:s.color }}>
-                                    Dernier dépôt — statut :
-                                </span>
-                                <span style={{
-                                    fontSize:11, fontWeight:700, color:s.color,
-                                    padding:"2px 8px", borderRadius:999,
-                                    background:"rgba(255,255,255,.6)", border:`1px solid ${s.border}`,
-                                    textTransform:"uppercase", letterSpacing:".04em",
-                                }}>{dernierRapport.status}</span>
-                                <span style={{ fontSize:11, color:"#8891aa", marginLeft:"auto", fontFamily:"'JetBrains Mono',monospace" }}>
-                                    {new Date(dernierRapport.created_at).toLocaleDateString("fr-FR", { day:"2-digit", month:"long", year:"numeric" })}
-                                </span>
+                                <div style={{ flex:1 }}>
+                                    <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                                        <span style={{ fontSize:13, fontWeight:600, color:s.color }}>
+                                            Dernier dépôt — statut :
+                                        </span>
+                                        <span style={{
+                                            fontSize:11, fontWeight:700, color:s.color,
+                                            padding:"2px 8px", borderRadius:999,
+                                            background:"rgba(255,255,255,.6)", border:`1px solid ${s.border}`,
+                                            textTransform:"uppercase", letterSpacing:".04em",
+                                        }}>{s.label || dernierRapport.status}</span>
+                                        <span style={{ fontSize:11, color:"#8891aa", marginLeft:"auto", fontFamily:"'JetBrains Mono',monospace" }}>
+                                            {new Date(dernierRapport.created_at).toLocaleDateString("fr-FR", { day:"2-digit", month:"long", year:"numeric" })}
+                                        </span>
+                                    </div>
+                                    {rejected && (dernierRapport.motif_rejet || dernierRapport.observation) && (
+                                        <p style={{ margin:"8px 0 0", fontSize:12, fontWeight:600, color:s.color, lineHeight:1.6 }}>
+                                            Motif de correction : {dernierRapport.motif_rejet || dernierRapport.observation}
+                                        </p>
+                                    )}
+                                </div>
                             </div>
                         );
                     })()}
+
+                    {/* ── Canevas card ── */}
+                    <div style={{ background:"#fff", border:"1px solid #d6e4fb", borderRadius:12, overflow:"hidden" }}>
+                        <div style={{
+                            padding:"11px 18px", borderBottom:"1px solid #eef3fd",
+                            background:"linear-gradient(90deg,#eef3fd 0%,#f5f3ff 100%)",
+                            display:"flex", alignItems:"center", gap:8,
+                        }}>
+                            <Svg d={IC.book} w={14} h={14} color="#1c5fdc" sw={2}/>
+                            <span style={{ fontSize:13, fontWeight:600, color:"#1a1f2e" }}>Canevas du Rapport d'Autoévaluation</span>
+                            <span style={{
+                                marginLeft:"auto", fontSize:10, fontWeight:700,
+                                padding:"2px 8px", borderRadius:999,
+                                background:"#eef3fd", color:"#1c5fdc", border:"1px solid #d6e4fb",
+                                textTransform:"uppercase", letterSpacing:".04em",
+                            }}>ANEAQ 2025</span>
+                        </div>
+                        <div style={{ padding:"16px 20px", display:"flex", alignItems:"center", gap:16 }}>
+                            <div style={{
+                                width:44, height:44, borderRadius:10, flexShrink:0,
+                                background:"linear-gradient(135deg,#eef3fd,#f5f3ff)",
+                                border:"1px solid #d6e4fb",
+                                display:"flex", alignItems:"center", justifyContent:"center",
+                            }}>
+                                <Svg d={IC.file} w={20} h={20} color="#1c5fdc" sw={1.7}/>
+                            </div>
+                            <div style={{ flex:1 }}>
+                                <p style={{ fontSize:13, fontWeight:600, color:"#1a1f2e", margin:"0 0 3px" }}>
+                                    Canevas_Rapport_Autoévaluation_ETB-UNIV_2025.pdf
+                                </p>
+                                <p style={{ fontSize:12, color:"#8891aa", margin:0 }}>
+                                    Utilisez ce modèle comme référence pour rédiger votre rapport d'autoévaluation. Il couvre les 5 domaines (A à E) avec leurs sous-sections et annexes requises.
+                                </p>
+                            </div>
+                            <div style={{ display:"flex", gap:8, flexShrink:0 }}>
+                                <a
+                                    href="/docs/canevas_rapport_autoevaluation.pdf"
+                                    target="_blank"
+                                    className="doc-see"
+                                    style={{
+                                        display:"inline-flex", alignItems:"center", gap:5,
+                                        padding:"7px 14px", borderRadius:8,
+                                        border:"1px solid #c6f0df", background:"#ecfaf4",
+                                        color:"#0e7c5b", fontSize:12, fontWeight:600,
+                                        textDecoration:"none", transition:"all .1s",
+                                    }}>
+                                    <Svg d={IC.eye} w={13} h={13} color="currentColor" sw={2}/>
+                                    Consulter
+                                </a>
+                                <a
+                                    href="/docs/canevas_rapport_autoevaluation.pdf"
+                                    download="Canevas_Rapport_Autoevaluation_ANEAQ_2025.pdf"
+                                    className="doc-dl"
+                                    style={{
+                                        display:"inline-flex", alignItems:"center", gap:5,
+                                        padding:"7px 14px", borderRadius:8,
+                                        border:"1px solid #d6e4fb", background:"#eef3fd",
+                                        color:"#1c5fdc", fontSize:12, fontWeight:600,
+                                        textDecoration:"none", transition:"all .1s",
+                                    }}>
+                                    <Svg d={IC.dl} w={13} h={13} color="currentColor" sw={2}/>
+                                    Télécharger
+                                </a>
+                            </div>
+                        </div>
+                    </div>
 
                     {/* ── Upload card ── */}
                     <div style={{ background:"#fff", border:"1px solid #e4e7f0", borderRadius:12, overflow:"hidden" }}>
@@ -273,7 +353,7 @@ export default function EtablissementDocuments({ etablissement, dossier, documen
                             }}>
                                 <Svg d={IC.info} w={14} h={14} color="#1c5fdc" sw={1.8}/>
                                 <p style={{ fontSize:12, color:"#1c5fdc", margin:0 }}>
-                                    Les deux fichiers sont <b>obligatoires</b> — déposez votre rapport en format PDF et en format Word (.doc/.docx).
+                                    Les deux fichiers sont <b>obligatoires</b>. Après le dépôt, ils restent invisibles aux experts jusqu'à leur confirmation par la DEE.
                                 </p>
                             </div>
 
@@ -464,6 +544,11 @@ export default function EtablissementDocuments({ etablissement, dossier, documen
                                                                     Dernier dépôt
                                                                 </span>
                                                             )}
+                                                            {doc.status === "rejete_par_dee" && (doc.motif_rejet || doc.observation) && (
+                                                                <p style={{ margin:"4px 0 0", maxWidth:320, fontSize:11, fontWeight:600, color:"#b91c1c", lineHeight:1.5 }}>
+                                                                    Motif : {doc.motif_rejet || doc.observation}
+                                                                </p>
+                                                            )}
                                                         </div>
                                                     </div>
                                                 </td>
@@ -486,7 +571,7 @@ export default function EtablissementDocuments({ etablissement, dossier, documen
                                                         color:s.color, background:s.bg,
                                                         border:`1px solid ${s.border}`,
                                                         textTransform:"uppercase", letterSpacing:".04em",
-                                                    }}>{doc.status}</span>
+                                                    }}>{s.label || doc.status}</span>
                                                 </td>
                                                 <td style={{ padding:"12px 16px", borderBottom:"1px solid #f4f6fb", verticalAlign:"middle" }}>
                                                     <div style={{ display:"flex", gap:6 }}>

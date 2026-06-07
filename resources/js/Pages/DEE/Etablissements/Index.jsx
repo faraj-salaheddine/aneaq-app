@@ -10,10 +10,14 @@ const RED    = "#e11d48";
 function EtablissementsIndex({ etablissements = [] }) {
     const { props } = usePage();
     const flash = props.flash || {};
+    const isChefDee = props?.auth?.user?.dee_role === 'chef_dee';
 
     const [search, setSearch]           = useState('');
     const [editingItem, setEditingItem] = useState(null);
-    const [deleteItem, setDeleteItem]   = useState(null);
+    const [deleteItem, setDeleteItem]       = useState(null);
+    const [deletePassword, setDeletePassword] = useState('');
+    const [deletePasswordError, setDeletePasswordError] = useState('');
+    const [deleteProcessing, setDeleteProcessing] = useState(false);
     const [createOpen, setCreateOpen]   = useState(false);
 
     const { data, setData, patch, reset, processing, errors, clearErrors } = useForm({
@@ -64,11 +68,22 @@ function EtablissementsIndex({ etablissements = [] }) {
         patch(`/dee/etablissements/${editingItem.id}`, { preserveScroll: true, onSuccess: closeEditModal });
     };
 
+    const openDeleteModal  = (item) => { setDeleteItem(item); setDeletePassword(''); setDeletePasswordError(''); };
+    const closeDeleteModal = () => { setDeleteItem(null); setDeletePassword(''); setDeletePasswordError(''); };
+
     const submitDelete = () => {
         if (!deleteItem) return;
+        if (!isChefDee && !deletePassword.trim()) { setDeletePasswordError('Le mot de passe est obligatoire.'); return; }
+        setDeleteProcessing(true);
         router.delete(`/dee/etablissements/${deleteItem.id}`, {
+            data: isChefDee ? {} : { password: deletePassword },
             preserveScroll: true,
-            onSuccess: () => setDeleteItem(null),
+            preserveState: true,
+            onSuccess: () => { setDeleteProcessing(false); closeDeleteModal(); },
+            onError: (errors) => {
+                setDeleteProcessing(false);
+                if (errors.password) setDeletePasswordError(errors.password);
+            },
         });
     };
 
@@ -225,7 +240,7 @@ function EtablissementsIndex({ etablissements = [] }) {
                                                         Modifier
                                                     </button>
                                                     <button
-                                                        onClick={() => setDeleteItem(item)}
+                                                        onClick={() => openDeleteModal(item)}
                                                         style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 10px', borderRadius: 8, border: '1px solid #fecaca', background: '#fff1f2', color: RED, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
                                                     >
                                                         <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
@@ -257,8 +272,8 @@ function EtablissementsIndex({ etablissements = [] }) {
                         </div>
                         <form onSubmit={submitCreate} style={{ padding: '1.5rem 1.75rem' }}>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                                <EField label="Nom principal *" value={cData.etablissement_2} onChange={v => setCData('etablissement_2', v)} error={cErrors.etablissement_2} />
-                                <EField label="Nom secondaire"  value={cData.etablissement}   onChange={v => setCData('etablissement', v)}   error={cErrors.etablissement} />
+                                <EField label="Nom principal *" value={cData.etablissement}   onChange={v => setCData('etablissement', v)}   error={cErrors.etablissement} />
+                                <EField label="Nom secondaire"  value={cData.etablissement_2} onChange={v => setCData('etablissement_2', v)} error={cErrors.etablissement_2} />
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
                                     <EField label="Ville"      value={cData.ville}      onChange={v => setCData('ville', v)}      error={cErrors.ville} />
                                     <EField label="Université" value={cData.universite} onChange={v => setCData('universite', v)} error={cErrors.universite} />
@@ -292,8 +307,8 @@ function EtablissementsIndex({ etablissements = [] }) {
 
                         <form onSubmit={submitEdit} style={{ padding: '1.5rem 1.75rem' }}>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                                <EField label="Nom principal"  value={data.etablissement_2} onChange={v => setData('etablissement_2', v)} error={errors.etablissement_2} />
-                                <EField label="Nom secondaire" value={data.etablissement}   onChange={v => setData('etablissement', v)}   error={errors.etablissement} />
+                                <EField label="Nom principal"  value={data.etablissement}   onChange={v => setData('etablissement', v)}   error={errors.etablissement} />
+                                <EField label="Nom secondaire" value={data.etablissement_2} onChange={v => setData('etablissement_2', v)} error={errors.etablissement_2} />
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
                                     <EField label="Ville"      value={data.ville}      onChange={v => setData('ville', v)}      error={errors.ville} />
                                     <EField label="Université" value={data.universite} onChange={v => setData('universite', v)} error={errors.universite} />
@@ -314,36 +329,40 @@ function EtablissementsIndex({ etablissements = [] }) {
 
             {/* ── Delete confirm modal ── */}
             {deleteItem && (
-                <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: 16, backdropFilter: 'blur(4px)' }}>
-                    <div style={{ background: '#fff', borderRadius: 20, width: '100%', maxWidth: 440, boxShadow: '0 24px 64px rgba(0,0,0,0.2)', overflow: 'hidden' }}>
-                        <div style={{ padding: '1.5rem', borderBottom: '1px solid #f1f5f9' }}>
-                            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-                                <div>
-                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 99, background: '#fff1f2', color: RED, marginBottom: 10 }}>
-                                        Suppression
-                                    </span>
-                                    <h3 style={{ fontSize: 18, fontWeight: 700, color: '#0f172a', margin: 0 }}>Confirmer la suppression</h3>
-                                </div>
-                                <button onClick={() => setDeleteItem(null)} style={{ background: '#f1f5f9', border: 'none', borderRadius: 8, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
-                                    <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                                </button>
-                            </div>
+                <div onClick={closeDeleteModal} style={{position:'fixed',inset:0,background:'rgba(15,23,42,0.5)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:9999,padding:16,backdropFilter:'blur(4px)'}}>
+                    <div onClick={e=>e.stopPropagation()} style={{background:'#fff',borderRadius:20,width:'100%',maxWidth:420,boxShadow:'0 24px 64px rgba(0,0,0,0.2)',padding:'2rem'}}>
+                        <div style={{width:52,height:52,borderRadius:14,background:'#fef2f2',display:'flex',alignItems:'center',justifyContent:'center',marginBottom:16}}>
+                            <svg width={24} height={24} viewBox="0 0 24 24" fill="none" stroke="#e11d48" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+                                <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+                            </svg>
                         </div>
-                        <div style={{ padding: '1.5rem' }}>
-                            <p style={{ fontSize: 13, color: '#64748b', margin: '0 0 6px', lineHeight: 1.6 }}>
-                                Vous allez supprimer définitivement l'établissement :{' '}
-                                <strong style={{ color: '#0f172a' }}>{deleteItem.display_name}</strong>
-                            </p>
-                            <p style={{ fontSize: 13, color: '#94a3b8', margin: 0, lineHeight: 1.6 }}>
-                                La suppression sera refusée si l'établissement est encore lié à des campagnes ou dossiers.
-                            </p>
-                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 20 }}>
-                                <button type="button" onClick={() => setDeleteItem(null)} style={{ height: 38, padding: '0 16px', borderRadius: 9, border: '1px solid #e2e8f0', background: '#fff', color: '#374151', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Annuler</button>
-                                <button type="button" onClick={submitDelete} style={{ display: 'flex', alignItems: 'center', gap: 6, height: 38, padding: '0 16px', borderRadius: 9, border: 'none', background: RED, color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
-                                    <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
-                                    Supprimer définitivement
-                                </button>
+                        <h3 style={{fontSize:18,fontWeight:700,color:'#0f172a',margin:'0 0 8px'}}>Confirmer la suppression</h3>
+                        <p style={{fontSize:13,color:'#64748b',margin:'0 0 20px',lineHeight:1.6}}>
+                            Êtes-vous sûr de vouloir supprimer l'établissement <strong style={{color:'#0f172a'}}>{deleteItem.display_name}</strong> ? Cette action est irréversible.
+                        </p>
+                        {!isChefDee && (
+                            <div style={{marginBottom:20}}>
+                                <label style={{display:'block',fontSize:12,fontWeight:600,color:'#374151',marginBottom:6}}>
+                                    Confirmez avec votre mot de passe
+                                </label>
+                                <input
+                                    type="password" autoFocus
+                                    placeholder="Votre mot de passe"
+                                    value={deletePassword}
+                                    onChange={e=>{setDeletePassword(e.target.value);setDeletePasswordError('');}}
+                                    onKeyDown={e=>e.key==='Enter'&&submitDelete()}
+                                    style={{width:'100%',padding:'10px 14px',border:`1.5px solid ${deletePasswordError?'#fca5a5':'#e2e8f0'}`,borderRadius:9,fontSize:13,color:'#0f172a',outline:'none',boxSizing:'border-box'}}
+                                />
+                                {deletePasswordError&&<p style={{margin:'5px 0 0',fontSize:12,color:'#e11d48'}}>{deletePasswordError}</p>}
                             </div>
+                        )}
+                        <div style={{display:'flex',justifyContent:'flex-end',gap:10}}>
+                            <button onClick={closeDeleteModal} style={{height:38,padding:'0 16px',borderRadius:9,border:'1px solid #e2e8f0',background:'#fff',color:'#374151',fontSize:13,fontWeight:600,cursor:'pointer'}}>Annuler</button>
+                            <button onClick={submitDelete} disabled={deleteProcessing} style={{display:'flex',alignItems:'center',gap:6,height:38,padding:'0 16px',borderRadius:9,border:'none',background:'#e11d48',color:'#fff',fontSize:13,fontWeight:700,cursor:deleteProcessing?'not-allowed':'pointer',opacity:deleteProcessing?0.6:1}}>
+                                <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+                                {deleteProcessing?'Suppression…':'Supprimer définitivement'}
+                            </button>
                         </div>
                     </div>
                 </div>

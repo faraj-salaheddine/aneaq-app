@@ -7,6 +7,7 @@ use App\Models\Etablissement;
 use App\Models\Dossier;
 use App\Models\EtablissementOnboarding;
 use App\Models\NotificationAneaq;
+use App\Services\DossierDocumentService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
@@ -82,10 +83,7 @@ class EtablissementDashboardController extends Controller
         }
 
         if ($dossier) {
-            $hasRapport = DB::table('dossier_documents')
-                ->where('dossier_id', $dossier->id)
-                ->whereIn('type_document', ['rapport_autoevaluation', ''])
-                ->exists();
+            $hasRapport = DossierDocumentService::hasRapportAutoevaluation($dossier);
 
             if (!$hasRapport) {
                 $taches[] = [
@@ -103,27 +101,14 @@ class EtablissementDashboardController extends Controller
     {
         if (!$dossier) return [];
 
-        $typesRequis = [
-            'rapport_autoevaluation' => "Rapport d'autoévaluation",
-        ];
-
-        $deposes = DB::table('dossier_documents')
-            ->where('dossier_id', $dossier->id)
-            ->pluck('type_document')
-            ->toArray();
-
-        $hasAnyDoc = count($deposes) > 0;
-
-        $manquants = [];
-        foreach ($typesRequis as $type => $label) {
-            // treat any uploaded document as satisfying rapport_autoevaluation
-            if ($type === 'rapport_autoevaluation' && $hasAnyDoc) continue;
-            if (!in_array($type, $deposes)) {
-                $manquants[] = ['type' => $type, 'label' => $label];
-            }
+        if (DossierDocumentService::hasRapportAutoevaluation($dossier)) {
+            return [];
         }
 
-        return $manquants;
+        return [[
+            'type'  => 'rapport_autoevaluation',
+            'label' => "Rapport d'autoévaluation",
+        ]];
     }
 
     private function buildTimeline(?Dossier $dossier): array
@@ -133,13 +118,12 @@ class EtablissementDashboardController extends Controller
         $etapes = [
             ['statut' => 'en_attente_formulaire', 'label' => 'Sélectionné'],
             ['statut' => 'formulaire_complete',   'label' => 'Profil complété'],
-            ['statut' => 'rapport_depose',        'label' => 'Rapport déposé'],
+            ['statut' => 'annexes_remplies',      'label' => 'Remplir les annexes'],
             ['statut' => 'visite_planifiee',      'label' => 'Visite planifiée'],
             ['statut' => 'valide',                'label' => 'Validé'],
         ];
 
         $mapping = [
-            // French label variants
             'établissement sélectionné'  => 'en_attente_formulaire',
             'sélectionné'                => 'en_attente_formulaire',
             'en attente formulaire'      => 'en_attente_formulaire',
@@ -147,8 +131,10 @@ class EtablissementDashboardController extends Controller
             'accès envoyé'               => 'en_attente_formulaire',
             'profil complété'            => 'formulaire_complete',
             'formulaire complété'        => 'formulaire_complete',
-            'rapport déposé'             => 'rapport_depose',
-            'rapport_en_attente'         => 'rapport_depose',
+            'rapport déposé'             => 'annexes_remplies',
+            'rapport_en_attente'         => 'annexes_remplies',
+            'rapport_depose'             => 'annexes_remplies',
+            'en cours evaluation'        => 'annexes_remplies',
             'date de visite planifiée'   => 'visite_planifiee',
             'visite planifiée'           => 'visite_planifiee',
             'date_visite_planifiee'      => 'visite_planifiee',

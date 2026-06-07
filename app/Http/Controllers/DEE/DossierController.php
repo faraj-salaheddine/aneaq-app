@@ -13,7 +13,10 @@ use App\Models\Expert;
 use App\Models\NotificationAneaq;
 use App\Models\RapportExpert;
 use App\Models\User;
+use App\Models\UtilisateurDEE;
+use Illuminate\Support\Facades\Hash;
 use App\Services\ActivityLogger;
+use App\Services\DossierDocumentService;
 use App\Services\DossierStatusService;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
@@ -86,7 +89,63 @@ class DossierController extends Controller
             'recommandationsStats' => $recommandations['stats'],
             'recommandationsRappels' => $recommandations['rappels'],
             'recommandationsProchainRappel' => $recommandations['prochainRappel'],
+            'visiteConfirmations'  => $this->visiteConfirmationsPayload($dossier),
         ]);
+    }
+
+    private function visiteConfirmationsPayload(Dossier $dossier): array
+    {
+        // Réponse établissement
+        $etablissementNom = null;
+        if ($dossier->etablissement_id) {
+            $etab = DB::table('etablissements')->where('id', $dossier->etablissement_id)->first();
+            if ($etab) {
+                $etablissementNom = $etab->etablissement_2 ?? $etab->etablissement ?? $etab->nom ?? 'Établissement';
+            }
+        }
+
+        $etabStatut = $dossier->visite_statut_etab ?? null;
+
+        // Réponses experts (uniquement les affectations confirmées)
+        $expertConfirmations = [];
+        if (Schema::hasTable('dossier_experts') && Schema::hasTable('experts')) {
+            $confirmedStatuts = ['accepte_par_expert', 'confirme_par_expert', 'comite_confirme'];
+            $assignments = DB::table('dossier_experts')
+                ->where('dossier_id', $dossier->id)
+                ->whereNotNull('expert_id')
+                ->whereIn('status', $confirmedStatuts)
+                ->get();
+
+            $expertIds = $assignments->pluck('expert_id')->filter()->unique();
+            $experts   = DB::table('experts')->whereIn('id', $expertIds)->get()->keyBy('id');
+
+            foreach ($assignments as $a) {
+                $exp = $experts->get($a->expert_id);
+                if (!$exp) continue;
+                $nom = trim(($exp->prenom ?? '') . ' ' . ($exp->nom ?? $exp->name ?? '')) ?: 'Expert';
+                $expertConfirmations[] = [
+                    'nom'     => $nom,
+                    'statut'  => $a->visite_statut  ?? null,
+                    'message' => $a->visite_message ?? null,
+                ];
+            }
+        }
+
+        // Calcul "tous ont accepté"
+        $etabAccepted       = ($etabStatut === 'accepte');
+        $allExpertsAccepted = count($expertConfirmations) === 0 ||
+            collect($expertConfirmations)->every(fn($e) => $e['statut'] === 'accepte');
+        $tousAcceptes       = $etabAccepted && $allExpertsAccepted && (count($expertConfirmations) > 0 || $etabAccepted);
+
+        return [
+            'etablissement' => [
+                'nom'     => $etablissementNom,
+                'statut'  => $etabStatut,
+                'message' => $dossier->visite_message_etab ?? null,
+            ],
+            'experts'       => $expertConfirmations,
+            'tous_acceptes' => $tousAcceptes,
+        ];
     }
 
     private function recommandationsPayload(Dossier $dossier): array
@@ -309,6 +368,23 @@ class DossierController extends Controller
             'status' => ['sometimes', 'nullable', 'string', 'max:255'],
         ]);
 
+        if ($request->has('date_visite') && !empty($validated['date_visite'])) {
+            if (!DossierDocumentService::hasRapportAutoevaluation($dossier)) {
+                return back()->withErrors([
+                    'date_visite' => "Le rapport d'autoévaluation doit être déposé par l'établissement avant de planifier la visite.",
+                ]);
+            }
+
+            $hasAnnexes = Schema::hasTable('critere_preuves')
+                && \App\Models\CriterePreuve::where('etablissement_id', $dossier->etablissement_id)->exists();
+
+            if (!$hasAnnexes) {
+                return back()->withErrors([
+                    'date_visite' => "Les annexes doivent être remplies par l'établissement avant de planifier la visite.",
+                ]);
+            }
+        }
+
         $hasChanges = false;
 
         if ($request->has('description') && $this->hasDossierColumn('description')) {
@@ -336,15 +412,29 @@ class DossierController extends Controller
             $hasChanges = true;
         }
 
-        if ($request->has('date_visite') && !empty($validated['date_visite'])) {
-            if ($this->hasDossierColumn('statut')) {
-                $dossier->statut = 'Date de visite planifiée';
-                $hasChanges = true;
-            }
-
-            if ($this->hasDossierColumn('status')) {
-                $dossier->status = 'Date de visite planifiée';
-                $hasChanges = true;
+        if ($request->has('date_visite')) {
+            if (!empty($validated['date_visite'])) {
+                if ($this->hasDossierColumn('statut')) {
+                    $dossier->statut = 'Date de visite planifiée';
+                    $hasChanges = true;
+                }
+                if ($this->hasDossierColumn('status')) {
+                    $dossier->status = 'Date de visite planifiée';
+                    $hasChanges = true;
+                }
+            } else {
+                // Annulation de la date de visite — revenir au statut précédent
+                $statutActuel = strtolower(trim($dossier->statut ?? ''));
+                if (in_array($statutActuel, ['date de visite planifiée', 'visite_planifiee', 'date_visite_planifiee', 'visite planifiee'])) {
+                    if ($this->hasDossierColumn('statut')) {
+                        $dossier->statut = 'rapport_depose';
+                        $hasChanges = true;
+                    }
+                    if ($this->hasDossierColumn('status')) {
+                        $dossier->status = 'rapport_depose';
+                        $hasChanges = true;
+                    }
+                }
             }
         }
 
@@ -352,20 +442,8 @@ class DossierController extends Controller
             $dossier->save();
             ActivityLogger::log('dossier_mis_a_jour', "Dossier {$dossier->reference} mis à jour", $dossier);
 
-            // Notify the établissement when a visit date is set or updated
             if ($request->has('date_visite') && !empty($validated['date_visite'])) {
-                $etablissement = Etablissement::find($dossier->etablissement_id);
-                if ($etablissement?->user_id) {
-                    $dateFormatee = \Carbon\Carbon::parse($validated['date_visite'])->format('d/m/Y');
-                    NotificationAneaq::envoyer(
-                        $etablissement->user_id,
-                        'visite',
-                        'Date de visite planifiée',
-                        "Une visite a été planifiée pour votre dossier {$dossier->reference} le {$dateFormatee}.",
-                        'Dossier',
-                        $dossier->id
-                    );
-                }
+                $this->notifierVisitePlanifiee($dossier, $validated['date_visite']);
             }
         }
 
@@ -378,18 +456,15 @@ class DossierController extends Controller
 
     public function destroy(Request $request, Dossier $dossier)
     {
-        $request->validate([
-            'delete_password' => ['required', 'string'],
-        ], [
-            'delete_password.required' => 'Le mot de passe de suppression est obligatoire.',
-        ]);
+        $currentUser = $request->user();
+        $deeProfile  = UtilisateurDEE::where('user_id', $currentUser->id)->first();
+        $isChefDee   = $deeProfile && $deeProfile->role === 'chef_dee';
 
-        $expectedPassword = config('app.dee_delete_password');
-
-        if (!$expectedPassword || !hash_equals($expectedPassword, $request->input('delete_password'))) {
-            return back()->withErrors([
-                'delete_password' => 'Mot de passe incorrect.',
-            ]);
+        if (!$isChefDee) {
+            $request->validate(['password' => 'required|string']);
+            $expectedPwd = env('DEE_DELETE_PASSWORD'); if (!$expectedPwd || !hash_equals((string)$expectedPwd, (string)$request->password)) {
+                return back()->withErrors(['password' => 'Mot de passe incorrect.']);
+            }
         }
 
         ActivityLogger::log('dossier_supprime', "Dossier {$dossier->reference} supprimé", $dossier);
@@ -732,6 +807,11 @@ class DossierController extends Controller
                 $nomFallback = str_replace(['_', '-'], ' ', $nomFallback);
                 // Infer type from path segment if type columns are empty
                 $typeFallback = $path ? $this->inferTypeFromPath($path) : 'document';
+                $isRapportAutoevaluation = DossierDocumentService::isRapportAutoevaluation($document);
+                $requiresDeeConfirmation = DossierDocumentService::requiresDeeConfirmationForExperts($document);
+                $availableToExperts = DossierDocumentService::isAvailableToExperts($document);
+                $pendingDeeConfirmation = DossierDocumentService::isPendingDeeConfirmation($document);
+                $rejectedByDee = DossierDocumentService::isRejectedByDee($document);
 
                 return [
                     'id'            => $document->id,
@@ -756,6 +836,12 @@ class DossierController extends Controller
 
                     'statut'     => $this->objectValue($document, ['statut', 'status'], 'Déposé'),
                     'status'     => $this->objectValue($document, ['status', 'statut'], 'Déposé'),
+                    'motif_rejet' => $this->objectValue($document, ['motif_rejet'], null),
+                    'is_rapport_autoevaluation' => $isRapportAutoevaluation,
+                    'requires_dee_confirmation' => $requiresDeeConfirmation,
+                    'available_to_experts' => $availableToExperts,
+                    'pending_dee_confirmation' => $pendingDeeConfirmation,
+                    'rejected_by_dee' => $rejectedByDee,
 
                     'created_at' => $this->formatDateDisplay($this->objectValue($document, ['created_at'])),
                     'updated_at' => $this->formatDateDisplay($this->objectValue($document, ['updated_at'])),
@@ -830,18 +916,18 @@ class DossierController extends Controller
                 ->where('statut', 'complete')
                 ->exists();
 
-        $rapportAutoevaluation = $documents->contains(function (array $document) {
-            $texte = strtolower(implode(' ', array_filter([
-                $document['type'] ?? null,
-                $document['titre'] ?? null,
-                $document['nom'] ?? null,
-                $document['original_name'] ?? null,
-            ])));
-
-            return str_contains($texte, 'rapport_autoevaluation')
-                || str_contains($texte, 'autoevaluation')
-                || str_contains($texte, 'autoévaluation');
-        });
+        $rapportAutoevaluation = DossierDocumentService::hasRapportAutoevaluation($dossier);
+        $latestRapportAutoevaluation = $documents->first(
+            fn (array $document) => ($document['is_rapport_autoevaluation'] ?? false)
+        );
+        $rapportAutoevaluationConfirmed = $documents->contains(
+            fn (array $document) => ($document['is_rapport_autoevaluation'] ?? false)
+                && ($document['available_to_experts'] ?? false)
+        );
+        $rapportAutoevaluationRejected = $latestRapportAutoevaluation
+            && ($latestRapportAutoevaluation['rejected_by_dee'] ?? false);
+        $rapportAutoevaluationPending = $latestRapportAutoevaluation
+            && ($latestRapportAutoevaluation['pending_dee_confirmation'] ?? false);
 
         $annexesAttendues = Schema::hasTable('criteres')
             ? \App\Models\Critere::all()->sum(fn ($critere) => count($critere->preuves ?? []))
@@ -865,7 +951,17 @@ class DossierController extends Controller
             ],
             'rapport_autoevaluation' => [
                 'statut' => $rapportAutoevaluation ? 'valid' : 'waiting',
-                'detail' => $rapportAutoevaluation ? 'Document déposé' : 'En attente',
+                'detail' => !$rapportAutoevaluation
+                    ? 'En attente'
+                    : ($rapportAutoevaluationConfirmed
+                        ? 'Confirmé et disponible pour les experts'
+                        : ($rapportAutoevaluationRejected
+                            ? 'Refusé par la DEE, correction attendue'
+                            : 'Déposé, en attente de confirmation DEE')),
+                'confirmation_statut' => $rapportAutoevaluationConfirmed
+                    ? 'confirmed'
+                    : ($rapportAutoevaluationRejected ? 'rejected' : ($rapportAutoevaluationPending ? 'pending' : 'waiting')),
+                'motif_rejet' => $latestRapportAutoevaluation['motif_rejet'] ?? null,
             ],
             'annexes' => [
                 'statut' => $annexesStatut,
@@ -1216,6 +1312,86 @@ class DossierController extends Controller
             return Carbon::parse($date)->format('Y-m-d\TH:i');
         } catch (\Throwable $e) {
             return '';
+        }
+    }
+
+    private function notifierVisitePlanifiee(Dossier $dossier, string $dateVisite): void
+    {
+        $dateFormatee = \Carbon\Carbon::parse($dateVisite)->format('d/m/Y à H:i');
+        $platformUrl  = config('app.url');
+
+        // Réinitialiser les confirmations (nouvelle date = nouveaux avis)
+        $dossier->visite_statut_etab  = 'en_attente';
+        $dossier->visite_message_etab = null;
+        $dossier->save();
+
+        DossierExpert::where('dossier_id', $dossier->id)
+            ->whereNotNull('expert_id')
+            ->update(['visite_statut' => 'en_attente', 'visite_message' => null]);
+
+        // Notifier l'établissement
+        $etablissement = Etablissement::find($dossier->etablissement_id);
+        if ($etablissement?->user_id) {
+            NotificationAneaq::envoyer(
+                $etablissement->user_id,
+                'visite',
+                'Date de visite planifiée — confirmation requise',
+                "Une date de visite a été planifiée le {$dateFormatee} pour le dossier {$dossier->reference}. Veuillez l'accepter ou la refuser.",
+                'Dossier',
+                $dossier->id
+            );
+
+            $etabUser = User::find($etablissement->user_id);
+            if ($etabUser?->email) {
+                try {
+                    \Illuminate\Support\Facades\Mail::to($etabUser->email)->send(
+                        new \App\Mail\VisitePlanifieeMail(
+                            destinataireNom:  $etablissement->etablissement ?? $etablissement->nom ?? $etabUser->name,
+                            dossierReference: $dossier->reference,
+                            dateVisite:       $dateFormatee,
+                            platformUrl:      $platformUrl . '/etablissement/dossier',
+                            role:             'etablissement',
+                        )
+                    );
+                } catch (\Throwable) {}
+            }
+        }
+
+        // Notifier chaque expert affecté
+        $dossierExperts = DossierExpert::where('dossier_id', $dossier->id)
+            ->whereNotNull('expert_id')
+            ->with('expert.user')
+            ->get();
+
+        foreach ($dossierExperts as $de) {
+            $expert = $de->expert;
+            if (!$expert) continue;
+
+            $expertUser = User::find($expert->user_id);
+            if ($expertUser?->id) {
+                NotificationAneaq::envoyer(
+                    $expertUser->id,
+                    'visite',
+                    'Date de visite planifiée — confirmation requise',
+                    "Une date de visite a été planifiée le {$dateFormatee} pour le dossier {$dossier->reference}. Veuillez l'accepter ou la refuser.",
+                    'Dossier',
+                    $dossier->id
+                );
+            }
+
+            if ($expertUser?->email) {
+                try {
+                    \Illuminate\Support\Facades\Mail::to($expertUser->email)->send(
+                        new \App\Mail\VisitePlanifieeMail(
+                            destinataireNom:  trim(($expert->prenom ?? '') . ' ' . ($expert->nom ?? '')),
+                            dossierReference: $dossier->reference,
+                            dateVisite:       $dateFormatee,
+                            platformUrl:      $platformUrl . '/expert/dossiers/' . $dossier->id,
+                            role:             'expert',
+                        )
+                    );
+                } catch (\Throwable) {}
+            }
         }
     }
 }

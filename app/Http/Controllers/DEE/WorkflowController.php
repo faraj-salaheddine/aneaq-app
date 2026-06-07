@@ -20,8 +20,21 @@ class WorkflowController extends Controller
             return Inertia::render('DEE/Workflow/Affectations', ['dossiers' => []]);
         }
 
+        $affectationStatuses = [
+            'acces_envoye',
+            'en_attente_confirmation_expert',
+            'confirme_par_expert',
+            'accepte_par_expert',
+            'confirme',
+            'comite_confirme',
+            'visite_planifiee',
+            'visite_realisee',
+            'rapport_depose',
+            'rapport_valide',
+        ];
+
         $dossierIds = DossierExpert::query()
-            ->whereIn('status', ['acces_envoye', 'confirme_par_expert'])
+            ->whereIn('status', $affectationStatuses)
             ->pluck('dossier_id')
             ->unique()
             ->values();
@@ -47,7 +60,7 @@ class WorkflowController extends Controller
 
         $confirmedDossierExperts = DossierExpert::query()
             ->whereIn('dossier_id', $dossierIds)
-            ->whereIn('status', ['acces_envoye', 'confirme_par_expert'])
+            ->whereIn('status', $affectationStatuses)
             ->get();
 
         $expertIds = $confirmedDossierExperts->pluck('expert_id')->filter()->unique()->values();
@@ -103,15 +116,24 @@ class WorkflowController extends Controller
         }
 
         $confirmedExperts = DossierExpert::query()
-            ->whereIn('status', ['acces_envoye', 'confirme_par_expert'])
+            ->whereIn('status', [
+                'acces_envoye',
+                'en_attente_confirmation_expert',
+                'confirme_par_expert',
+                'accepte_par_expert',
+                'confirme',
+                'comite_confirme',
+                'visite_planifiee',
+                'visite_realisee',
+                'rapport_depose',
+                'rapport_valide',
+            ])
             ->get();
 
         $groups = $confirmedExperts->groupBy('dossier_id');
 
         $eligibleDossierIds = $groups->filter(function ($expertGroup) {
-            $chefs = $expertGroup->where('role_expert', 'chef_comite')->count();
-            $experts = $expertGroup->where('role_expert', 'expert')->count();
-            return $chefs >= 1 && $experts >= 2;
+            return $expertGroup->count() >= 1;
         })->keys();
 
         if ($eligibleDossierIds->isEmpty()) {

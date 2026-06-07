@@ -3,6 +3,7 @@ namespace App\Http\Controllers\SI;
 
 use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
+use App\Services\ActivityLogger;
 use Inertia\Inertia;
 
 class HistoriqueController extends Controller
@@ -20,6 +21,7 @@ class HistoriqueController extends Controller
                 'model_name'   => $log->model_name,
                 'performed_by' => $log->performed_by,
                 'role'         => $log->role,
+                'description'  => $log->description,
                 'details'      => $log->details,
                 'created_at'   => $log->created_at->format('d/m/Y H:i'),
             ]);
@@ -27,5 +29,15 @@ class HistoriqueController extends Controller
         return Inertia::render('SI/Historique', [
             'logs' => $logs,
         ]);
+    }
+
+    public function clear()
+    {
+        ActivityLog::truncate();
+
+        ActivityLogger::log('historique_vide', 'Historique des activités vidé par l\'administrateur SI');
+
+        return redirect()->route('si.historique.index')
+            ->with('success', 'Historique vidé avec succès.');
     }
 }

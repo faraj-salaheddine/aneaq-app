@@ -9,8 +9,9 @@ class ExpertNotificationMail extends Mailable
     public function __construct(
         public string $expertName,
         public string $titre,
-        public string $message,
+        public string $notificationMessage,
         public string $platformUrl,
+        public array $committeeMembers = [],
     ) {}
 
     public function build()

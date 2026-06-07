@@ -22,7 +22,7 @@ const S = {
     renvoyee_expert: { label: 'À réviser',      bg: '#fff7ed', color: '#c2410c', border: '#fed7aa', icon: '↩️' },
     validee_dee:     { label: 'Validée',        bg: '#f0fdf4', color: '#15803d', border: '#bbf7d0', icon: '✅' },
     envoyee_etablissement: { label: 'Envoyée étab.', bg: '#faf5ff', color: PURPLE, border: '#e9d5ff', icon: '🏫' },
-    en_cours:        { label: 'En cours',       bg: '#fefce8', color: '#a16207', border: '#fef08a', icon: '⏳' },
+    en_cours:        { label: 'En attente',     bg: '#fefce8', color: '#a16207', border: '#fef08a', icon: '⏳' },
     cloturee:        { label: 'Clôturée',       bg: '#f0fdf4', color: '#166534', border: '#86efac', icon: '🔒' },
 };
 

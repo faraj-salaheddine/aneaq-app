@@ -8,9 +8,11 @@ use App\Models\CampagneEvaluation;
 use App\Models\Dossier;
 use App\Models\Etablissement;
 use App\Models\User;
+use App\Models\UtilisateurDEE;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
 
@@ -357,18 +359,15 @@ class CampagneEvaluationController extends Controller
 
     public function destroy(Request $request, CampagneEvaluation $campagneEvaluation)
     {
-        $request->validate([
-            'delete_password' => ['required', 'string'],
-        ], [
-            'delete_password.required' => 'Le mot de passe de suppression est obligatoire.',
-        ]);
+        $currentUser = $request->user();
+        $deeProfile  = UtilisateurDEE::where('user_id', $currentUser->id)->first();
+        $isChefDee   = $deeProfile && $deeProfile->role === 'chef_dee';
 
-        $expectedPassword = config('app.dee_delete_password', env('DEE_DELETE_PASSWORD'));
-
-        if (!$expectedPassword || !hash_equals((string) $expectedPassword, (string) $request->input('delete_password'))) {
-            return back()->withErrors([
-                'delete_password' => 'Mot de passe incorrect.',
-            ]);
+        if (!$isChefDee) {
+            $request->validate(['password' => 'required|string']);
+            $expectedPwd = env('DEE_DELETE_PASSWORD'); if (!$expectedPwd || !hash_equals((string)$expectedPwd, (string)$request->password)) {
+                return back()->withErrors(['password' => 'Mot de passe incorrect.']);
+            }
         }
 
         DB::transaction(function () use ($campagneEvaluation) {
@@ -468,6 +467,7 @@ class CampagneEvaluationController extends Controller
                     'count' => $items->count(),
                 ];
             })
+            ->filter(fn ($v) => $v['count'] >= 2)
             ->values();
     }
 
@@ -503,10 +503,10 @@ class CampagneEvaluationController extends Controller
     private function etablissementName(?Etablissement $etablissement): string
     {
         return $this->read($etablissement, [
+            'etablissement',
             'nom',
             'name',
             'etablissement_2',
-            'etablissement',
             'acronyme',
         ], '—');
     }

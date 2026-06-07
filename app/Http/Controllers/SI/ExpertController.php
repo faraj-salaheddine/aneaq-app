@@ -38,23 +38,33 @@ class ExpertController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'nom'               => 'required|string|max:255',
-            'prenom'            => 'required|string|max:255',
-            'email'             => 'required|email|unique:users,email|unique:experts,email',
-            'password'          => 'required|min:8',
-            'telephone'         => 'nullable|string|max:20',
-            'specialite'        => 'nullable|string|max:255',
-            'ville'             => 'nullable|string|max:255',
-            'cin_number'        => 'nullable|string|max:20',
-            'rib'               => 'nullable|string|size:24',
-            'rib_file'          => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120',
-            'contract_start'    => 'nullable|date',
-            'contract_end'      => 'nullable|date|after:contract_start',
-            'contract_renewals' => 'nullable|integer|min:0',
-            'car_horsepower'    => 'nullable|integer|min:0|max:9999',
-            'cin_file'          => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120',
-            'contract_file'     => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120',
-            'carte_grise_file'  => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120',
+            'nom'                                    => 'required|string|max:255',
+            'prenom'                                 => 'required|string|max:255',
+            'email'                                  => 'required|email|unique:users,email|unique:experts,email',
+            'password'                               => 'required|min:8',
+            'telephone'                              => 'nullable|string|max:20',
+            'specialite'                             => 'nullable|string|max:255',
+            'ville'                                  => 'nullable|string|max:255',
+            'pays'                                   => 'nullable|string|max:100',
+            'date_naissance'                         => 'nullable|date',
+            'cin_number'                             => 'nullable|string|max:20',
+            'rib'                                    => 'nullable|string|max:24',
+            'grade'                                  => 'nullable|string|max:255',
+            'fonction_actuelle'                      => 'nullable|string|max:255',
+            'etablissement'                          => 'nullable|string|max:255',
+            'type_etablissement'                     => 'nullable|string|max:255',
+            'universite_ou_departement_ministeriel'  => 'nullable|string|max:255',
+            'diplomes_obtenus'                       => 'nullable|string',
+            'responsabilite'                         => 'nullable|string|max:255',
+            'date_recrutement'                       => 'nullable|date',
+            'rib_file'                               => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120',
+            'contract_start'                         => 'nullable|date',
+            'contract_end'                           => 'nullable|date|after:contract_start',
+            'contract_renewals'                      => 'nullable|integer|min:0',
+            'car_horsepower'                         => 'nullable|integer|min:0|max:9999',
+            'cin_file'                               => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120',
+            'contract_file'                          => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120',
+            'carte_grise_file'                       => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120',
         ]);
 
         $user = User::create([
@@ -65,19 +75,29 @@ class ExpertController extends Controller
         ]);
 
         $expert = Expert::create([
-            'user_id'           => $user->id,
-            'nom'               => $request->nom,
-            'prenom'            => $request->prenom,
-            'email'             => $request->email,
-            'telephone'         => $request->telephone,
-            'specialite'        => $request->specialite,
-            'ville'             => $request->ville,
-            'cin_number'        => $request->cin_number,
-            'rib'               => $request->rib,
-            'contract_start'    => $request->contract_start,
-            'contract_end'      => $request->contract_end,
-            'contract_renewals' => $request->contract_renewals ?? 0,
-            'car_horsepower'    => $request->car_horsepower,
+            'user_id'                               => $user->id,
+            'nom'                                   => $request->nom,
+            'prenom'                                => $request->prenom,
+            'email'                                 => $request->email,
+            'telephone'                             => $request->telephone,
+            'specialite'                            => $request->specialite,
+            'ville'                                 => $request->ville,
+            'pays'                                  => $request->pays,
+            'date_naissance'                        => $request->date_naissance,
+            'cin_number'                            => $request->cin_number,
+            'rib'                                   => $request->rib,
+            'grade'                                 => $request->grade,
+            'fonction_actuelle'                     => $request->fonction_actuelle,
+            'etablissement'                         => $request->etablissement,
+            'type_etablissement'                    => $request->type_etablissement,
+            'universite_ou_departement_ministeriel' => $request->universite_ou_departement_ministeriel,
+            'diplomes_obtenus'                      => $request->diplomes_obtenus,
+            'responsabilite'                        => $request->responsabilite,
+            'date_recrutement'                      => $request->date_recrutement,
+            'contract_start'                        => $request->contract_start,
+            'contract_end'                          => $request->contract_end,
+            'contract_renewals'                     => $request->contract_renewals ?? 0,
+            'car_horsepower'                        => $request->car_horsepower,
         ]);
 
         $uploadDate = now()->format('d-m-Y');
@@ -133,7 +153,10 @@ class ExpertController extends Controller
     {
         abort_if($document->expert_id !== $expert->id, 403);
         $path = Storage::disk('private')->path($document->file_path);
-        return response()->file($path, ['Content-Type' => $document->mime_type]);
+        $ext  = strtolower(pathinfo($document->file_path, PATHINFO_EXTENSION));
+        $safe = ['pdf' => 'application/pdf', 'png' => 'image/png', 'jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg'];
+        $contentType = $safe[$ext] ?? 'application/octet-stream';
+        return response()->file($path, ['Content-Type' => $contentType]);
     }
 
     public function edit(Expert $expert)
@@ -155,23 +178,33 @@ class ExpertController extends Controller
     public function update(Request $request, Expert $expert)
     {
         $request->validate([
-            'nom'               => 'required|string|max:255',
-            'prenom'            => 'required|string|max:255',
-            'email'             => 'required|email|unique:experts,email,' . $expert->id,
-            'password'          => 'nullable|min:8',
-            'telephone'         => 'nullable|string|max:20',
-            'specialite'        => 'nullable|string|max:255',
-            'ville'             => 'nullable|string|max:255',
-            'cin_number'        => 'nullable|string|max:20',
-            'rib'               => 'nullable|string|size:24',
-            'rib_file'          => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120',
-            'contract_start'    => 'nullable|date',
-            'contract_end'      => 'nullable|date|after:contract_start',
-            'contract_renewals' => 'nullable|integer|min:0',
-            'car_horsepower'    => 'nullable|integer|min:0|max:9999',
-            'cin_file'          => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120',
-            'contract_file'     => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120',
-            'carte_grise_file'  => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120',
+            'nom'                                    => 'required|string|max:255',
+            'prenom'                                 => 'required|string|max:255',
+            'email'                                  => 'required|email|unique:experts,email,' . $expert->id,
+            'password'                               => 'nullable|min:8',
+            'telephone'                              => 'nullable|string|max:20',
+            'specialite'                             => 'nullable|string|max:255',
+            'ville'                                  => 'nullable|string|max:255',
+            'pays'                                   => 'nullable|string|max:100',
+            'date_naissance'                         => 'nullable|date',
+            'cin_number'                             => 'nullable|string|max:20',
+            'rib'                                    => 'nullable|string|max:24',
+            'grade'                                  => 'nullable|string|max:255',
+            'fonction_actuelle'                      => 'nullable|string|max:255',
+            'etablissement'                          => 'nullable|string|max:255',
+            'type_etablissement'                     => 'nullable|string|max:255',
+            'universite_ou_departement_ministeriel'  => 'nullable|string|max:255',
+            'diplomes_obtenus'                       => 'nullable|string',
+            'responsabilite'                         => 'nullable|string|max:255',
+            'date_recrutement'                       => 'nullable|date',
+            'rib_file'                               => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120',
+            'contract_start'                         => 'nullable|date',
+            'contract_end'                           => 'nullable|date|after:contract_start',
+            'contract_renewals'                      => 'nullable|integer|min:0',
+            'car_horsepower'                         => 'nullable|integer|min:0|max:9999',
+            'cin_file'                               => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120',
+            'contract_file'                          => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120',
+            'carte_grise_file'                       => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120',
         ]);
 
         // ── Capture changes before update ──
@@ -208,18 +241,28 @@ class ExpertController extends Controller
 
         // ── Update expert ──
         $expert->update([
-            'nom'               => $request->nom,
-            'prenom'            => $request->prenom,
-            'email'             => $request->email,
-            'telephone'         => $request->telephone,
-            'specialite'        => $request->specialite,
-            'ville'             => $request->ville,
-            'cin_number'        => $request->cin_number,
-            'rib'               => $request->rib,
-            'contract_start'    => $request->contract_start,
-            'contract_end'      => $request->contract_end,
-            'contract_renewals' => $request->contract_renewals,
-            'car_horsepower'    => $request->car_horsepower,
+            'nom'                                   => $request->nom,
+            'prenom'                                => $request->prenom,
+            'email'                                 => $request->email,
+            'telephone'                             => $request->telephone,
+            'specialite'                            => $request->specialite,
+            'ville'                                 => $request->ville,
+            'pays'                                  => $request->pays,
+            'date_naissance'                        => $request->date_naissance,
+            'cin_number'                            => $request->cin_number,
+            'rib'                                   => $request->rib,
+            'grade'                                 => $request->grade,
+            'fonction_actuelle'                     => $request->fonction_actuelle,
+            'etablissement'                         => $request->etablissement,
+            'type_etablissement'                    => $request->type_etablissement,
+            'universite_ou_departement_ministeriel' => $request->universite_ou_departement_ministeriel,
+            'diplomes_obtenus'                      => $request->diplomes_obtenus,
+            'responsabilite'                        => $request->responsabilite,
+            'date_recrutement'                      => $request->date_recrutement,
+            'contract_start'                        => $request->contract_start,
+            'contract_end'                          => $request->contract_end,
+            'contract_renewals'                     => $request->contract_renewals,
+            'car_horsepower'                        => $request->car_horsepower,
         ]);
 
         if ($request->filled('password') && $expert->user) {

@@ -16,6 +16,8 @@ class DossierExpert extends Model
         'access_sent_at',
         'dee_confirmed_at',
         'expert_confirmed_at',
+        'visite_statut',
+        'visite_message',
     ];
 
     protected $casts = [

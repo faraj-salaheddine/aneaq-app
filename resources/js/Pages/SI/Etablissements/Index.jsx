@@ -252,10 +252,10 @@ export default function Index({ etablissements = [] }) {
                         </div>
                     )}
 
-                    {/* Table header — Établissement | Acronyme | Université | Ville */}
-                    <div style={{ display: "grid", gridTemplateColumns: "2fr 100px 2fr 1fr", padding: "10px 24px", background: "#f8fafc", borderBottom: "2px solid #f1f5f9" }}>
-                        {["Établissement", "Acronyme", "Université", "Ville"].map(col => (
-                            <span key={col} style={{ fontSize: 10, fontWeight: 700, color: "#94a3b8", letterSpacing: "0.09em", textTransform: "uppercase" }}>
+                    {/* Table header */}
+                    <div style={{ display: "grid", gridTemplateColumns: "2fr 100px 2fr 1fr 120px", padding: "10px 24px", background: "#f8fafc", borderBottom: "2px solid #f1f5f9" }}>
+                        {["Établissement", "Acronyme", "Université", "Ville", "Actions"].map((col, i) => (
+                            <span key={col} style={{ fontSize: 10, fontWeight: 700, color: "#94a3b8", letterSpacing: "0.09em", textTransform: "uppercase", textAlign: i === 4 ? "right" : "left" }}>
                                 {col}
                             </span>
                         ))}
@@ -266,7 +266,7 @@ export default function Index({ etablissements = [] }) {
                         const cityColor = getCityColor(etab.ville);
                         return (
                             <div key={etab.id} className="etab-row"
-                                style={{ display: "grid", gridTemplateColumns: "2fr 100px 2fr 1fr", padding: "14px 24px", borderBottom: i < filtered.length - 1 ? "1px solid #f8fafc" : "none", alignItems: "center", transition: "background 0.1s", animationDelay: `${Math.min(i * 0.02, 0.3)}s` }}
+                                style={{ display: "grid", gridTemplateColumns: "2fr 100px 2fr 1fr 120px", padding: "14px 24px", borderBottom: i < filtered.length - 1 ? "1px solid #f8fafc" : "none", alignItems: "center", transition: "background 0.1s", animationDelay: `${Math.min(i * 0.02, 0.3)}s` }}
                             >
                                 {/* Établissement */}
                                 <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
@@ -308,6 +308,19 @@ export default function Index({ etablissements = [] }) {
                                     </svg>
                                     {etab.ville || "—"}
                                 </span>
+
+                                {/* Actions */}
+                                <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                                    <button
+                                        onClick={() => router.visit(`/si/etablissements/${etab.id}/edit`)}
+                                        style={{ display: "flex", alignItems: "center", gap: 5, padding: "6px 13px", borderRadius: 8, border: "1px solid #e2e8f0", background: "#fff", cursor: "pointer", fontSize: 12, fontWeight: 600, color: "#475569", transition: "all 0.15s" }}
+                                        onMouseEnter={e => { e.currentTarget.style.background = "#EBF4FF"; e.currentTarget.style.borderColor = BLUE; e.currentTarget.style.color = BLUE; }}
+                                        onMouseLeave={e => { e.currentTarget.style.background = "#fff"; e.currentTarget.style.borderColor = "#e2e8f0"; e.currentTarget.style.color = "#475569"; }}
+                                    >
+                                        <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                                        Modifier
+                                    </button>
+                                </div>
                             </div>
                         );
                     })}

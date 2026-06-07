@@ -4,10 +4,17 @@ namespace App\Http\Controllers\DEE;
 
 use App\Http\Controllers\Controller;
 
+use App\Mail\ExpertNotificationMail;
 use App\Models\Dossier;
+use App\Models\Expert;
+use App\Models\NotificationAneaq;
+use App\Models\User;
+use App\Services\ActivityLogger;
+use App\Services\DossierDocumentService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 
@@ -71,6 +78,136 @@ class DossierDocumentController extends Controller
         DB::table($table)->insert($data);
 
         return back()->with('success', 'Document ajouté avec succès.');
+    }
+
+    public function confirmRapportAutoevaluation(Dossier $dossier)
+    {
+        $table = $this->documentsTable();
+
+        if (!$table) {
+            return back()->with('error', 'Table des documents introuvable.');
+        }
+
+        $documents = DB::table($table)
+            ->where('dossier_id', $dossier->id)
+            ->get()
+            ->filter(fn (object $document) => DossierDocumentService::requiresDeeConfirmationForExperts($document));
+
+        if ($documents->isEmpty()) {
+            return back()->with('error', "Aucun rapport d'autoévaluation déposé par l'établissement.");
+        }
+
+        $pendingIds = $documents
+            ->filter(fn (object $document) => DossierDocumentService::isPendingDeeConfirmation($document))
+            ->pluck('id')
+            ->values();
+
+        if ($pendingIds->isEmpty()) {
+            return back()->with('success', "Le rapport d'autoévaluation est déjà confirmé et disponible pour les experts.");
+        }
+
+        if (!Schema::hasColumn($table, 'status') && !Schema::hasColumn($table, 'statut')) {
+            return back()->with('error', 'Le statut des documents ne peut pas être mis à jour.');
+        }
+
+        $payload = [];
+        $this->setColumn($table, $payload, 'status', DossierDocumentService::STATUS_CONFIRMED_DEE);
+        $this->setColumn($table, $payload, 'statut', DossierDocumentService::STATUS_CONFIRMED_DEE);
+        $this->setColumn($table, $payload, 'updated_at', now());
+
+        DB::table($table)
+            ->where('dossier_id', $dossier->id)
+            ->whereIn('id', $pendingIds)
+            ->update($payload);
+
+        $this->notifyConfirmedExperts($dossier);
+
+        $documents
+            ->pluck('uploaded_by')
+            ->filter()
+            ->unique()
+            ->each(function (int $userId) use ($dossier) {
+                try {
+                    NotificationAneaq::envoyer(
+                        $userId,
+                        'document',
+                        "Rapport confirmé par la DEE — {$dossier->reference}",
+                        "Votre rapport d'autoévaluation a été confirmé par la DEE et transmis aux experts.",
+                        'Dossier',
+                        $dossier->id
+                    );
+                } catch (\Throwable) {
+                    // Notification failure must not block confirmation.
+                }
+            });
+
+        ActivityLogger::log(
+            'rapport_autoevaluation_confirme',
+            "Rapport d'autoévaluation confirmé et transmis aux experts pour le dossier {$dossier->reference}",
+            $dossier
+        );
+
+        return back()->with('success', "Rapport d'autoévaluation confirmé et envoyé aux experts.");
+    }
+
+    public function rejectRapportAutoevaluation(Request $request, Dossier $dossier)
+    {
+        $validated = $request->validate([
+            'motif' => ['required', 'string', 'min:5', 'max:2000'],
+        ], [
+            'motif.required' => 'Le motif du refus est obligatoire.',
+            'motif.min' => 'Le motif doit contenir au moins :min caractères.',
+        ]);
+
+        $table = $this->documentsTable();
+
+        if (!$table) {
+            return back()->with('error', 'Table des documents introuvable.');
+        }
+
+        $documents = DB::table($table)
+            ->where('dossier_id', $dossier->id)
+            ->get()
+            ->filter(fn (object $document) => DossierDocumentService::requiresDeeConfirmationForExperts($document));
+
+        if ($documents->isEmpty()) {
+            return back()->with('error', "Aucun rapport d'autoévaluation déposé par l'établissement.");
+        }
+
+        $pendingIds = $documents
+            ->filter(fn (object $document) => DossierDocumentService::isPendingDeeConfirmation($document))
+            ->pluck('id')
+            ->values();
+
+        if ($pendingIds->isEmpty()) {
+            return back()->with('error', "Aucun rapport d'autoévaluation en attente de décision DEE.");
+        }
+
+        if (!Schema::hasColumn($table, 'status') && !Schema::hasColumn($table, 'statut')) {
+            return back()->with('error', 'Le statut des documents ne peut pas être mis à jour.');
+        }
+
+        $payload = [];
+        $this->setColumn($table, $payload, 'status', DossierDocumentService::STATUS_REJECTED_DEE);
+        $this->setColumn($table, $payload, 'statut', DossierDocumentService::STATUS_REJECTED_DEE);
+        $this->setColumn($table, $payload, 'motif_rejet', $validated['motif']);
+        $this->setColumn($table, $payload, 'observation', $validated['motif']);
+        $this->setColumn($table, $payload, 'updated_at', now());
+
+        DB::table($table)
+            ->where('dossier_id', $dossier->id)
+            ->whereIn('id', $pendingIds)
+            ->update($payload);
+
+        $this->notifyEstablishmentForCorrection($dossier, $documents, $validated['motif']);
+
+        ActivityLogger::log(
+            'rapport_autoevaluation_refuse',
+            "Rapport d'autoévaluation refusé par la DEE pour correction — dossier {$dossier->reference}. Motif : {$validated['motif']}",
+            $dossier
+        );
+
+        return back()->with('success', "Rapport d'autoévaluation refusé. L'établissement a été notifié pour correction.");
     }
 
     public function voir(Request $request, Dossier $dossier, $document)
@@ -185,6 +322,114 @@ class DossierDocumentController extends Controller
         }
 
         return null;
+    }
+
+    private function notifyConfirmedExperts(Dossier $dossier): void
+    {
+        if (
+            !Schema::hasTable('dossier_experts')
+            || !Schema::hasTable('experts')
+            || !Schema::hasColumn('experts', 'user_id')
+        ) {
+            return;
+        }
+
+        $assignments = DB::table('dossier_experts')
+            ->where('dossier_id', $dossier->id);
+
+        if (Schema::hasColumn('dossier_experts', 'status')) {
+            $assignments->whereIn('status', [
+                'accepte_par_expert',
+                'confirme_par_expert',
+                'comite_confirme',
+            ]);
+        }
+
+        $expertIds = $assignments->pluck('expert_id')->filter()->unique();
+
+        if ($expertIds->isEmpty()) {
+            return;
+        }
+
+        DB::table('experts')
+            ->whereIn('id', $expertIds)
+            ->get(['id', 'user_id', 'nom', 'prenom', 'email'])
+            ->filter(fn ($e) => $e->user_id)
+            ->unique('user_id')
+            ->each(function (object $expert) use ($dossier) {
+                $expertName = trim(($expert->prenom ?? '') . ' ' . ($expert->nom ?? '')) ?: 'Expert';
+
+                // In-app notification
+                try {
+                    NotificationAneaq::envoyer(
+                        $expert->user_id,
+                        'document',
+                        "Rapport d'autoévaluation disponible — {$dossier->reference}",
+                        "La DEE a confirmé le rapport d'autoévaluation. Il est maintenant disponible dans votre dossier expert.",
+                        'Dossier',
+                        $dossier->id
+                    );
+                } catch (\Throwable) {}
+
+                // Email notification
+                $emailTo = $expert->email
+                    ?? User::find($expert->user_id)?->email;
+
+                if ($emailTo) {
+                    try {
+                        Mail::to($emailTo)->send(new ExpertNotificationMail(
+                            expertName: $expertName,
+                            titre: "Rapport d'autoévaluation disponible — {$dossier->reference}",
+                            notificationMessage: "La DEE a confirmé et transmis le rapport d'autoévaluation pour le dossier {$dossier->reference}. "
+                                . "Ce document est maintenant disponible dans votre espace expert pour consultation avant la visite.",
+                            platformUrl: config('app.url') . '/expert/dossiers',
+                        ));
+                    } catch (\Throwable) {
+                        // Email failure must not block confirmation.
+                    }
+                }
+            });
+    }
+
+    private function notifyEstablishmentForCorrection(Dossier $dossier, $documents, string $motif): void
+    {
+        $userIds = collect($documents)
+            ->pluck('uploaded_by')
+            ->filter()
+            ->unique()
+            ->values();
+
+        if (
+            Schema::hasTable('etablissements')
+            && Schema::hasColumn('etablissements', 'user_id')
+            && $dossier->etablissement_id
+        ) {
+            $etablissementUserId = DB::table('etablissements')
+                ->where('id', $dossier->etablissement_id)
+                ->value('user_id');
+
+            if ($etablissementUserId) {
+                $userIds->push($etablissementUserId);
+            }
+        }
+
+        $userIds
+            ->filter()
+            ->unique()
+            ->each(function (int $userId) use ($dossier, $motif) {
+                try {
+                    NotificationAneaq::envoyer(
+                        $userId,
+                        'document',
+                        "Rapport d'autoévaluation à corriger — {$dossier->reference}",
+                        "La DEE a refusé votre rapport d'autoévaluation. Motif : {$motif}. Merci de déposer une version corrigée.",
+                        'Dossier',
+                        $dossier->id
+                    );
+                } catch (\Throwable) {
+                    // Notification failure must not block the rejection workflow.
+                }
+            });
     }
 
     private function setColumn(string $table, array &$data, string $column, mixed $value): void

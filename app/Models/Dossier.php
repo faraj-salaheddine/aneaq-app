@@ -20,6 +20,8 @@ class Dossier extends Model
         'etablissement_id',
         'created_by',
         'date_visite',
+        'visite_statut_etab',
+        'visite_message_etab',
     ];
 
     protected $casts = [

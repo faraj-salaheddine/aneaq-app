@@ -1,4 +1,4 @@
-f// resources/js/Pages/SI/UtilisateursDEE/Index.jsx
+// resources/js/Pages/SI/UtilisateursDEE/Index.jsx
 
 import { useState, useEffect } from "react";
 import { Head, router, usePage } from "@inertiajs/react";
