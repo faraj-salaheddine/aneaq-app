@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Dossier;
 use App\Models\DossierDocument;
 use App\Models\Etablissement;
+use App\Models\EtablissementOnboarding;
 use App\Models\NotificationAneaq;
 use App\Services\ActivityLogger;
 use App\Services\DossierDocumentService;
@@ -28,15 +29,19 @@ class EtablissementDocumentController extends Controller
         $dossier       = Dossier::where('etablissement_id', $etablissement->id)->latest()->first();
         if (!$dossier) return Inertia::render('Etablissement/SansDossier', ['page' => "Rapport d'autoévaluation"]);
 
+        $onboarding = EtablissementOnboarding::where('etablissement_id', $etablissement->id)->first();
+        $profilComplete = $onboarding && $onboarding->statut === 'complete';
+
         $documents = DossierDocument::where('dossier_id', $dossier->id)
             ->where('type_document', 'rapport_autoevaluation')
             ->orderByDesc('created_at')
             ->get();
 
         return Inertia::render('Etablissement/Documents/Index', [
-            'etablissement' => $etablissement,
-            'dossier'       => $dossier,
-            'documents'     => $documents,
+            'etablissement'  => $etablissement,
+            'dossier'        => $dossier,
+            'documents'      => $documents,
+            'profil_complete' => $profilComplete,
         ]);
     }
 
@@ -44,6 +49,11 @@ class EtablissementDocumentController extends Controller
 {
     $etablissement = $this->activeEtablissement();
     $dossier       = Dossier::where('etablissement_id', $etablissement->id)->latest()->firstOrFail();
+
+    $onboarding = EtablissementOnboarding::where('etablissement_id', $etablissement->id)->first();
+    if (!$onboarding || $onboarding->statut !== 'complete') {
+        return back()->withErrors(['profil' => 'Vous devez compléter votre profil avant de déposer le rapport d\'autoévaluation.']);
+    }
 
     $request->validate([
         'fichier_pdf'   => 'required|file|mimes:pdf|max:51200',

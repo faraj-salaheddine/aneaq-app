@@ -44,6 +44,8 @@ function CampagneShow({
 
     const [refuseModalOpen, setRefuseModalOpen] = useState(false);
     const [refuseTarget, setRefuseTarget] = useState(null);
+    const [refusePassword, setRefusePassword] = useState('');
+    const [refusePasswordError, setRefusePasswordError] = useState('');
 
     const [deleteModalOpen, setDeleteModalOpen] = useState(false);
     const [deletePassword, setDeletePassword] = useState('');
@@ -70,7 +72,6 @@ function CampagneShow({
         message_lettre: '',
     });
 
-    const refuseForm = useForm({});
 
 
     const normalize = (str) =>
@@ -174,19 +175,28 @@ function CampagneShow({
     const closeRefuseModal = () => {
         setRefuseTarget(null);
         setRefuseModalOpen(false);
+        setRefusePassword('');
+        setRefusePasswordError('');
     };
 
+    const [refuseProcessing, setRefuseProcessing] = useState(false);
+
     const submitRefuse = () => {
-        if (!refuseTarget) {
+        if (!refuseTarget) return;
+        if (!isChefDee && !refusePassword.trim()) {
+            setRefusePasswordError('Le mot de passe est obligatoire.');
             return;
         }
-
-        refuseForm.delete(
+        setRefuseProcessing(true);
+        router.delete(
             `/dee/campagnes/${campagne.id}/etablissements/${refuseTarget.id}/refuse`,
             {
+                data: isChefDee ? {} : { password: refusePassword },
                 preserveScroll: true,
-                onSuccess: () => {
-                    closeRefuseModal();
+                onSuccess: () => { setRefuseProcessing(false); closeRefuseModal(); },
+                onError: (errors) => {
+                    setRefuseProcessing(false);
+                    if (errors.password) setRefusePasswordError(errors.password);
                 },
             }
         );
@@ -877,11 +887,32 @@ function CampagneShow({
                                 Voulez-vous vraiment refuser cet établissement ?
                                 Il sera supprimé de la vague.
                             </p>
-
                             <p className="mt-3 text-base font-black text-red-900">
                                 {getAttachedName(refuseTarget)}
                             </p>
                         </div>
+
+                        {!isChefDee && (
+                            <div>
+                                <label className="mb-2 block text-sm font-bold text-slate-700">
+                                    Confirmez avec votre mot de passe
+                                </label>
+                                <input
+                                    type="password"
+                                    autoComplete="new-password"
+                                    autoFocus
+                                    placeholder="Votre mot de passe"
+                                    value={refusePassword}
+                                    onChange={e => { setRefusePassword(e.target.value); setRefusePasswordError(''); }}
+                                    onKeyDown={e => e.key === 'Enter' && submitRefuse()}
+                                    className="w-full rounded-xl border px-4 py-3 text-sm outline-none"
+                                    style={{ borderColor: refusePasswordError ? '#fca5a5' : '#e2e8f0' }}
+                                />
+                                {refusePasswordError && (
+                                    <p className="mt-1 text-xs font-semibold text-red-600">{refusePasswordError}</p>
+                                )}
+                            </div>
+                        )}
 
                         <div className="flex justify-end gap-3">
                             <button
@@ -894,12 +925,12 @@ function CampagneShow({
 
                             <button
                                 type="button"
-                                disabled={refuseForm.processing}
+                                disabled={refuseProcessing}
                                 onClick={submitRefuse}
                                 className="inline-flex items-center justify-center gap-2 rounded-2xl bg-red-600 px-6 py-3 text-sm font-black text-white transition hover:bg-red-700 disabled:opacity-60"
                             >
                                 <Trash2 size={18} />
-                                {refuseForm.processing ? 'Suppression...' : 'Confirmer le refus'}
+                                {refuseProcessing ? 'Suppression...' : 'Confirmer le refus'}
                             </button>
                         </div>
                     </div>

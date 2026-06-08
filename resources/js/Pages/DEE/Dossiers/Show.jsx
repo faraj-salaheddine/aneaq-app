@@ -13,6 +13,7 @@ import {
     CalendarDays,
     Camera,
     CheckCircle2,
+    ChevronDown,
     ClipboardCheck,
     Clock3,
     Download,
@@ -335,6 +336,211 @@ function ExpertAnnexesEvaluationDEE({ evaluation, dossierId }) {
     );
 }
 
+/* ── Annexes établissement (DEE review + send to experts) ── */
+function AnnexesEtablissementTab({ annexesEtablissement = [], annexesEnvoyeesExperts = null, dossierId }) {
+    const [expandedDomaines, setExpandedDomaines] = useState({});
+    const [sending, setSending] = useState(false);
+
+    const totalExpected    = annexesEtablissement.reduce((a, d) => a + d.total, 0);
+    const totalRenseignes  = annexesEtablissement.reduce((a, d) => a + d.renseignes, 0);
+    const totalAvecFichier = annexesEtablissement.reduce((a, d) => a + d.avec_fichier, 0);
+    const totalSansPreuve  = totalRenseignes - totalAvecFichier;
+    const totalNonRenseigne= totalExpected - totalRenseignes;
+
+    const toggleDomaine = (d) => setExpandedDomaines(prev => ({ ...prev, [d]: !prev[d] }));
+
+    const handleEnvoyer = () => {
+        setSending(true);
+        router.post(route('dee.dossiers.annexes.envoyer-experts', { dossier: dossierId }), {}, {
+            onFinish: () => setSending(false),
+        });
+    };
+
+    const BADGE = {
+        avec_fichier:  { label: 'Fichier joint', color: '#166534', bg: '#f0fdf4', border: '#bbf7d0' },
+        sans_preuve:   { label: 'Sans preuve',   color: '#92400e', bg: '#fffbeb', border: '#fde68a' },
+        non_renseigne: { label: 'Non renseigné', color: '#94a3b8', bg: '#f8fafc', border: '#e2e8f0' },
+    };
+
+    if (annexesEtablissement.length === 0) return (
+        <div style={{ textAlign: 'center', padding: '60px 20px', background: '#fff', borderRadius: 24, border: '1px solid #e2e8f0' }}>
+            <ListTree size={44} style={{ margin: '0 auto 16px', color: '#cbd5e1' }} />
+            <p style={{ fontSize: 18, fontWeight: 900, color: '#0f172a', margin: '0 0 6px' }}>Aucune annexe déposée</p>
+            <p style={{ fontSize: 13, color: '#94a3b8', margin: 0 }}>L'établissement n'a pas encore renseigné ses annexes.</p>
+        </div>
+    );
+
+    return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+            {/* ── Header ── */}
+            <div style={{ background: '#fff', borderRadius: 24, border: '1px solid #e2e8f0', padding: '28px 32px', boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 20, flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                        <div style={{ width: 52, height: 52, borderRadius: 14, background: '#f0fdfa', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0d9488', flexShrink: 0 }}>
+                            <ListTree size={24} />
+                        </div>
+                        <div>
+                            <h3 style={{ fontSize: 22, fontWeight: 900, color: '#0f172a', margin: 0 }}>Annexes de l'établissement</h3>
+                            <p style={{ fontSize: 13, color: '#64748b', margin: '4px 0 0', fontWeight: 600 }}>
+                                {totalRenseignes}/{totalExpected} critères renseignés
+                            </p>
+                        </div>
+                    </div>
+
+                    {annexesEnvoyeesExperts ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 20px', background: '#f0fdf4', borderRadius: 14, border: '1px solid #bbf7d0', fontSize: 13, fontWeight: 800, color: '#166534' }}>
+                            <CheckCircle2 size={16} />
+                            Envoyé aux experts le {annexesEnvoyeesExperts}
+                        </div>
+                    ) : (
+                        <button
+                            type="button"
+                            onClick={handleEnvoyer}
+                            disabled={sending || totalRenseignes === 0}
+                            style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '13px 26px', background: '#0d9488', border: 'none', borderRadius: 14, color: '#fff', fontSize: 14, fontWeight: 800, cursor: sending || totalRenseignes === 0 ? 'not-allowed' : 'pointer', boxShadow: '0 4px 14px rgba(13,148,136,0.3)', opacity: (sending || totalRenseignes === 0) ? 0.55 : 1 }}
+                        >
+                            <Send size={16} />
+                            {sending ? 'Envoi…' : 'Envoyer aux experts'}
+                        </button>
+                    )}
+                </div>
+
+                {/* Stats row */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12, marginTop: 22 }}>
+                    {[
+                        { val: totalAvecFichier,  label: 'Avec fichier',   num: '#166534', bg: '#f0fdf4', border: '#bbf7d0', dot: '#22c55e' },
+                        { val: totalSansPreuve,   label: 'Sans preuve',    num: '#92400e', bg: '#fffbeb', border: '#fde68a', dot: '#f59e0b' },
+                        { val: totalNonRenseigne, label: 'Non renseignés', num: '#475569', bg: '#f8fafc', border: '#e2e8f0', dot: '#cbd5e1' },
+                    ].map(({ val, label, num, bg, border, dot }) => (
+                        <div key={label} style={{ background: bg, borderRadius: 14, padding: '16px 18px', border: `1px solid ${border}` }}>
+                            <p style={{ fontSize: 28, fontWeight: 900, color: num, margin: 0, lineHeight: 1 }}>{val}</p>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6 }}>
+                                <span style={{ width: 7, height: 7, borderRadius: '50%', background: dot, display: 'inline-block', flexShrink: 0 }} />
+                                <p style={{ fontSize: 12, fontWeight: 700, color: num, margin: 0 }}>{label}</p>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </div>
+
+            {/* ── Domaines ── */}
+            {annexesEtablissement.map((domaine) => {
+                const pct   = domaine.total > 0 ? Math.round((domaine.renseignes / domaine.total) * 100) : 0;
+                const isOpen = !!expandedDomaines[domaine.domaine];
+                return (
+                    <div key={domaine.domaine} style={{ background: '#fff', borderRadius: 20, border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+
+                        {/* Domaine header */}
+                        <button
+                            type="button"
+                            onClick={() => toggleDomaine(domaine.domaine)}
+                            style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 24px', background: isOpen ? '#f0fdfa' : 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left', borderBottom: isOpen ? '1px solid #ccfbf1' : 'none' }}
+                        >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                                <div style={{ width: 42, height: 42, borderRadius: 12, background: '#0d9488', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 13, fontWeight: 900, flexShrink: 0 }}>
+                                    {domaine.domaine}
+                                </div>
+                                <div>
+                                    <p style={{ fontSize: 15, fontWeight: 800, color: '#0f172a', margin: 0 }}>{domaine.domaine_label || domaine.domaine}</p>
+                                    <p style={{ fontSize: 12, color: '#64748b', margin: '2px 0 0', fontWeight: 600 }}>
+                                        {domaine.renseignes}/{domaine.total} critères · {domaine.avec_fichier} fichiers
+                                    </p>
+                                </div>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0, marginLeft: 16 }}>
+                                <div style={{ width: 100, height: 6, borderRadius: 6, background: '#e2e8f0', overflow: 'hidden' }}>
+                                    <div style={{ height: '100%', width: `${pct}%`, background: '#0d9488', borderRadius: 6 }} />
+                                </div>
+                                <span style={{ fontSize: 12, fontWeight: 800, color: '#0d9488', minWidth: 34, textAlign: 'right' }}>{pct}%</span>
+                                <ChevronDown size={18} style={{ color: '#94a3b8', transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s', flexShrink: 0 }} />
+                            </div>
+                        </button>
+
+                        {/* Domaine content */}
+                        {isOpen && (
+                            <div style={{ padding: '20px 24px' }}>
+                                {domaine.champs.map((champ) => (
+                                    <div key={champ.champ} style={{ marginBottom: 28 }}>
+
+                                        {/* Champ separator */}
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+                                            <div style={{ height: 1, flex: 1, background: '#e2e8f0' }} />
+                                            <span style={{ fontSize: 11, fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.1em', padding: '0 6px', whiteSpace: 'nowrap' }}>
+                                                {champ.champ_label || champ.champ}
+                                            </span>
+                                            <div style={{ height: 1, flex: 1, background: '#e2e8f0' }} />
+                                        </div>
+
+                                        {champ.references.map((ref) => (
+                                            <div key={ref.reference} style={{ marginBottom: 18 }}>
+
+                                                {/* Reference label */}
+                                                <p style={{ fontSize: 12, fontWeight: 700, color: '#334155', margin: '0 0 10px', padding: '6px 12px', background: '#f1f5f9', borderRadius: 8, borderLeft: '3px solid #94a3b8' }}>
+                                                    {ref.reference_label || ref.reference}
+                                                </p>
+
+                                                {/* Critères */}
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                                    {ref.criteres.map((critere) => (
+                                                        <div key={critere.critere_id} style={{ background: '#f8fafc', borderRadius: 14, border: '1px solid #e2e8f0', padding: '12px 16px' }}>
+
+                                                            {/* Critère header */}
+                                                            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: critere.preuves.length ? 10 : 0 }}>
+                                                                <span style={{ fontSize: 11, fontWeight: 800, color: '#0d9488', background: '#f0fdfa', border: '1px solid #99f6e4', borderRadius: 6, padding: '2px 8px', flexShrink: 0, marginTop: 1 }}>
+                                                                    {critere.critere_num}
+                                                                </span>
+                                                                <p style={{ fontSize: 13, fontWeight: 700, color: '#1e293b', margin: 0, flex: 1, lineHeight: 1.45 }}>
+                                                                    {critere.critere_label}
+                                                                </p>
+                                                                <span style={{ fontSize: 12, fontWeight: 800, color: critere.renseignes === critere.total ? '#0d9488' : '#94a3b8', flexShrink: 0, marginTop: 1 }}>
+                                                                    {critere.renseignes}/{critere.total}
+                                                                </span>
+                                                            </div>
+
+                                                            {/* Preuves */}
+                                                            {critere.preuves.length > 0 && (
+                                                                <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                                                                    {critere.preuves.map((preuve) => {
+                                                                        const cfg = BADGE[preuve.statut] || BADGE.non_renseigne;
+                                                                        return (
+                                                                            <div key={preuve.index} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', background: cfg.bg, borderRadius: 8, border: `1px solid ${cfg.border}` }}>
+                                                                                <span style={{ fontSize: 11, fontWeight: 800, color: cfg.color, minWidth: 22, flexShrink: 0 }}>P{preuve.index + 1}</span>
+                                                                                <span style={{ fontSize: 12, color: '#475569', flex: 1, lineHeight: 1.4 }}>{preuve.label}</span>
+                                                                                <span style={{ fontSize: 11, fontWeight: 800, color: cfg.color, padding: '2px 9px', background: 'rgba(255,255,255,0.7)', borderRadius: 6, flexShrink: 0 }}>
+                                                                                    {cfg.label}
+                                                                                </span>
+                                                                                {preuve.fichier_nom && preuve.fichier_id && (
+                                                                                    <a
+                                                                                        href={route('dee.dossiers.annexes.voir', { dossier: dossierId, criterePreuve: preuve.fichier_id })}
+                                                                                        target="_blank"
+                                                                                        rel="noopener noreferrer"
+                                                                                        style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 9px', background: '#fff', border: '1px solid #99f6e4', borderRadius: 6, fontSize: 11, fontWeight: 800, color: '#0d9488', flexShrink: 0, textDecoration: 'none' }}
+                                                                                    >
+                                                                                        <Eye size={11} />Voir
+                                                                                    </a>
+                                                                                )}
+                                                                            </div>
+                                                                        );
+                                                                    })}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                );
+            })}
+        </div>
+    );
+}
+
 /* ── Main annexes tab ── */
 function AnnexesEvalTab({ evaluationsAnnexes, dossierId }) {
     if (evaluationsAnnexes.length === 0) return (
@@ -354,7 +560,7 @@ function AnnexesEvalTab({ evaluationsAnnexes, dossierId }) {
     );
 }
 
-function Show({ dossier, experts = [], allExperts = [], dossierExperts = [], documents = [], photos = [], rapportsExperts = [], evaluationsAnnexes = [], expectedDocuments = {}, recommandations = [], recommandationsStats = {}, recommandationsRappels = [], recommandationsProchainRappel = null, visiteConfirmations = null }) {
+function Show({ dossier, experts = [], allExperts = [], dossierExperts = [], documents = [], photos = [], rapportsExperts = [], evaluationsAnnexes = [], expectedDocuments = {}, recommandations = [], recommandationsStats = {}, recommandationsRappels = [], recommandationsProchainRappel = null, visiteConfirmations = null, annexesEtablissement = [], annexesEnvoyeesExperts = null }) {
     const { props } = usePage();
     const flash = props.flash || {};
 
@@ -1162,6 +1368,24 @@ function Show({ dossier, experts = [], allExperts = [], dossierExperts = [], doc
 
                         <button
                             type="button"
+                            onClick={() => setActiveTab('annexes-etab')}
+                            className={`inline-flex items-center gap-2 rounded-2xl px-5 py-3 text-sm font-black transition ${
+                                activeTab === 'annexes-etab'
+                                    ? 'bg-teal-600 text-white shadow-lg shadow-teal-600/20'
+                                    : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                            }`}
+                        >
+                            <ListTree size={16} />
+                            Annexes étab.
+                            {annexesEnvoyeesExperts && (
+                                <span className={`ml-1 rounded-full px-2 py-0.5 text-xs font-black ${activeTab === 'annexes-etab' ? 'bg-white/30 text-white' : 'bg-teal-100 text-teal-700'}`}>
+                                    ✓
+                                </span>
+                            )}
+                        </button>
+
+                        <button
+                            type="button"
                             onClick={openAnnexesTab}
                             className={`inline-flex items-center gap-2 rounded-2xl px-5 py-3 text-sm font-black transition ${
                                 activeTab === 'annexes'
@@ -1468,6 +1692,14 @@ function Show({ dossier, experts = [], allExperts = [], dossierExperts = [], doc
                                     );
                                 })()}
                             </div>
+                        )}
+
+                        {activeTab === 'annexes-etab' && (
+                            <AnnexesEtablissementTab
+                                annexesEtablissement={annexesEtablissement}
+                                annexesEnvoyeesExperts={annexesEnvoyeesExperts}
+                                dossierId={dossier.id}
+                            />
                         )}
 
                         {activeTab === 'annexes' && (
@@ -2606,24 +2838,19 @@ function ExpectedDocument({ label, item = {} }) {
 }
 
 function WorkflowProgressBar({ expectedDocuments, hasDateVisite, evaluationsAnnexes, visiteConfirmee = false }) {
-    const rawSteps = [
+    // Each step reflects its real state independently — no cascade
+    const steps = [
         { label: 'Formulaire',     done: expectedDocuments?.formulaire?.statut === 'valid' },
         {
             label: 'Autoévaluation',
             done: expectedDocuments?.rapport_autoevaluation?.statut === 'valid'
                 && expectedDocuments?.rapport_autoevaluation?.confirmation_statut === 'confirmed',
         },
-        { label: 'Annexes',        done: expectedDocuments?.annexes?.statut === 'valid' },
+        { label: 'Annexes',        done: expectedDocuments?.annexes?.envoyees_experts === true },
         { label: 'Date de visite', done: !!hasDateVisite && visiteConfirmee },
         { label: 'Éval. Annexes',  done: (evaluationsAnnexes?.length ?? 0) > 0 && evaluationsAnnexes.some(e => e.soumis_le) },
         { label: 'Rapport expert', done: expectedDocuments?.rapport_expert?.statut === 'valid' },
     ];
-
-    // Cascade: a step is only done if all previous steps are also done
-    const steps = rawSteps.map((step, i) => ({
-        ...step,
-        done: step.done && rawSteps.slice(0, i).every(s => s.done),
-    }));
 
     const doneCount = steps.filter(s => s.done).length;
     const pct = Math.round((doneCount / steps.length) * 100);

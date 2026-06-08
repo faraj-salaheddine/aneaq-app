@@ -187,6 +187,7 @@ function DossiersIndex({ dossiers = [] }) {
                                 value={search}
                                 onChange={e => setSearch(e.target.value)}
                                 placeholder="Dossier, établissement, statut…"
+                                autoComplete="off"
                                 style={{ height: 36, borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', paddingLeft: 32, paddingRight: 12, fontSize: 13, color: '#374151', outline: 'none', width: 260 }}
                             />
                         </div>
@@ -285,6 +286,7 @@ function DossiersIndex({ dossiers = [] }) {
                                 </label>
                                 <input
                                     type="password" autoFocus
+                                    autoComplete="new-password"
                                     placeholder="Votre mot de passe"
                                     value={deletePassword}
                                     onChange={e=>{setDeletePassword(e.target.value);setDeletePasswordError('');}}

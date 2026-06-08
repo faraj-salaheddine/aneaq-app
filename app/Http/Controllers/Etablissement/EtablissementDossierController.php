@@ -3,9 +3,10 @@
 namespace App\Http\Controllers\Etablissement;
 
 use App\Http\Controllers\Controller;
-use App\Models\CriterePreuve;
+use App\Models\ActivityLog;
 use App\Models\Dossier;
 use App\Models\DossierDocument;
+use App\Models\Etablissement;
 use App\Models\NotificationAneaq;
 use App\Services\DossierDocumentService;
 use Illuminate\Http\RedirectResponse;
@@ -146,11 +147,18 @@ class EtablissementDossierController extends Controller
                 'desc'   => 'Renseignez les informations de votre établissement.',
             ],
             [
+                'statut' => 'rapport_depose',
+                'label'  => "Rapport d'autoévaluation",
+                'href'   => '/etablissement/documents',
+                'cta'    => 'Déposer le rapport',
+                'desc'   => "Déposez votre rapport d'autoévaluation (PDF + Word) pour qu'il soit transmis aux experts après confirmation DEE.",
+            ],
+            [
                 'statut' => 'annexes_remplies',
                 'label'  => 'Remplir les annexes',
                 'href'   => '/etablissement/annexes',
                 'cta'    => 'Accéder aux annexes',
-                'desc'   => 'Déposez les preuves et pièces annexes pour chaque critère.',
+                'desc'   => 'Déposez les preuves et pièces annexes pour chaque critère, puis soumettez.',
             ],
             [
                 'statut' => 'visite_planifiee',
@@ -168,32 +176,6 @@ class EtablissementDossierController extends Controller
             ],
         ];
 
-        $mapping = [
-            'etablissement selectionne' => 0,
-            'selectionne'               => 0,
-            'en attente formulaire'     => 0,
-            'acces envoye'              => 0,
-            'acces_envoye'              => 0,
-            'profil complete'           => 1,
-            'formulaire complete'       => 1,
-            'formulaire complet'        => 1,
-            'formulaire soumis'         => 1,
-            'rapport depose'            => 2,
-            'rapport en attente'        => 2,
-            'rapport_en_attente'        => 2,
-            'en cours evaluation'       => 2,
-            'date de visite planifiee'  => 3,
-            'visite planifiee'          => 3,
-            'date visite planifiee'     => 3,
-            'date_visite_planifiee'     => 3,
-            'visite_planifiee'          => 3,
-            'valide'                    => 4,
-            'rejete'                    => 4,
-            'valide definitif'          => 4,
-            'valide_definitif'          => 4,
-            'cloture'                   => 4,
-        ];
-
         $rawStatus = trim(Str::lower(Str::ascii($dossier->statut ?? '')));
 
         // Step 0: Sélectionné — always done once dossier exists
@@ -203,24 +185,32 @@ class EtablissementDossierController extends Controller
         $profilStatuts = [
             'formulaire_complete', 'formulaire complet', 'formulaire soumis',
             'rapport depose', 'rapport_depose', 'rapport en attente', 'rapport_en_attente',
+            'accepte_par_dee', 'confirme_par_dee',
             'en cours evaluation', 'date de visite planifiee', 'visite planifiee',
             'visite_planifiee', 'visite_confirmee', 'valide', 'valide_definitif', 'cloture', 'rejete',
         ];
         $done1 = in_array($rawStatus, $profilStatuts);
 
-        // Step 2: Remplir les annexes — ONLY if CriterePreuve records exist (independent check)
-        $done2 = false;
-        if (Schema::hasTable('critere_preuves')) {
-            $done2 = CriterePreuve::where('etablissement_id', $etablissementId)->exists();
-        }
+        // Step 2: Rapport d'autoévaluation déposé
+        $done2 = Schema::hasTable('dossier_documents')
+            && DossierDocument::where('dossier_id', $dossier->id)
+                ->where('type_document', 'rapport_autoevaluation')
+                ->exists();
 
-        // Step 3: Visite planifiée — date_visite is set
-        $done3 = !empty($dossier->date_visite);
+        // Step 3: Remplir les annexes — ONLY after the user clicks Submit (annexes_publiees)
+        $done3 = Schema::hasTable('activity_logs')
+            && ActivityLog::where('action', 'annexes_publiees')
+                ->where('model_type', Etablissement::class)
+                ->where('model_id', $etablissementId)
+                ->exists();
 
-        // Step 4: Validé — dossier statut is final
-        $done4 = in_array($rawStatus, ['valide', 'valide_definitif', 'cloture']);
+        // Step 4: Visite planifiée — date_visite is set
+        $done4 = !empty($dossier->date_visite);
 
-        $doneFlags = [$done0, $done1, $done2, $done3, $done4];
+        // Step 5: Validé — dossier statut is final
+        $done5 = in_array($rawStatus, ['valide', 'valide_definitif', 'cloture']);
+
+        $doneFlags = [$done0, $done1, $done2, $done3, $done4, $done5];
 
         // Current = first incomplete step (or last if all done)
         $currentIdx = count($steps) - 1;

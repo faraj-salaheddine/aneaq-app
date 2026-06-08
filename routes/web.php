@@ -240,6 +240,7 @@ Route::middleware(['auth', 'dee.admin'])
             Route::delete('/{dossier}', [DossierController::class, 'destroy'])->name('destroy');
             Route::get('/{dossier}/annexes/{criterePreuve}/download', [DossierController::class, 'downloadAnnexe'])->name('annexes.download');
             Route::get('/{dossier}/annexes/{criterePreuve}/voir', [DossierController::class, 'voirAnnexe'])->name('annexes.voir');
+            Route::post('/{dossier}/annexes/envoyer-experts', [DossierController::class, 'envoyerAnnexesExperts'])->name('annexes.envoyer-experts');
 
             Route::post('/{dossier}/documents', [DossierDocumentController::class, 'store'])
                 ->name('documents.store');
@@ -405,6 +406,7 @@ Route::middleware(['auth', 'role:si'])
             Route::patch('/{user}/toggle', [GestionUsersController::class, 'toggle'])->name('toggle');
             Route::post('/{user}/reset-password', [GestionUsersController::class, 'resetPassword'])->name('reset-password');
             Route::post('/{user}/send-password', [GestionUsersController::class, 'sendPasswordEmail'])->name('send-password');
+            Route::delete('/{user}', [GestionUsersController::class, 'destroy'])->name('destroy');
         });
     });
 

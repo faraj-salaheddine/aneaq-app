@@ -79,6 +79,21 @@ class EvaluationAnnexeController extends Controller
         $expert = $this->expert();
         $this->autoriser($expert, $dossier);
 
+        // Les annexes doivent avoir été transmises par la DEE
+        $annexesEnvoyees = \Illuminate\Support\Facades\Schema::hasColumn('dossiers', 'annexes_envoyees_experts_at')
+            && $dossier->annexes_envoyees_experts_at !== null;
+
+        if (!$annexesEnvoyees) {
+            return Inertia::render('Expert/EvaluationAnnexe/EnAttenteAnnexes', [
+                'dossier' => [
+                    'id'        => $dossier->id,
+                    'reference' => $dossier->reference,
+                    'nom'       => $dossier->nom,
+                ],
+                'expert' => $expert,
+            ]);
+        }
+
         $dossier->load('etablissement');
         $etablissement = $dossier->etablissement;
 

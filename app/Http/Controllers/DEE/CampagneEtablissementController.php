@@ -240,11 +240,27 @@ class CampagneEtablissementController extends Controller
     }
 
     public function refuse(
+        Request $request,
         CampagneEvaluation $campagneEvaluation,
         CampagneEtablissement $campagneEtablissement
     ) {
         if ((int) $campagneEtablissement->campagne_evaluation_id !== (int) $campagneEvaluation->id) {
             abort(404);
+        }
+
+        $currentUser = $request->user();
+        $deeProfile  = \App\Models\UtilisateurDEE::where('user_id', $currentUser->id)->first();
+        $isChefDee   = $deeProfile && $deeProfile->role === 'chef_dee';
+
+        if (!$isChefDee) {
+            $request->validate(['password' => 'required|string'], [
+                'password.required' => 'Le mot de passe est obligatoire.',
+            ]);
+
+            $expectedPwd = env('DEE_DELETE_PASSWORD');
+            if (!$expectedPwd || !hash_equals((string) $expectedPwd, (string) $request->password)) {
+                return back()->withErrors(['password' => 'Mot de passe incorrect.']);
+            }
         }
 
         $campagneEtablissement->delete();

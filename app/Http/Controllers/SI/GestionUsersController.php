@@ -62,6 +62,22 @@ class GestionUsersController extends Controller
         return back()->with('success', "Nouveau mot de passe pour {$user->name} : {$newPassword}");
     }
 
+    public function destroy(User $user)
+    {
+        $name  = $user->name;
+        $email = $user->email;
+
+        $user->delete();
+
+        ActivityLogger::log(
+            'utilisateur_supprime',
+            "Utilisateur {$name} ({$email}) supprimé par le SI",
+            null
+        );
+
+        return back()->with('success', "Utilisateur {$name} supprimé avec succès.");
+    }
+
     public function sendPasswordEmail(Request $request, User $user)
     {
         $request->validate(['password' => 'required|string']);

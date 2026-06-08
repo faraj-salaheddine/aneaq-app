@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Etablissement;
 
 use App\Http\Controllers\Controller;
+use App\Models\ActivityLog;
 use App\Models\Etablissement;
 use App\Models\Dossier;
 use App\Models\EtablissementOnboarding;
@@ -10,6 +11,7 @@ use App\Models\NotificationAneaq;
 use App\Services\DossierDocumentService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -50,7 +52,7 @@ class EtablissementDashboardController extends Controller
         ] : null;
 
         $taches  = $this->buildTaches($dossier, $onboarding);
-        $timeline = $this->buildTimeline($dossier);
+        $timeline = $this->buildTimeline($dossier, $etablissement->id);
         $documentsManquants = $this->buildDocumentsManquants($dossier);
         $dossierId = $dossier?->id;
 
@@ -111,56 +113,62 @@ class EtablissementDashboardController extends Controller
         ]];
     }
 
-    private function buildTimeline(?Dossier $dossier): array
+    private function buildTimeline(?Dossier $dossier, int $etablissementId = 0): array
     {
         if (!$dossier) return [];
 
         $etapes = [
             ['statut' => 'en_attente_formulaire', 'label' => 'Sélectionné'],
             ['statut' => 'formulaire_complete',   'label' => 'Profil complété'],
+            ['statut' => 'rapport_depose',        'label' => "Rapport d'autoévaluation"],
             ['statut' => 'annexes_remplies',      'label' => 'Remplir les annexes'],
             ['statut' => 'visite_planifiee',      'label' => 'Visite planifiée'],
             ['statut' => 'valide',                'label' => 'Validé'],
         ];
 
-        $mapping = [
-            'établissement sélectionné'  => 'en_attente_formulaire',
-            'sélectionné'                => 'en_attente_formulaire',
-            'en attente formulaire'      => 'en_attente_formulaire',
-            'acces_envoye'               => 'en_attente_formulaire',
-            'accès envoyé'               => 'en_attente_formulaire',
-            'profil complété'            => 'formulaire_complete',
-            'formulaire complété'        => 'formulaire_complete',
-            'rapport déposé'             => 'annexes_remplies',
-            'rapport_en_attente'         => 'annexes_remplies',
-            'rapport_depose'             => 'annexes_remplies',
-            'en cours evaluation'        => 'annexes_remplies',
-            'date de visite planifiée'   => 'visite_planifiee',
-            'visite planifiée'           => 'visite_planifiee',
-            'date_visite_planifiee'      => 'visite_planifiee',
-            'visite_planifiee'           => 'visite_planifiee',
-            'validé'                     => 'valide',
-            'rejeté'                     => 'valide',
-            'valide'                     => 'valide',
-            'valide_definitif'           => 'valide',
-            'cloture'                    => 'valide',
+        $rawStatus = strtolower(trim($dossier->statut ?? ''));
+
+        $done0 = true;
+
+        $profilStatuts = [
+            'formulaire_complete', 'formulaire complet', 'formulaire soumis',
+            'rapport_depose', 'rapport depose', 'rapport_en_attente', 'rapport en attente',
+            'accepte_par_dee', 'confirme_par_dee',
+            'en cours evaluation', 'visite_planifiee', 'visite planifiee',
+            'visite_confirmee', 'valide', 'valide_definitif', 'cloture', 'rejete',
         ];
+        $done1 = in_array($rawStatus, $profilStatuts);
 
-        $statutBrut = strtolower(trim($dossier->statut ?? ''));
-        $statut     = $mapping[$statutBrut] ?? $dossier->statut;
+        // Rapport d'autoévaluation déposé
+        $done2 = $etablissementId > 0
+            && Schema::hasTable('dossier_documents')
+            && \App\Models\DossierDocument::where('dossier_id', $dossier->id)
+                ->where('type_document', 'rapport_autoevaluation')
+                ->exists();
 
-        $ordre = array_column($etapes, 'statut');
-        $idx   = array_search($statut, $ordre);
+        // Annexes done ONLY after user clicks Submit (annexes_publiees)
+        $done3 = $etablissementId > 0
+            && Schema::hasTable('activity_logs')
+            && ActivityLog::where('action', 'annexes_publiees')
+                ->where('model_type', Etablissement::class)
+                ->where('model_id', $etablissementId)
+                ->exists();
 
-        // Default to first step if statut is unrecognized
-        if ($idx === false) {
-            $idx = 0;
+        $done4 = !empty($dossier->date_visite);
+
+        $done5 = in_array($rawStatus, ['valide', 'valide_definitif', 'cloture']);
+
+        $doneFlags = [$done0, $done1, $done2, $done3, $done4, $done5];
+
+        $currentIdx = count($etapes) - 1;
+        foreach ($doneFlags as $i => $isDone) {
+            if (!$isDone) { $currentIdx = $i; break; }
         }
 
-        return array_map(function ($etape, $i) use ($idx) {
+        return array_map(function ($etape, $i) use ($doneFlags, $currentIdx) {
             return array_merge($etape, [
-                'done'    => $i <= $idx,
-                'current' => $i === $idx,
+                'done'    => $doneFlags[$i],
+                'current' => $i === $currentIdx,
             ]);
         }, $etapes, array_keys($etapes));
     }

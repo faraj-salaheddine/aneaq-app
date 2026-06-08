@@ -5,6 +5,8 @@ namespace App\Http\Controllers\DEE;
 use App\Exports\DossierExpertsExport;
 use App\Http\Controllers\Controller;
 
+use App\Models\Critere;
+use App\Models\CriterePreuve;
 use App\Models\Dossier;
 use App\Models\DossierExpert;
 use App\Models\DossierPhoto;
@@ -77,21 +79,150 @@ class DossierController extends Controller
         $recommandations = $this->recommandationsPayload($dossier);
 
         return Inertia::render('DEE/Dossiers/Show', [
-            'dossier'              => $this->dossierPayload($dossier, false),
-            'experts'              => $this->availableExpertsPayload($dossier),
-            'allExperts'           => $this->allExpertsPayload(),
-            'dossierExperts'       => $this->dossierExpertsPayload($dossier),
-            'documents'            => $documents,
-            'photos'               => $this->photosPayload($dossier),
-            'rapportsExperts'      => $rapportsExperts,
-            'evaluationsAnnexes'   => $this->evaluationsAnnexesPayload($dossier),
-            'expectedDocuments'    => $this->expectedDocumentsPayload($dossier, $documents, $rapportsExperts),
-            'recommandations'      => $recommandations['items'],
-            'recommandationsStats' => $recommandations['stats'],
-            'recommandationsRappels' => $recommandations['rappels'],
-            'recommandationsProchainRappel' => $recommandations['prochainRappel'],
-            'visiteConfirmations'  => $this->visiteConfirmationsPayload($dossier),
+            'dossier'                      => $this->dossierPayload($dossier, false),
+            'experts'                      => $this->availableExpertsPayload($dossier),
+            'allExperts'                   => $this->allExpertsPayload(),
+            'dossierExperts'               => $this->dossierExpertsPayload($dossier),
+            'documents'                    => $documents,
+            'photos'                       => $this->photosPayload($dossier),
+            'rapportsExperts'              => $rapportsExperts,
+            'evaluationsAnnexes'           => $this->evaluationsAnnexesPayload($dossier),
+            'expectedDocuments'            => $this->expectedDocumentsPayload($dossier, $documents, $rapportsExperts),
+            'recommandations'              => $recommandations['items'],
+            'recommandationsStats'         => $recommandations['stats'],
+            'recommandationsRappels'       => $recommandations['rappels'],
+            'recommandationsProchainRappel'=> $recommandations['prochainRappel'],
+            'visiteConfirmations'          => $this->visiteConfirmationsPayload($dossier),
+            'annexesEtablissement'         => $this->annexesEtablissementPayload($dossier),
+            'annexesEnvoyeesExperts'       => $dossier->annexes_envoyees_experts_at
+                                                ? $dossier->annexes_envoyees_experts_at->format('d/m/Y à H:i')
+                                                : null,
         ]);
+    }
+
+    public function envoyerAnnexesExperts(Dossier $dossier)
+    {
+        $etab = $dossier->etablissement;
+        if (!$etab) {
+            return back()->withErrors(['annexes' => 'Établissement introuvable.']);
+        }
+
+        $hasAnnexes = Schema::hasTable('critere_preuves')
+            && CriterePreuve::where('etablissement_id', $etab->id)->exists();
+
+        if (!$hasAnnexes) {
+            return back()->withErrors(['annexes' => "Aucune annexe déposée par l'établissement."]);
+        }
+
+        $dossier->update(['annexes_envoyees_experts_at' => now()]);
+
+        ActivityLogger::log(
+            'annexes_envoyees_experts',
+            "Annexes transmises aux experts pour le dossier {$dossier->reference}",
+            $dossier
+        );
+
+        return back()->with('success', 'Les annexes ont été transmises aux experts avec succès.');
+    }
+
+    private function annexesEtablissementPayload(Dossier $dossier): array
+    {
+        if (!Schema::hasTable('critere_preuves') || !Schema::hasTable('criteres')) {
+            return [];
+        }
+
+        $etab = $dossier->etablissement;
+        if (!$etab) return [];
+
+        $criteres = Critere::all();
+
+        // Load all CriterePreuve records for this etablissement (both existe=true and false)
+        $preuves = CriterePreuve::where('etablissement_id', $etab->id)
+            ->get()
+            ->groupBy('critere_id')
+            ->map(fn ($g) => $g->keyBy('preuve_index'));
+
+        $grouped = $criteres->groupBy('domaine')->map(function ($parDomaine, $domaine) use ($preuves) {
+            $premier = $parDomaine->first();
+            $champs = $parDomaine->groupBy('champ')->map(function ($parChamp, $champ) use ($preuves) {
+                $premierChamp = $parChamp->first();
+                $references = $parChamp->groupBy('reference')->map(function ($criteres, $reference) use ($preuves) {
+                    $premiereRef = $criteres->first();
+                    $criteresMapped = $criteres->map(function ($critere) use ($preuves) {
+                        $preuvesParIndex = $preuves->get($critere->id, collect());
+                        $preuvesList = collect($critere->preuves ?? [])->map(function ($label, $index) use ($preuvesParIndex) {
+                            $preuve = $preuvesParIndex->get($index);
+                            if (!$preuve) {
+                                $statut = 'non_renseigne';
+                            } elseif ($preuve->existe && $preuve->fichier_path) {
+                                $statut = 'avec_fichier';
+                            } else {
+                                $statut = 'sans_preuve';
+                            }
+                            return [
+                                'index'       => $index,
+                                'label'       => $label,
+                                'statut'      => $statut,
+                                'fichier_nom' => $preuve?->fichier_nom,
+                                'fichier_id'  => $preuve?->id,
+                                'note_etab'   => $preuve?->note,
+                            ];
+                        })->values()->toArray();
+
+                        $total     = count($preuvesList);
+                        $renseignes = count(array_filter($preuvesList, fn($p) => $p['statut'] !== 'non_renseigne'));
+                        $avecFichier = count(array_filter($preuvesList, fn($p) => $p['statut'] === 'avec_fichier'));
+
+                        return [
+                            'critere_id'    => $critere->id,
+                            'critere_num'   => $critere->critere_num,
+                            'critere_label' => $critere->critere_label,
+                            'total'         => $total,
+                            'renseignes'    => $renseignes,
+                            'avec_fichier'  => $avecFichier,
+                            'preuves'       => $preuvesList,
+                        ];
+                    })->values()->toArray();
+
+                    return [
+                        'reference'       => $reference,
+                        'reference_label' => $premiereRef->reference_label,
+                        'criteres'        => $criteresMapped,
+                    ];
+                })->values()->toArray();
+
+                return [
+                    'champ'       => $champ,
+                    'champ_label' => $premierChamp->champ_label,
+                    'references'  => $references,
+                ];
+            })->values()->toArray();
+
+            // Compute totals for domaine
+            $totalDomaine      = 0;
+            $renseignesDomaine = 0;
+            $avecFichierDomaine= 0;
+            foreach ($champs as $ch) {
+                foreach ($ch['references'] as $ref) {
+                    foreach ($ref['criteres'] as $cr) {
+                        $totalDomaine      += $cr['total'];
+                        $renseignesDomaine += $cr['renseignes'];
+                        $avecFichierDomaine+= $cr['avec_fichier'];
+                    }
+                }
+            }
+
+            return [
+                'domaine'       => $domaine,
+                'domaine_label' => $premier->domaine_label,
+                'total'         => $totalDomaine,
+                'renseignes'    => $renseignesDomaine,
+                'avec_fichier'  => $avecFichierDomaine,
+                'champs'        => $champs,
+            ];
+        })->sortBy('domaine')->values()->toArray();
+
+        return $grouped;
     }
 
     private function visiteConfirmationsPayload(Dossier $dossier): array
@@ -892,10 +1023,18 @@ class DossierController extends Controller
         $latestRapportAutoevaluation = $documents->first(
             fn (array $document) => ($document['is_rapport_autoevaluation'] ?? false)
         );
+        // Confirmed = available to experts (envoyé aux experts)
         $rapportAutoevaluationConfirmed = $documents->contains(
             fn (array $document) => ($document['is_rapport_autoevaluation'] ?? false)
                 && ($document['available_to_experts'] ?? false)
         );
+        // Accepted = DEE clicked "Accepter" (step before sending to experts)
+        $rapportAutoevaluationAccepted = $documents->contains(
+            fn (array $document) => ($document['is_rapport_autoevaluation'] ?? false)
+                && ($document['accepted_by_dee'] ?? false)
+        );
+        // Validated = accepted OR confirmed by DEE (both count as DEE having reviewed it)
+        $rapportValideParDEE = $rapportAutoevaluationConfirmed || $rapportAutoevaluationAccepted;
         $rapportAutoevaluationRejected = $latestRapportAutoevaluation
             && ($latestRapportAutoevaluation['rejected_by_dee'] ?? false);
         $rapportAutoevaluationPending = $latestRapportAutoevaluation
@@ -905,7 +1044,14 @@ class DossierController extends Controller
             ? \App\Models\Critere::all()->sum(fn ($critere) => count($critere->preuves ?? []))
             : 0;
 
+        // Count all answered criteria (files uploaded OR declared as "no proof")
         $annexesDeposees = Schema::hasTable('critere_preuves')
+            ? \App\Models\CriterePreuve::where('etablissement_id', $dossier->etablissement_id)
+                ->count()
+            : 0;
+
+        // Separately count those with actual files for display precision
+        $annexesAvecFichier = Schema::hasTable('critere_preuves')
             ? \App\Models\CriterePreuve::where('etablissement_id', $dossier->etablissement_id)
                 ->where('existe', true)
                 ->whereNotNull('fichier_path')
@@ -927,19 +1073,26 @@ class DossierController extends Controller
                     ? 'En attente'
                     : ($rapportAutoevaluationConfirmed
                         ? 'Confirmé et disponible pour les experts'
-                        : ($rapportAutoevaluationRejected
-                            ? 'Refusé par la DEE, correction attendue'
-                            : 'Déposé, en attente de confirmation DEE')),
-                'confirmation_statut' => $rapportAutoevaluationConfirmed
+                        : ($rapportAutoevaluationAccepted
+                            ? 'Accepté par la DEE — en attente d\'envoi aux experts'
+                            : ($rapportAutoevaluationRejected
+                                ? 'Refusé par la DEE, correction attendue'
+                                : 'Déposé, en attente de confirmation DEE'))),
+                // 'confirmed' si le rapport est accepté OU envoyé aux experts par la DEE
+                'confirmation_statut' => $rapportValideParDEE
                     ? 'confirmed'
                     : ($rapportAutoevaluationRejected ? 'rejected' : ($rapportAutoevaluationPending ? 'pending' : 'waiting')),
                 'motif_rejet' => $latestRapportAutoevaluation['motif_rejet'] ?? null,
             ],
             'annexes' => [
-                'statut' => $annexesStatut,
-                'detail' => $annexesDeposees > 0
-                    ? "{$annexesDeposees}/{$annexesAttendues} preuves déposées"
+                'statut'           => $annexesStatut,
+                'detail'           => $annexesDeposees > 0
+                    ? "{$annexesDeposees}/{$annexesAttendues} critères renseignés ({$annexesAvecFichier} avec fichier)"
                     : 'En attente',
+                'avec_fichier'     => $annexesAvecFichier,
+                'total_renseignes' => $annexesDeposees,
+                'envoyees_experts' => Schema::hasColumn('dossiers', 'annexes_envoyees_experts_at')
+                    && $dossier->annexes_envoyees_experts_at !== null,
             ],
             'rapport_expert' => [
                 'statut' => $rapportsExperts->isNotEmpty() ? 'valid' : 'waiting',

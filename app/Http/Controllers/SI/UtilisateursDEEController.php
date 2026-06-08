@@ -48,6 +48,16 @@ class UtilisateursDEEController extends Controller
             'password'  => 'required|min:8',
             'telephone' => 'nullable|string|max:20',
             'role'      => 'required|in:dee,chef_dee',
+        ], [
+            'nom.required'      => 'Le nom est obligatoire.',
+            'prenom.required'   => 'Le prénom est obligatoire.',
+            'email.required'    => "L'adresse email est obligatoire.",
+            'email.email'       => "L'adresse email n'est pas valide.",
+            'email.unique'      => 'Cette adresse email est déjà utilisée par un autre compte.',
+            'password.required' => 'Le mot de passe est obligatoire.',
+            'password.min'      => 'Le mot de passe doit contenir au moins 8 caractères.',
+            'role.required'     => 'Le rôle est obligatoire.',
+            'role.in'           => 'Le rôle sélectionné est invalide.',
         ]);
 
         $user = User::create([
@@ -94,6 +104,15 @@ class UtilisateursDEEController extends Controller
             'telephone' => 'nullable|string|max:20',
             'role'      => 'required|in:dee,chef_dee',
             'password'  => 'nullable|min:8',
+        ], [
+            'nom.required'    => 'Le nom est obligatoire.',
+            'prenom.required' => 'Le prénom est obligatoire.',
+            'email.required'  => "L'adresse email est obligatoire.",
+            'email.email'     => "L'adresse email n'est pas valide.",
+            'email.unique'    => 'Cette adresse email est déjà utilisée par un autre compte.',
+            'password.min'    => 'Le mot de passe doit contenir au moins 8 caractères.',
+            'role.required'   => 'Le rôle est obligatoire.',
+            'role.in'         => 'Le rôle sélectionné est invalide.',
         ]);
 
         $utilisateurDee->update([

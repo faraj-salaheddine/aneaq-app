@@ -68,6 +68,20 @@ function GestionUsersIndex({ users, filters }) {
         });
     };
 
+    const handleDelete = (user) => {
+        setDialog({
+            message: `Supprimer définitivement l'utilisateur "${user.name}" (${user.email}) ? Cette action est irréversible.`,
+            onConfirm: () => {
+                setDialog(null);
+                setLoading(`delete-${user.id}`);
+                router.delete(route('si.users.destroy', user.id), {
+                    preserveScroll: true,
+                    onFinish: () => setLoading(null),
+                });
+            },
+        });
+    };
+
     const handleReset = (user) => {
         setDialog({
             message: `Réinitialiser le mot de passe de ${user.name} ?`,
@@ -236,23 +250,42 @@ function GestionUsersIndex({ users, filters }) {
                                         />
                                     </td>
                                     <td style={{ padding: '14px 16px' }}>
-                                        <button
-                                            onClick={() => handleReset(user)}
-                                            disabled={loading === `reset-${user.id}`}
-                                            style={{
-                                                padding: '6px 14px', borderRadius: 7,
-                                                border: '1.5px solid #e2e8f0', background: '#fff',
-                                                color: '#334155', fontSize: 12, fontWeight: 600,
-                                                cursor: loading === `reset-${user.id}` ? 'not-allowed' : 'pointer',
-                                                opacity: loading === `reset-${user.id}` ? 0.6 : 1,
-                                                display: 'flex', alignItems: 'center', gap: 6,
-                                            }}>
-                                            <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-                                                <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-                                            </svg>
-                                            Reset MDP
-                                        </button>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                            <button
+                                                onClick={() => handleReset(user)}
+                                                disabled={loading === `reset-${user.id}`}
+                                                style={{
+                                                    padding: '6px 14px', borderRadius: 7,
+                                                    border: '1.5px solid #e2e8f0', background: '#fff',
+                                                    color: '#334155', fontSize: 12, fontWeight: 600,
+                                                    cursor: loading === `reset-${user.id}` ? 'not-allowed' : 'pointer',
+                                                    opacity: loading === `reset-${user.id}` ? 0.6 : 1,
+                                                    display: 'flex', alignItems: 'center', gap: 6,
+                                                }}>
+                                                <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                                                    <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                                                </svg>
+                                                Reset MDP
+                                            </button>
+                                            <button
+                                                onClick={() => handleDelete(user)}
+                                                disabled={!!loading}
+                                                style={{
+                                                    padding: '6px 14px', borderRadius: 7,
+                                                    border: '1.5px solid #fecaca', background: '#fff1f2',
+                                                    color: '#e11d48', fontSize: 12, fontWeight: 600,
+                                                    cursor: loading ? 'not-allowed' : 'pointer',
+                                                    opacity: loading === `delete-${user.id}` ? 0.6 : 1,
+                                                    display: 'flex', alignItems: 'center', gap: 6,
+                                                }}>
+                                                <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                                    <polyline points="3 6 5 6 21 6"/>
+                                                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+                                                </svg>
+                                                Supprimer
+                                            </button>
+                                        </div>
                                     </td>
                                 </tr>
                             ))}

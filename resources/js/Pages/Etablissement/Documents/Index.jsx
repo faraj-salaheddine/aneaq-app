@@ -1,4 +1,4 @@
-import { Head, useForm, usePage } from "@inertiajs/react";
+import { Head, router, useForm, usePage } from "@inertiajs/react";
 import { useState, useRef } from "react";
 import EtablissementLayout from "@/Layouts/Etablissement/EtablissementLayout";
 
@@ -116,7 +116,7 @@ function DropZone({ label, accept, mimeLabel, color, bgColor, borderColor, previ
     );
 }
 
-export default function EtablissementDocuments({ etablissement, dossier, documents = [] }) {
+export default function EtablissementDocuments({ etablissement, dossier, documents = [], profil_complete = false }) {
     const { flash } = usePage().props;
 
     const [dragPdf, setDragPdf]     = useState(false);
@@ -157,7 +157,7 @@ export default function EtablissementDocuments({ etablissement, dossier, documen
         });
     }
 
-    const canSubmit = !processing && data.fichier_pdf && data.fichier_word;
+    const canSubmit = !processing && data.fichier_pdf && data.fichier_word && profil_complete;
 
     const rapports = documents;
     const dernierRapport = rapports[0] ?? null;
@@ -220,6 +220,35 @@ export default function EtablissementDocuments({ etablissement, dossier, documen
                         }}>
                             <Svg d={IC.check} w={14} h={14} color="#0e7c5b" sw={2.5}/>
                             <span style={{ fontSize:13, fontWeight:600, color:"#0e7c5b" }}>{flash.success}</span>
+                        </div>
+                    )}
+
+                    {/* Profil incomplet — bloque le dépôt */}
+                    {!profil_complete && (
+                        <div style={{
+                            padding:"14px 18px", borderRadius:10,
+                            background:"#fef2f2", border:"1.5px solid #fca5a5",
+                            display:"flex", alignItems:"center", gap:12,
+                        }}>
+                            <Svg d={IC.warn} w={18} h={18} color="#b91c1c" sw={2}/>
+                            <div style={{ flex:1 }}>
+                                <p style={{ fontSize:13, fontWeight:700, color:"#b91c1c", margin:"0 0 2px" }}>
+                                    Profil incomplet
+                                </p>
+                                <p style={{ fontSize:12, color:"#b91c1c", margin:0, opacity:.85 }}>
+                                    Vous devez compléter le profil de votre établissement avant de pouvoir déposer le rapport d'autoévaluation.
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => router.visit(route("etablissement.profil.edit"))}
+                                style={{
+                                    flexShrink:0, padding:"8px 16px", borderRadius:8,
+                                    border:"1.5px solid #b91c1c", background:"#b91c1c",
+                                    color:"#fff", fontSize:12, fontWeight:700, cursor:"pointer",
+                                    whiteSpace:"nowrap",
+                                }}>
+                                Compléter le profil →
+                            </button>
                         </div>
                     )}
 
