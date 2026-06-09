@@ -47,12 +47,11 @@ class EvaluationAnnexeController extends Controller
             ->get()
             ->map(function ($d) use ($expert) {
                 $total   = \App\Models\Critere::all()->sum(fn ($c) => count($c->preuves));
+                // Les évaluations sont partagées par dossier (pas par expert)
                 $evalue  = ExpertPreuveEvaluation::where('dossier_id', $d->id)
-                    ->where('expert_id', $expert->id)
                     ->whereNotNull('note')
                     ->count();
                 $soumis  = ExpertPreuveEvaluation::where('dossier_id', $d->id)
-                    ->where('expert_id', $expert->id)
                     ->where('statut', 'soumis')
                     ->exists();
                 return [
@@ -106,9 +105,8 @@ class EvaluationAnnexeController extends Controller
             ->groupBy('critere_id')
             ->map(fn ($g) => $g->keyBy('preuve_index'));
 
-        /* Évaluations déjà saisies par l'expert */
+        /* Évaluations partagées du dossier (tous les experts voient le même travail) */
         $evaluations = ExpertPreuveEvaluation::where('dossier_id', $dossier->id)
-            ->where('expert_id', $expert->id)
             ->get()
             ->groupBy('critere_id')
             ->map(fn ($g) => $g->keyBy('preuve_index'));
@@ -167,12 +165,11 @@ class EvaluationAnnexeController extends Controller
         })->values();
 
         $totalPreuves  = $criteres->sum(fn ($c) => count($c->preuves));
+        // Partagé par dossier
         $totalEvalues  = ExpertPreuveEvaluation::where('dossier_id', $dossier->id)
-            ->where('expert_id', $expert->id)
             ->whereNotNull('note')
             ->count();
         $dejaSoumis    = ExpertPreuveEvaluation::where('dossier_id', $dossier->id)
-            ->where('expert_id', $expert->id)
             ->where('statut', 'soumis')
             ->exists();
 
@@ -231,14 +228,15 @@ class EvaluationAnnexeController extends Controller
 
         DB::transaction(function () use ($request, $dossier, $expert) {
             foreach ($request->evaluations ?? [] as $data) {
+                // Clé partagée par dossier : (dossier_id, critere_id, preuve_index)
                 ExpertPreuveEvaluation::updateOrCreate(
                     [
                         'dossier_id'   => $dossier->id,
-                        'expert_id'    => $expert->id,
                         'critere_id'   => $data['critere_id'],
                         'preuve_index' => $data['preuve_index'],
                     ],
                     [
+                        'expert_id'   => $expert->id,
                         'note'        => $data['note'] ?? null,
                         'observation' => $data['observation'] ?? null,
                         'statut'      => 'brouillon',
@@ -290,14 +288,15 @@ class EvaluationAnnexeController extends Controller
         DB::transaction(function () use ($request, $dossier, $expert) {
             $now = now();
             foreach ($request->evaluations ?? [] as $data) {
+                // Clé partagée par dossier : (dossier_id, critere_id, preuve_index)
                 ExpertPreuveEvaluation::updateOrCreate(
                     [
                         'dossier_id'   => $dossier->id,
-                        'expert_id'    => $expert->id,
                         'critere_id'   => $data['critere_id'],
                         'preuve_index' => $data['preuve_index'],
                     ],
                     [
+                        'expert_id'   => $expert->id,
                         'note'        => $data['note'] ?? null,
                         'observation' => $data['observation'] ?? null,
                         'statut'      => 'soumis',

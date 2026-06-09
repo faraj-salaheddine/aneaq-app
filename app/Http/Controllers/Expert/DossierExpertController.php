@@ -123,6 +123,8 @@ class DossierExpertController extends Controller
             ->orderByDesc('id')
             ->first();
 
+        $isCoordonnateur = ($assignment->role_expert ?? 'expert') === 'chef_comite';
+
         return Inertia::render('Expert/Dossiers/Show', [
             'expert' => [
                 'id' => $expert->id,
@@ -137,10 +139,10 @@ class DossierExpertController extends Controller
             'nbRecommandations' => $nbRecommandations,
             'documents' => $this->loadDocuments($dossier),
             'assignmentStatus' => $assignment->status ?? null,
+            'isCoordonnateur' => $isCoordonnateur,
             'evaluationsSoumises' => Schema::hasTable('expert_preuve_evaluations')
                 ? DB::table('expert_preuve_evaluations')
                     ->where('dossier_id', $dossier->id)
-                    ->where('expert_id', $expert->id)
                     ->where('statut', 'soumis')
                     ->count()
                 : 0,
@@ -435,9 +437,10 @@ class DossierExpertController extends Controller
             return null;
         }
 
+        // Un seul rapport partagé par dossier
         return DB::table('rapports_experts')
             ->where('dossier_id', $dossierId)
-            ->where('expert_id', $expertId)
+            ->orderByDesc('updated_at')
             ->first();
     }
 

@@ -33,6 +33,11 @@ class VisiteConfirmationController extends Controller
             ->where('expert_id', $expert->id)
             ->firstOrFail();
 
+        // Seul le Coordonnateur expert (chef_comite) peut répondre
+        if (($dossierExpert->role_expert ?? 'expert') !== 'chef_comite') {
+            return back()->withErrors(['statut' => 'Seul le Coordonnateur expert peut confirmer la date de visite.']);
+        }
+
         if (empty($dossier->date_visite)) {
             return back()->withErrors(['statut' => 'Aucune date de visite planifiée.']);
         }
@@ -60,14 +65,22 @@ class VisiteConfirmationController extends Controller
         if ($statut === 'refuse') {
             $this->annulerDateVisite($dossier, $expert, $message);
         } else {
+            // Le coordonnateur accepte → auto-accepter tous les autres experts du dossier
+            $confirmedStatuts = ['accepte_par_expert', 'confirme_par_expert', 'comite_confirme'];
+            DossierExpert::where('dossier_id', $dossier->id)
+                ->whereIn('status', $confirmedStatuts)
+                ->where('expert_id', '!=', $expert->id)
+                ->whereIn('visite_statut', [null, 'en_attente'])
+                ->update(['visite_statut' => 'accepte']);
+
             NotifierDee::pourDossier(
                 $dossier,
                 'visite',
-                "Visite acceptée par expert — {$dossier->reference}",
-                "L'expert " . trim(($expert->prenom ?? '') . ' ' . ($expert->nom ?? '')) . " a accepté la date de visite."
+                "Visite acceptée par le Coordonnateur — {$dossier->reference}",
+                "Le Coordonnateur expert " . trim(($expert->prenom ?? '') . ' ' . ($expert->nom ?? '')) . " a accepté la date de visite au nom du comité."
             );
 
-            ActivityLogger::log('visite_acceptee_expert', "Expert a accepté la date de visite — {$dossier->reference}", $dossier);
+            ActivityLogger::log('visite_acceptee_expert', "Coordonnateur a accepté la date de visite pour tout le comité — {$dossier->reference}", $dossier);
 
             // Vérifier si tout le monde a accepté
             $this->checkTousAcceptes($dossier);

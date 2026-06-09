@@ -961,9 +961,11 @@ class DossierController extends Controller
             return collect();
         }
 
+        // Un seul rapport par dossier — le plus récent (partagé entre tous les experts)
         $rapports = DB::table('rapports_experts')
             ->where('dossier_id', $dossier->id)
             ->orderByDesc('updated_at')
+            ->limit(1)
             ->get();
 
         if ($rapports->isEmpty()) {
@@ -1094,10 +1096,17 @@ class DossierController extends Controller
                 'envoyees_experts' => Schema::hasColumn('dossiers', 'annexes_envoyees_experts_at')
                     && $dossier->annexes_envoyees_experts_at !== null,
             ],
-            'rapport_expert' => [
-                'statut' => $rapportsExperts->isNotEmpty() ? 'valid' : 'waiting',
-                'detail' => $rapportsExperts->isNotEmpty() ? 'Rapport déposé' : 'En attente',
-            ],
+            'rapport_expert' => (function () use ($rapportsExperts) {
+                $valide  = $rapportsExperts->first(fn ($r) => in_array($r['statut'] ?? '', ['valide', 'envoye_etablissement']));
+                $depose  = $rapportsExperts->first(fn ($r) => ($r['statut'] ?? '') === 'depose');
+                if ($valide) {
+                    return ['statut' => 'valid',   'detail' => 'Validé par la DEE'];
+                }
+                if ($depose) {
+                    return ['statut' => 'pending', 'detail' => 'Déposé — en attente de validation DEE'];
+                }
+                return ['statut' => 'waiting', 'detail' => 'En attente'];
+            })(),
         ];
     }
 

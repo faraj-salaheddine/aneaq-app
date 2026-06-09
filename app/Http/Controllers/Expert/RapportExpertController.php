@@ -158,9 +158,10 @@ class RapportExpertController extends Controller
             ]);
         }
 
+        // Un seul rapport par dossier (partagé entre tous les experts)
         $existing = DB::table('rapports_experts')
             ->where('dossier_id', $dossier->id)
-            ->where('expert_id', $expert->id)
+            ->orderByDesc('updated_at')
             ->first();
 
         $columns = Schema::getColumnListing('rapports_experts');
@@ -260,9 +261,10 @@ return response()->download($cheminComplet, basename($item->fichier));
             return null;
         }
 
+        // Un seul rapport par dossier — on prend le plus récent
         return DB::table('rapports_experts')
-            ->where('expert_id', $expertId)
             ->where('dossier_id', $dossierId)
+            ->orderByDesc('updated_at')
             ->first();
     }
 }

@@ -2796,6 +2796,10 @@ function ExpectedDocument({ label, item = {} }) {
             label: 'Validé',
             badge: 'bg-emerald-100 text-emerald-700',
         },
+        pending: {
+            label: 'À valider',
+            badge: 'bg-cyan-100 text-cyan-700',
+        },
         progress: {
             label: 'En cours',
             badge: 'bg-blue-100 text-blue-700',

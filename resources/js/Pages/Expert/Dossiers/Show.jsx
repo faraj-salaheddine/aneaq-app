@@ -28,11 +28,17 @@ const STATUS_META = {
     comite_confirme:       { label: 'Comité confirmé',         color: '#166534', bg: '#dcfce7', dot: GREEN    },
 };
 
-const reportIsDone = (rapport) => {
+// Validé par la DEE (terminé)
+const reportIsValidated = (rapport) => {
     if (!rapport) return false;
-
     const statut = String(rapport.statut || rapport.status || '').toLowerCase();
-    return !['rejete', 'rejeté'].includes(statut);
+    return ['valide', 'envoye_etablissement'].includes(statut);
+};
+// Déposé mais pas encore validé par la DEE
+const reportIsDeposed = (rapport) => {
+    if (!rapport) return false;
+    const statut = String(rapport.statut || rapport.status || '').toLowerCase();
+    return statut === 'depose';
 };
 
 const DOC_TYPE_LABELS = {
@@ -52,8 +58,8 @@ const STEPS = [
     { label: "Rapport d'autoéval. disponible", doneFn: (_s, _d, { documents }) => documents.some(d => d.type === 'rapport_autoevaluation') },
     { label: 'Éval. Annexes',                  doneFn: (_s, _d, { evaluationsSoumises }) => (evaluationsSoumises ?? 0) > 0 },
     { label: 'Visite sur site',                doneFn: (_s, dossier) => visitIsCompleted(dossier) },
-    { label: 'Rapport expert déposé',          doneFn: (_s, _d, { rapport }) => reportIsDone(rapport) },
-    { label: 'Validation DEE',                 doneFn: (status) => ['valide','cloture'].includes(status) },
+    { label: 'Rapport expert déposé',          doneFn: (_s, _d, { rapport }) => !!rapport && !['rejete', 'rejeté'].includes(String(rapport?.statut || '').toLowerCase()) },
+    { label: 'Validation DEE',                 doneFn: (_s, _d, { rapport }) => reportIsValidated(rapport) },
 ];
 
 /* ─── Page ─── */
@@ -67,6 +73,7 @@ export default function DossierShow({
     assignmentStatus     = null,
     visiteConfirmation   = null,
     evaluationsSoumises  = 0,
+    isCoordonnateur      = false,
 }) {
     // Blocked = DEE hasn't confirmed yet OR expert hasn't accepted yet
     // accepte_par_expert / confirme_par_expert / comite_confirme = fully unlocked
@@ -86,7 +93,9 @@ export default function DossierShow({
     const canSubmitFinalReport = canUploadFinalReport(dossier);
     const finalReportLockText = finalReportAvailabilityText(dossier);
     const finalReportLocked = isWaiting || !canSubmitFinalReport;
-    const finalReportDone = reportIsDone(rapport);
+    const finalReportValidated = reportIsValidated(rapport);
+    const finalReportDeposed  = reportIsDeposed(rapport);
+    const finalReportDone     = finalReportValidated; // "terminé" = validé par la DEE
     const rapportStatus = String(rapport?.statut || rapport?.status || '').toLowerCase();
     const rapportRejected = ['rejete', 'rejeté'].includes(rapportStatus);
 
@@ -222,7 +231,7 @@ export default function DossierShow({
                     <div className="fu d2" style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 14, marginBottom: 28 }}>
                         <StatCard icon={<IcoChart />}  label="Progression"     value={`${pct}%`}              accent={BLUE}   sub={pct >= 100 ? 'Terminé' : 'En attente'} />
                         <StatCard icon={<IcoUsers />}  label="Membres comité"  value={comite.length}           accent={GREEN}  sub={`${confirmedCount} confirmé(s)`} />
-                        <StatCard icon={<IcoFile />}   label="Rapport final"   value={rapport ? '✓' : '—'}    accent={rapportRejected ? RED : finalReportDone ? GREEN : ORANGE} sub={finalReportDone ? 'Terminé' : 'En attente'} />
+                        <StatCard icon={<IcoFile />}   label="Rapport final"   value={rapport ? '✓' : '—'}    accent={rapportRejected ? RED : finalReportDone ? GREEN : finalReportDeposed ? '#0891b2' : ORANGE} sub={finalReportDone ? 'Terminé' : finalReportDeposed ? 'En attente DEE' : 'En attente'} />
                         <StatCard icon={<IcoClip />}   label="Recommandations" value={nbRecommandations || 0}  accent={ORANGE} sub="au total" />
                     </div>
 
@@ -367,7 +376,7 @@ export default function DossierShow({
                                     <ActionCard
                                         icon={<IcoFile size={26} />}
                                         title="Rapport final"
-                                        desc={rapport ? (finalReportDone ? 'Terminé' : 'En attente') : finalReportLockText}
+                                        desc={rapport ? (finalReportDone ? 'Terminé' : finalReportDeposed ? 'En attente validation DEE' : 'En attente') : finalReportLockText}
                                         href={`/expert/rapports/${dossier.id}/deposer`}
                                         color={GREEN}
                                         gradFrom="#dcfce7"
@@ -391,13 +400,36 @@ export default function DossierShow({
                         {/* Right sidebar */}
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
-                            {/* Widget confirmation date de visite */}
-                            {visiteConfirmation?.date_visite && (
+                            {/* Widget confirmation date de visite — réservé au Coordonnateur */}
+                            {visiteConfirmation?.date_visite && isCoordonnateur && (
                                 <VisiteConfirmationWidget
                                     confirmation={visiteConfirmation}
                                     postUrl={`/expert/dossiers/${dossier.id}/visite/repondre`}
                                 />
                             )}
+                            {visiteConfirmation?.date_visite && !isCoordonnateur && (() => {
+                                const confirmed = visiteConfirmation?.statut === 'accepte';
+                                return (
+                                    <div style={{
+                                        background: confirmed ? '#f0fdf4' : '#fffbeb',
+                                        border: `1px solid ${confirmed ? '#bbf7d0' : '#fde68a'}`,
+                                        borderRadius: 14,
+                                        padding: '14px 18px',
+                                    }}>
+                                        <div style={{ fontWeight: 700, color: confirmed ? '#15803d' : '#92400e', fontSize: 13, marginBottom: 4 }}>
+                                            {confirmed ? '✅ Visite confirmée' : '📅 Visite planifiée'}
+                                        </div>
+                                        <div style={{ fontSize: 13, color: confirmed ? '#166534' : '#78350f' }}>
+                                            Le <strong>{visiteConfirmation.date_visite}</strong>
+                                        </div>
+                                        <div style={{ fontSize: 11, color: '#6b7280', marginTop: 6 }}>
+                                            {confirmed
+                                                ? 'Confirmée par le Coordonnateur expert au nom du comité.'
+                                                : 'En attente de confirmation du Coordonnateur expert.'}
+                                        </div>
+                                    </div>
+                                );
+                            })()}
 
                             {/* Workflow timeline */}
                             <Card className="fu d3" accent={BLUE}>
@@ -418,11 +450,11 @@ export default function DossierShow({
                                 <CardHead icon={<IcoFile />} title="Rapport final" sub="État du rapport expert." compact />
                                 <div style={{ padding: '1.25rem 1.5rem' }}>
                                     {(() => {
-                                        const borderColor = rapportRejected ? '#fca5a5' : finalReportDone ? '#86efac' : '#fed7aa';
-                                        const bgColor     = rapportRejected ? '#fef2f2' : finalReportDone ? '#f0fdf4' : '#fff7ed';
-                                        const dotColor    = rapportRejected ? '#ef4444' : finalReportDone ? GREEN : ORANGE;
-                                        const titleColor  = rapportRejected ? '#991b1b' : finalReportDone ? '#166534' : '#92400e';
-                                        const statusLabel = finalReportDone ? 'Terminé' : 'En attente';
+                                        const borderColor = rapportRejected ? '#fca5a5' : finalReportDone ? '#86efac' : finalReportDeposed ? '#a5f3fc' : '#fed7aa';
+                                        const bgColor     = rapportRejected ? '#fef2f2' : finalReportDone ? '#f0fdf4' : finalReportDeposed ? '#ecfeff' : '#fff7ed';
+                                        const dotColor    = rapportRejected ? '#ef4444' : finalReportDone ? GREEN : finalReportDeposed ? '#0891b2' : ORANGE;
+                                        const titleColor  = rapportRejected ? '#991b1b' : finalReportDone ? '#166534' : finalReportDeposed ? '#0e7490' : '#92400e';
+                                        const statusLabel = finalReportDone ? 'Terminé' : finalReportDeposed ? 'En attente validation DEE' : 'En attente';
                                         const helperText  = isWaiting
                                             ? 'Disponible après confirmation DEE.'
                                             : canSubmitFinalReport

@@ -27,19 +27,28 @@ class RapportExpertValidationController extends Controller
 
         abort_if(!$row, 404);
 
-        DB::table('rapports_experts')->where('id', $rapport)->update([
-            'statut'     => 'valide',
-            'motif_rejet' => null,
-            'valide_le'  => now(),
-            'valide_par' => Auth::id(),
-            'updated_at' => now(),
-        ]);
+        // Valider tous les rapports du dossier (rapport partagé → validation globale)
+        DB::table('rapports_experts')
+            ->where('dossier_id', $dossier->id)
+            ->update([
+                'statut'      => 'valide',
+                'motif_rejet' => null,
+                'valide_le'   => now(),
+                'valide_par'  => Auth::id(),
+                'updated_at'  => now(),
+            ]);
 
         DB::table('dossiers')
             ->where('id', $dossier->id)
             ->update(['statut' => 'valide', 'updated_at' => now()]);
 
-        $this->notifyExpert($row->expert_id, $dossier, 'accepte');
+        // Notifier tous les experts du dossier
+        $expertIds = DB::table('rapports_experts')
+            ->where('dossier_id', $dossier->id)
+            ->pluck('expert_id');
+        foreach ($expertIds as $eid) {
+            $this->notifyExpert($eid, $dossier, 'accepte');
+        }
 
         return back()->with('success', 'Rapport expert validé avec succès.');
     }
@@ -59,15 +68,23 @@ class RapportExpertValidationController extends Controller
 
         abort_if(!$row, 404);
 
-        DB::table('rapports_experts')->where('id', $rapport)->update([
-            'statut'      => 'rejete',
-            'motif_rejet' => $request->input('motif'),
-            'valide_le'   => null,
-            'valide_par'  => Auth::id(),
-            'updated_at'  => now(),
-        ]);
+        // Rejeter tous les rapports du dossier
+        DB::table('rapports_experts')
+            ->where('dossier_id', $dossier->id)
+            ->update([
+                'statut'      => 'rejete',
+                'motif_rejet' => $request->input('motif'),
+                'valide_le'   => null,
+                'valide_par'  => Auth::id(),
+                'updated_at'  => now(),
+            ]);
 
-        $this->notifyExpert($row->expert_id, $dossier, 'rejete', $request->input('motif'));
+        $expertIds = DB::table('rapports_experts')
+            ->where('dossier_id', $dossier->id)
+            ->pluck('expert_id');
+        foreach ($expertIds as $eid) {
+            $this->notifyExpert($eid, $dossier, 'rejete', $request->input('motif'));
+        }
 
         return back()->with('success', 'Rapport expert refusé.');
     }
