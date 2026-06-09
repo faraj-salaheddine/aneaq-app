@@ -7,9 +7,10 @@ const ORANGE = "#EF9F27";
 const RED    = "#e03131";
 
 const RAPPORT_META = {
-    depose: { label: 'Déposé',  color: ORANGE, bg: '#fffbeb' },
-    valide: { label: 'Validé',  color: GREEN,  bg: '#ecfdf5' },
-    rejete: { label: 'Rejeté',  color: RED,    bg: '#fef2f2' },
+    depose:               { label: 'Déposé',              color: ORANGE,    bg: '#fffbeb' },
+    valide:               { label: 'Validé',              color: GREEN,     bg: '#ecfdf5' },
+    rejete:               { label: 'Rejeté',              color: RED,       bg: '#fef2f2' },
+    envoye_etablissement: { label: 'Envoyé établissement', color: '#1d4ed8', bg: '#eff6ff' },
 };
 
 function fmtSize(bytes) {

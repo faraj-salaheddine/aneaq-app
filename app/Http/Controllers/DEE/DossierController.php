@@ -678,6 +678,8 @@ class DossierController extends Controller
             'ville' => $etablissement['ville'] ?? '—',
             'universite' => $etablissement['universite'] ?? '—',
             'email' => $etablissement['email'] ?? '—',
+
+            'campagne_id' => $dossier->campagne_evaluation_id,
         ];
     }
 

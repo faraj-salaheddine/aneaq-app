@@ -26,11 +26,13 @@ class Dossier extends Model
         'visite_statut_etab',
         'visite_message_etab',
         'annexes_envoyees_experts_at',
+        'cloture_at',
     ];
 
     protected $casts = [
         'date_visite'                 => 'date',
         'annexes_envoyees_experts_at' => 'datetime',
+        'cloture_at'                  => 'datetime',
     ];
 
     protected static function boot(): void
