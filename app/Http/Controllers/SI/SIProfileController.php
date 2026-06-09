@@ -48,7 +48,7 @@ class SIProfileController extends Controller
             $user
         );
 
-        return redirect()->route('si.profile')->with('success', 'Profil mis à jour avec succès.');
+        return redirect()->route('si.profile.edit')->with('success', 'Profil mis à jour avec succès.');
     }
 
     public function destroy(Request $request)
