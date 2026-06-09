@@ -5,6 +5,7 @@ namespace App\Http\Middleware;
 use App\Models\Dossier;
 use App\Models\Etablissement;
 use App\Models\NotificationAneaq;
+use App\Models\UtilisateurDEE;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -24,10 +25,13 @@ class HandleInertiaRequests extends Middleware
         return array_merge(parent::share($request), [
             'auth' => [
                 'user' => $user ? [
-                    'id' => $user->id,
-                    'name' => $user->name,
-                    'email' => $user->email,
-                    'role' => $user->role,
+                    'id'       => $user->id,
+                    'name'     => $user->name,
+                    'email'    => $user->email,
+                    'role'     => $user->role,
+                    'dee_role' => $user->role === 'admin_dee'
+                        ? UtilisateurDEE::where('user_id', $user->id)->value('role')
+                        : null,
                 ] : null,
             ],
 

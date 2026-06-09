@@ -68,12 +68,16 @@ export default function RapportsIndex({ rapports = [], dossiersEnAttente = [] })
                                 <div key={d.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", borderRadius: 10, background: "#fff", border: `1px solid ${RED}15` }}>
                                     <div>
                                         <p style={{ fontSize: 14, fontWeight: 700, color: "#0f172a", margin: "0 0 2px" }}>{d.acronyme} — {d.ville}</p>
-                                        <p style={{ fontSize: 11, color: "#94a3b8", margin: 0 }}>Vague {d.vague}</p>
+                                        <p style={{ fontSize: 11, color: "#94a3b8", margin: 0 }}>
+                                            {d.rapport_disponible ? `Vague ${d.vague}` : d.rapport_disponible_message}
+                                        </p>
                                     </div>
-                                    <button onClick={() => router.visit(route('expert.rapports.create', d.id))}
-                                        style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 16px", borderRadius: 9, background: RED, color: "#fff", fontSize: 12, fontWeight: 700, border: "none", cursor: "pointer" }}>
-                                        <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg>
-                                        Déposer maintenant
+                                    <button
+                                        onClick={() => d.rapport_disponible && router.visit(route('expert.rapports.create', d.id))}
+                                        disabled={!d.rapport_disponible}
+                                        style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 16px", borderRadius: 9, background: d.rapport_disponible ? RED : "#e2e8f0", color: d.rapport_disponible ? "#fff" : "#94a3b8", fontSize: 12, fontWeight: 700, border: "none", cursor: d.rapport_disponible ? "pointer" : "not-allowed" }}>
+                                        <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg>
+                                        {d.rapport_disponible ? 'Déposer maintenant' : 'En attente'}
                                     </button>
                                 </div>
                             ))}

@@ -67,7 +67,7 @@ class BackfillExpertNotifications extends Command
 
     private function buildNotifications(object $a, string $ref): array
     {
-        $role = $a->role_expert === 'chef_comite' ? 'Chef de comite' : 'Expert';
+        $role = $a->role_expert === 'chef_comite' ? 'Coordonnateur expert' : 'Expert';
         $notifs = [];
 
         $notifs[] = [

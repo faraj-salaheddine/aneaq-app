@@ -5,8 +5,10 @@ namespace App\Http\Controllers\DEE;
 use App\Http\Controllers\Controller;
 
 use App\Models\Expert;
+use App\Models\UtilisateurDEE;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Inertia\Inertia;
 
 class ExpertController extends Controller
@@ -115,8 +117,19 @@ class ExpertController extends Controller
         return back()->with('success', 'Expert modifié avec succès.');
     }
 
-    public function destroy(Expert $expert)
+    public function destroy(Request $request, Expert $expert)
     {
+        $currentUser = $request->user();
+        $deeProfile  = UtilisateurDEE::where('user_id', $currentUser->id)->first();
+        $isChefDee   = $deeProfile && $deeProfile->role === 'chef_dee';
+
+        if (!$isChefDee) {
+            $request->validate(['password' => 'required|string']);
+            $expectedPwd = env('DEE_DELETE_PASSWORD'); if (!$expectedPwd || !hash_equals((string)$expectedPwd, (string)$request->password)) {
+                return back()->withErrors(['password' => 'Mot de passe incorrect.']);
+            }
+        }
+
         $dossiersCount = DB::table('dossier_experts')
             ->where('expert_id', $expert->id)
             ->count();

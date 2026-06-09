@@ -25,8 +25,24 @@
             {{-- Notification card --}}
             <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-left: 4px solid #2563eb; border-radius: 10px; padding: 16px 20px; margin-bottom: 24px;">
                 <p style="font-size: 15px; font-weight: 700; color: #0f172a; margin: 0 0 8px;">{{ $titre }}</p>
-                <p style="font-size: 14px; color: #64748b; margin: 0; line-height: 1.6;">{{ $message }}</p>
+                <p style="font-size: 14px; color: #64748b; margin: 0; line-height: 1.6;">{{ $notificationMessage }}</p>
             </div>
+
+            @if(!empty($committeeMembers))
+                <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:10px; padding:16px 20px; margin-bottom:24px;">
+                    <p style="font-size:15px; font-weight:700; color:#0f172a; margin:0 0 5px;">Composition du comité</p>
+                    <p style="font-size:12px; color:#94a3b8; margin:0 0 12px; line-height:1.5;">
+                        Voici les experts actuellement sélectionnés pour ce dossier.
+                    </p>
+
+                    @foreach($committeeMembers as $member)
+                        <div style="padding:9px 0; border-top:1px solid #f1f5f9;">
+                            <p style="font-size:13px; font-weight:700; color:#0f172a; margin:0;">{{ $member['name'] }}</p>
+                            <p style="font-size:11px; color:#64748b; margin:3px 0 0;">{{ $member['role'] }} · {{ $member['status'] }}</p>
+                        </div>
+                    @endforeach
+                </div>
+            @endif
 
             <p style="font-size: 14px; color: #64748b; margin: 0 0 24px;">
                 Connectez-vous à la plateforme ANEAQ pour consulter les détails et prendre les actions nécessaires.

@@ -11,7 +11,7 @@ const RED    = '#e53e3e';
 
 const STATUT_META = {
     en_preparation:     { label: 'En préparation',     color: '#64748b', bg: '#f1f5f9',  dot: '#94a3b8' },
-    autoeval_en_cours:  { label: 'Autoéval. en cours', color: '#b45309', bg: '#fffbeb',  dot: '#f59e0b' },
+    autoeval_en_cours:  { label: 'Autoéval. en attente', color: '#b45309', bg: '#fffbeb',  dot: '#f59e0b' },
     autoeval_depose:    { label: 'Autoéval. déposée',  color: '#0e7490', bg: '#ecfeff',  dot: '#06b6d4' },
     en_evaluation:      { label: 'En évaluation',      color: BLUE,      bg: '#dbeafe',  dot: BLIGHT   },
     visite_planifiee:   { label: 'Visite planifiée',   color: '#92400e', bg: '#fef3c7',  dot: ORANGE   },
@@ -90,7 +90,7 @@ export default function DossiersIndex({ dossiers = [] }) {
                                 <div>
                                     <h1 style={{ margin: 0, fontSize: 28, fontWeight: 900, color: '#0f172a', letterSpacing: '-0.4px' }}>Dossiers affectés</h1>
                                     <p style={{ margin: '4px 0 0', fontSize: 13, color: '#64748b', fontWeight: 600 }}>
-                                        <span style={{ fontWeight: 800, color: BLUE }}>{enCours.length}</span> en cours ·{' '}
+                                        <span style={{ fontWeight: 800, color: BLUE }}>{enCours.length}</span> en attente ·{' '}
                                         <span style={{ fontWeight: 700, color: '#94a3b8' }}>{finalises.length}</span> finalisés ·{' '}
                                         <span style={{ fontWeight: 700, color: '#64748b' }}>{dossiers.length}</span> total
                                     </p>
@@ -102,7 +102,7 @@ export default function DossiersIndex({ dossiers = [] }) {
                     {/* ── Stat strip ── */}
                     <div className="fu d1" style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 14, marginBottom: 24 }}>
                         <MiniStat label="Total dossiers"    value={dossiers.length}   accent={BLUE}   icon={<IcoFolder size={18} />} />
-                        <MiniStat label="En cours"          value={enCours.length}    accent={BLIGHT} icon={<IcoProgress size={18} />} />
+                        <MiniStat label="En attente"        value={enCours.length}    accent={BLIGHT} icon={<IcoProgress size={18} />} />
                         <MiniStat label="Finalisés"         value={finalises.length}  accent={GREEN}  icon={<IcoCheck size={18} />} />
                         <MiniStat label="Rapport attendu"   value={dossiers.filter(d => d.statut === 'rapport_en_attente').length} accent={ORANGE} icon={<IcoAlert size={18} />} />
                     </div>
@@ -112,7 +112,7 @@ export default function DossiersIndex({ dossiers = [] }) {
                         {/* Tabs */}
                         <div style={{ display: 'flex', gap: 6 }}>
                             {[
-                                { key: 'en_cours',  label: 'En cours',  count: enCours.length  },
+                                { key: 'en_cours',  label: 'En attente',  count: enCours.length  },
                                 { key: 'finalises', label: 'Finalisés', count: finalises.length },
                             ].map(t => (
                                 <button key={t.key} onClick={() => setTab(t.key)} className="tab-pill"
@@ -181,8 +181,8 @@ export default function DossiersIndex({ dossiers = [] }) {
 function DossierCard({ d }) {
     const sm = STATUT_META[d.statut] || { label: d.statut || '—', color: '#64748b', bg: '#f1f5f9', dot: '#94a3b8' };
     const initials = d.acronyme ? d.acronyme.slice(0, 3).toUpperCase() : (d.nom || '?').slice(0, 2).toUpperCase();
-    const roleColor = d.role_comite === 'Chef de comité' ? ORANGE : BLUE;
-    const roleBg    = d.role_comite === 'Chef de comité' ? '#fef3c7' : '#dbeafe';
+    const roleColor = d.role_comite === 'Coordonnateur expert' ? ORANGE : BLUE;
+    const roleBg    = d.role_comite === 'Coordonnateur expert' ? '#fef3c7' : '#dbeafe';
 
     return (
         <div className="doss-card" onClick={() => router.visit(route('expert.dossiers.show', d.id))}

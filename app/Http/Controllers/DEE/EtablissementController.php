@@ -4,8 +4,10 @@ namespace App\Http\Controllers\DEE;
 
 use App\Http\Controllers\Controller;
 use App\Models\Etablissement;
+use App\Models\UtilisateurDEE;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
 
@@ -34,7 +36,7 @@ class EtablissementController extends Controller
         }
 
         if ($this->hasColumn('etablissements', 'etablissement_2') && $this->hasColumn('etablissements', 'etablissement')) {
-            $query->orderByRaw("COALESCE(NULLIF(etablissement_2, ''), etablissement) ASC");
+            $query->orderByRaw("COALESCE(NULLIF(etablissement, ''), etablissement_2) ASC");
         } elseif ($this->hasColumn('etablissements', 'nom')) {
             $query->orderBy('nom');
         } elseif ($this->hasColumn('etablissements', 'name')) {
@@ -47,10 +49,10 @@ class EtablissementController extends Controller
             ->get()
             ->map(function ($etablissement) {
                 $displayName = $this->modelValue($etablissement, [
-                    'etablissement_2',
                     'etablissement',
                     'nom',
                     'name',
+                    'etablissement_2',
                     'intitule',
                     'acronyme',
                 ], '—');
@@ -60,6 +62,7 @@ class EtablissementController extends Controller
                     'etablissement' => $this->modelValue($etablissement, ['etablissement'], '—'),
                     'etablissement_2' => $this->modelValue($etablissement, ['etablissement_2'], $displayName),
                     'display_name' => $displayName,
+                    'acronyme' => $this->modelValue($etablissement, ['acronyme'], null),
                     'ville' => $this->modelValue($etablissement, ['ville'], '—'),
                     'universite' => $this->modelValue($etablissement, ['universite', 'universite_nom'], '—'),
                     'email' => $this->modelValue($etablissement, ['email', 'mail'], '—'),
@@ -508,8 +511,19 @@ class EtablissementController extends Controller
         return back()->with('success', 'Établissement modifié avec succès.');
     }
 
-    public function destroy(Etablissement $etablissement)
+    public function destroy(Request $request, Etablissement $etablissement)
     {
+        $currentUser = $request->user();
+        $deeProfile  = UtilisateurDEE::where('user_id', $currentUser->id)->first();
+        $isChefDee   = $deeProfile && $deeProfile->role === 'chef_dee';
+
+        if (!$isChefDee) {
+            $request->validate(['password' => 'required|string']);
+            $expectedPwd = env('DEE_DELETE_PASSWORD'); if (!$expectedPwd || !hash_equals((string)$expectedPwd, (string)$request->password)) {
+                return back()->withErrors(['password' => 'Mot de passe incorrect.']);
+            }
+        }
+
         $campagnesCount = 0;
 
         if ($this->hasTable('campagne_etablissements') && $this->hasColumn('campagne_etablissements', 'etablissement_id')) {

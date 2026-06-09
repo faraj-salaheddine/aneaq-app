@@ -14,6 +14,7 @@ class ExpertAccountCreatedMail extends Mailable
         public string $campaignReference,
         public string $confirmationUrl,
         public string $expertRole = 'Expert',
+        public array $committeeMembers = [],
     ) {}
 
     public function build()

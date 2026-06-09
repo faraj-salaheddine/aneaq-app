@@ -65,7 +65,7 @@ export default function Edit({ utilisateur }) {
 
     const handleSubmit = () => {
         setProcessing(true);
-        router.put(`/si/utilisateurs-dee/${utilisateur.id}`, form, {
+        router.patch(`/si/utilisateurs-dee/${utilisateur.id}`, form, {
             onSuccess: () => setProcessing(false),
             onError:   (e) => { setErrors(e); setProcessing(false); },
         });

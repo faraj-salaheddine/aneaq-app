@@ -44,6 +44,7 @@ export default function Create({ universites = [], villes = [] }) {
         acronyme:              "",
         universite:            "",
         ville:                 "",
+        email:                 "",
         domaine_connaissances: "",
         evaluation:            "",
     });
@@ -143,6 +144,10 @@ export default function Create({ universites = [], villes = [] }) {
 
                                 <Field label="Acronyme" optional error={errors.acronyme}>
                                     <input className="field-focus" style={{ ...inputStyle(errors.acronyme), fontFamily: "'DM Mono', monospace", letterSpacing: "0.05em", textTransform: "uppercase" }} type="text" placeholder="Ex: FSR" value={form.acronyme} onChange={e => set("acronyme", e.target.value.toUpperCase())} />
+                                </Field>
+
+                                <Field label="Email de l'établissement" optional error={errors.email}>
+                                    <input className="field-focus" style={inputStyle(errors.email)} type="email" placeholder="Ex: contact@etablissement.ma" value={form.email} onChange={e => set("email", e.target.value)} />
                                 </Field>
 
                                 <Field label="Domaine de connaissances" optional error={errors.domaine_connaissances}>

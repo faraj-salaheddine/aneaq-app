@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Expert;
 
 use App\Http\Controllers\Controller;
 use App\Models\Dossier;
+use App\Services\DossierDocumentService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -93,8 +94,6 @@ class DossierExpertController extends Controller
 
         $comite = $this->getComiteForDossier($dossier->id);
 
-        $progression = $this->calculateProgression($expert->id, $dossier->id);
-
         $rapport = $this->findRapport($expert->id, $dossier->id);
 
         $nbRecommandations = $this->countRecommandations($expert->id, $dossier->id);
@@ -133,11 +132,25 @@ class DossierExpertController extends Controller
             ],
             'dossier' => $dossierPayload,
             'comite' => $comite,
-            'progression' => $progression,
+            'progression' => 0,
             'rapport' => $rapport,
             'nbRecommandations' => $nbRecommandations,
             'documents' => $this->loadDocuments($dossier),
             'assignmentStatus' => $assignment->status ?? null,
+            'evaluationsSoumises' => Schema::hasTable('expert_preuve_evaluations')
+                ? DB::table('expert_preuve_evaluations')
+                    ->where('dossier_id', $dossier->id)
+                    ->where('expert_id', $expert->id)
+                    ->where('statut', 'soumis')
+                    ->count()
+                : 0,
+            'visiteConfirmation' => [
+                'statut'      => $assignment->visite_statut ?? null,
+                'message'     => $assignment->visite_message ?? null,
+                'date_visite' => $dossier->date_visite
+                    ? \Carbon\Carbon::parse($dossier->date_visite)->format('d/m/Y H:i')
+                    : null,
+            ],
         ]);
     }
 
@@ -166,6 +179,11 @@ class DossierExpertController extends Controller
             ->first();
 
         abort_if(!$doc, 404);
+        abort_unless(
+            DossierDocumentService::isAvailableToExperts($doc),
+            403,
+            "Ce rapport doit être confirmé par la DEE avant d'être accessible aux experts."
+        );
 
         $path = $doc->path ?? $doc->file_path ?? $doc->fichier ?? null;
 
@@ -375,6 +393,20 @@ class DossierExpertController extends Controller
 
     private function calculateProgression($expertId, $dossierId): int
     {
+        /* Priorité au nouveau système : évaluation des annexes (preuves) */
+        if (Schema::hasTable('expert_preuve_evaluations')) {
+            $total = \App\Models\Critere::all()->sum(fn ($c) => count($c->preuves));
+            if ($total > 0) {
+                $evaluated = DB::table('expert_preuve_evaluations')
+                    ->where('dossier_id', $dossierId)
+                    ->where('expert_id', $expertId)
+                    ->whereNotNull('note')
+                    ->count();
+                return (int) round(($evaluated / $total) * 100);
+            }
+        }
+
+        /* Fallback : ancien système critères_evaluation */
         if (
             !Schema::hasTable('criteres_evaluation')
             || !Schema::hasTable('evaluations_quantitatives')
@@ -386,9 +418,7 @@ class DossierExpertController extends Controller
             ->whereNotNull('parent_id')
             ->count();
 
-        if ($totalCriteres <= 0) {
-            return 0;
-        }
+        if ($totalCriteres <= 0) return 0;
 
         $criteresSaisis = DB::table('evaluations_quantitatives')
             ->where('dossier_id', $dossierId)
@@ -429,11 +459,12 @@ class DossierExpertController extends Controller
             ->where('dossier_id', $dossier->id)
             ->orderByDesc('id')
             ->get()
+            ->filter(fn (object $doc) => DossierDocumentService::isAvailableToExperts($doc))
             ->map(function ($doc) use ($dossier) {
                 $path = $doc->path ?? $doc->file_path ?? $doc->fichier ?? null;
                 return [
                     'id'            => $doc->id,
-                    'type'          => $doc->type ?? $doc->document_type ?? 'document',
+                    'type'          => $doc->type_document ?? $doc->type ?? $doc->document_type ?? 'document',
                     'titre'         => $doc->titre ?? $doc->nom ?? $doc->name ?? 'Document',
                     'original_name' => $doc->original_name ?? $doc->filename ?? basename($path ?? ''),
                     'size'          => $doc->size ?? $doc->file_size ?? null,
@@ -450,14 +481,19 @@ class DossierExpertController extends Controller
 
     private function countRecommandations($expertId, $dossierId): int
     {
-        if (!Schema::hasTable('matrices_recommandations')) {
-            return 0;
+        if (Schema::hasTable('recommandations_domaines')) {
+            return DB::table('recommandations_domaines')
+                ->where('dossier_id', $dossierId)
+                ->where('expert_id', $expertId)
+                ->count();
         }
 
-        return DB::table('matrices_recommandations')
-            ->where('dossier_id', $dossierId)
-            ->where('expert_id', $expertId)
-            ->count();
+        return Schema::hasTable('matrices_recommandations')
+            ? DB::table('matrices_recommandations')
+                ->where('dossier_id', $dossierId)
+                ->where('expert_id', $expertId)
+                ->count()
+            : 0;
     }
 
     private function rowValue($row, array $columns, $default = '—')
@@ -535,7 +571,7 @@ class DossierExpertController extends Controller
     private function roleLabel(?string $role): string
     {
         return match ($role) {
-            'chef_comite' => 'Coordinateur',
+            'chef_comite' => 'Coordonnateur expert',
             'expert' => 'Expert',
             default => $role ?: 'Expert',
         };

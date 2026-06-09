@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Expert;
 
 use App\Http\Controllers\Controller;
 use App\Models\Dossier;
+use App\Services\FinalReportAvailabilityService;
+use App\Services\NotifierDee;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -57,10 +59,12 @@ class RapportExpertController extends Controller
                 ]);
             } else {
                 $dossiersEnAttente->push([
-                    'id'      => $dossier->id,
-                    'acronyme' => $etab->acronyme ?? '—',
-                    'ville'    => $etab->ville    ?? '—',
-                    'vague'    => $vague,
+                    'id'                         => $dossier->id,
+                    'acronyme'                   => $etab->acronyme ?? '—',
+                    'ville'                      => $etab->ville    ?? '—',
+                    'vague'                      => $vague,
+                    'rapport_disponible'         => FinalReportAvailabilityService::canUpload($dossier),
+                    'rapport_disponible_message' => FinalReportAvailabilityService::message($dossier),
                 ]);
             }
         }
@@ -103,16 +107,23 @@ class RapportExpertController extends Controller
 
         $this->authorizeDossier($expert->id, $dossier->id);
 
+        if (!FinalReportAvailabilityService::canUpload($dossier)) {
+            return redirect('/expert/dossiers/' . $dossier->id)
+                ->withErrors(['rapport' => FinalReportAvailabilityService::message($dossier)])
+                ->with('error', FinalReportAvailabilityService::message($dossier));
+        }
+
         $rapport = $this->findRapport($expert->id, $dossier->id);
 
         return Inertia::render('Expert/Rapports/Deposer', [
-    'dossier' => [
-        'id' => $dossier->id,
-        'reference' => $dossier->reference ?? '—',
-        'statut' => $dossier->statut ?? $dossier->status ?? '—',
-    ],
-    'rapport' => $rapport,
-]);
+            'dossier' => [
+                'id'          => $dossier->id,
+                'reference'   => $dossier->reference ?? '—',
+                'statut'      => $dossier->statut ?? $dossier->status ?? '—',
+                'date_visite' => $dossier->date_visite ?? null,
+            ],
+            'rapport' => $rapport,
+        ]);
     }
 
     public function store(Request $request, Dossier $dossier)
@@ -125,6 +136,12 @@ class RapportExpertController extends Controller
         }
 
         $this->authorizeDossier($expert->id, $dossier->id);
+
+        if (!FinalReportAvailabilityService::canUpload($dossier)) {
+            return back()->withErrors([
+                'rapport' => FinalReportAvailabilityService::message($dossier),
+            ]);
+        }
 
         $validated = $request->validate([
             'titre' => ['nullable', 'string', 'max:255'],
@@ -180,6 +197,13 @@ class RapportExpertController extends Controller
             ->where('id', $dossier->id)
             ->whereNotIn('statut', ['rapport_en_attente', 'valide', 'rejeté', 'valide_definitif'])
             ->update(['statut' => 'rapport_en_attente', 'updated_at' => now()]);
+
+        NotifierDee::pourDossier(
+            $dossier,
+            'document',
+            "Rapport expert ajouté — {$dossier->reference}",
+            "L'expert {$expert->prenom} {$expert->nom} a ajouté le rapport « {$file->getClientOriginalName()} » au dossier {$dossier->reference}."
+        );
 
         return redirect('/expert/dossiers/' . $dossier->id)
             ->with('success', 'Rapport déposé avec succès.');

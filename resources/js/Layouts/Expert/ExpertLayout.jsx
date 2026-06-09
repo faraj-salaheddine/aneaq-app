@@ -13,20 +13,24 @@ import {
     Home,
     ChevronRight,
     CalendarDays,
+    ClipboardCheck,
+    Lightbulb,
 } from 'lucide-react';
 
 const GREEN = "#1D9E75";
 const BLUE  = "#0C447C";
 
 const navItems = [
-    { label: "Vue d'ensemble",  href: '/expert/dashboard',      icon: LayoutDashboard, color: "#3b82f6"  },
-    { label: 'Mon profil',      href: '/expert/profil',         icon: UserRound,       color: GREEN      },
-    { label: 'Mes invitations', href: '/expert/participations', icon: Mail,            color: "#7e22ce"  },
-    { label: 'Dossiers affectés', href: '/expert/dossiers',     icon: FolderOpen,      color: "#EF9F27"  },
-    { label: 'Mes rapports',    href: '/expert/rapports',       icon: FileText,        color: GREEN      },
-    { label: 'Notifications',   href: '/expert/notifications',  icon: Bell,            color: "#e11d48"  },
-    { label: 'Mon calendrier',  href: '/expert/calendrier',     icon: CalendarDays,    color: "#ec4899"  },
-    { label: 'Historique',      href: '/expert/historique',     icon: History,         color: "#64748b"  },
+    { label: "Vue d'ensemble",       href: '/expert/dashboard',              icon: LayoutDashboard, color: "#3b82f6" },
+    { label: 'Mon profil',           href: '/expert/profil',                 icon: UserRound,       color: GREEN     },
+    { label: 'Mes invitations',      href: '/expert/participations',         icon: Mail,            color: "#7e22ce" },
+    { label: 'Dossiers affectés',    href: '/expert/dossiers',               icon: FolderOpen,      color: "#EF9F27" },
+    { label: 'Éval. annexes',        href: '/expert/evaluations-annexes',    icon: ClipboardCheck,  color: "#0e7c5b" },
+    { label: 'Recommandations',      href: '/expert/recommandations',        icon: Lightbulb,       color: "#f59e0b" },
+    { label: 'Mes rapports',         href: '/expert/rapports',               icon: FileText,        color: GREEN     },
+    { label: 'Notifications',        href: '/expert/notifications',          icon: Bell,            color: "#e11d48" },
+    { label: 'Mon calendrier',       href: '/expert/calendrier',             icon: CalendarDays,    color: "#ec4899" },
+    { label: 'Historique',           href: '/expert/historique',             icon: History,         color: "#64748b" },
 ];
 
 const getInitials = (name) => {

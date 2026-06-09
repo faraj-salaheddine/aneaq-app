@@ -10,9 +10,10 @@ use Inertia\Inertia;
 
 class EtablissementNotificationController extends Controller
 {
+    use ResolvesActiveEtablissement;
     public function index()
     {
-        $etablissement = Etablissement::where('user_id', Auth::id())->firstOrFail();
+        $etablissement = $this->activeEtablissement();
 
         $notifications = NotificationAneaq::where('user_id', Auth::id())
             ->orderByDesc('created_at')

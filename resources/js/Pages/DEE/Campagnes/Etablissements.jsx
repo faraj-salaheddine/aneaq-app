@@ -22,12 +22,15 @@ function CampagneEtablissements({
 }) {
     const { props } = usePage();
     const flash = props.flash || {};
+    const isChefDee = props?.auth?.user?.dee_role === 'chef_dee';
 
     const [addModalOpen, setAddModalOpen] = useState(false);
     const [search, setSearch] = useState('');
     const [emailModalItem, setEmailModalItem] = useState(null);
     const [emailValue, setEmailValue] = useState('');
     const [refuseModalItem, setRefuseModalItem] = useState(null);
+    const [deletePassword, setDeletePassword] = useState('');
+    const [deletePasswordError, setDeletePasswordError] = useState('');
     const [processing, setProcessing] = useState(false);
 
     const selected = useMemo(() => {
@@ -36,31 +39,21 @@ function CampagneEtablissements({
             .map((item) => normalizeSelectedItem(item));
     }, [selectedEtablissements]);
 
-    const selectedIds = useMemo(() => {
-        return selected.map((item) => Number(item.etablissement_id));
-    }, [selected]);
-
     const catalog = useMemo(() => {
         return (etablissements || [])
-            .map((item) => normalizeEtablissement(item))
-            .filter((item) => !selectedIds.includes(Number(item.id)));
-    }, [etablissements, selectedIds]);
+            .map((item) => normalizeEtablissement(item));
+    }, [etablissements]);
 
     const filteredCatalog = useMemo(() => {
-        const term = search.trim().toLowerCase();
-
+        const norm = s => (s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+        const q = norm(search.trim());
+        if (!q) return catalog;
         return catalog.filter((item) => {
-            if (!term) return true;
-
-            return [
-                item.nom,
-                item.type,
-                item.ville,
-                item.universite,
-                item.email,
-            ]
-                .filter(Boolean)
-                .some((value) => String(value).toLowerCase().includes(term));
+            const words = norm(
+                [item.nom, item.type, item.ville, item.universite, item.email, item.acronyme]
+                    .filter(Boolean).join(' ')
+            ).split(/\s+/);
+            return words.some(w => w.startsWith(q));
         });
     }, [catalog, search]);
 
@@ -130,17 +123,28 @@ function CampagneEtablissements({
         );
     };
 
+    const closeRefuseModal = () => {
+        setRefuseModalItem(null);
+        setDeletePassword('');
+        setDeletePasswordError('');
+    };
+
     const confirmRefuse = () => {
         if (!refuseModalItem?.id) return;
+        if (!isChefDee && !deletePassword.trim()) {
+            setDeletePasswordError('Le mot de passe est obligatoire.');
+            return;
+        }
 
         setProcessing(true);
 
         router.delete(
             `/dee/campagnes/${campagne.id}/etablissements/${refuseModalItem.id}`,
             {
+                data: isChefDee ? {} : { password: deletePassword },
                 preserveScroll: true,
                 onSuccess: () => {
-                    setRefuseModalItem(null);
+                    closeRefuseModal();
 
                     router.reload({
                         only: ['etablissements', 'selectedEtablissements'],
@@ -199,7 +203,7 @@ function CampagneEtablissements({
 
                     <p className="mt-4 max-w-3xl text-sm leading-7 text-blue-50/90">
                         Ajoutez les établissements concernés par cette vague. Chaque établissement
-                        reste en attente de confirmation par l’administrateur DEE avant l’envoi
+                        reste en attente de confirmation par l'administrateur DEE avant l'envoi
                         du compte et la création du dossier.
                     </p>
 
@@ -362,7 +366,7 @@ function CampagneEtablissements({
                             type="text"
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
-                            placeholder="Rechercher par nom, ville, université..."
+                            placeholder="Rechercher par nom, acronyme, ville, université..."
                             className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 pl-11 pr-4 text-sm font-medium text-slate-700 outline-none transition focus:border-blue-500 focus:bg-white"
                         />
                     </div>
@@ -424,15 +428,15 @@ function CampagneEtablissements({
             )}
 
             {emailModalItem && (
-                <Modal title="Confirmer l’établissement" onClose={() => setEmailModalItem(null)}>
+                <Modal title="Confirmer l'établissement" onClose={() => setEmailModalItem(null)}>
                     <p className="text-sm leading-7 text-slate-500">
-                        Saisissez l’adresse email de l’établissement. Le compte sera créé,
-                        l’email sera envoyé et le dossier sera généré automatiquement.
+                        Saisissez l'adresse email de l'établissement. Le compte sera créé,
+                        l'email sera envoyé et le dossier sera généré automatiquement.
                     </p>
 
                     <div className="mt-5">
                         <label className="mb-2 block text-sm font-bold text-slate-700">
-                            Email de l’établissement
+                            Email de l'établissement
                         </label>
 
                         <div className="relative">
@@ -474,16 +478,38 @@ function CampagneEtablissements({
             )}
 
             {refuseModalItem && (
-                <Modal title="Refuser l’établissement" onClose={() => setRefuseModalItem(null)}>
+                <Modal title="Refuser l'établissement" onClose={closeRefuseModal}>
                     <p className="text-sm leading-7 text-slate-500">
                         Voulez-vous vraiment supprimer cet établissement de la vague ?
-                        Le dossier lié sera aussi supprimé.
+                        Le dossier lié sera aussi supprimé. Cette action est irréversible.
                     </p>
+
+                    {!isChefDee && (
+                        <div className="mt-5">
+                            <label className="mb-2 block text-sm font-black text-slate-700">
+                                Confirmez avec votre mot de passe
+                            </label>
+                            <input
+                                type="password"
+                                autoFocus
+                                value={deletePassword}
+                                onChange={(e) => { setDeletePassword(e.target.value); setDeletePasswordError(''); }}
+                                onKeyDown={(e) => { if (e.key === 'Enter') confirmRefuse(); }}
+                                placeholder="Votre mot de passe"
+                                className={deletePasswordError
+                                    ? 'h-12 w-full rounded-2xl border border-red-300 bg-white px-4 text-sm font-bold text-slate-700 outline-none'
+                                    : 'h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 outline-none transition focus:border-red-500'}
+                            />
+                            {deletePasswordError && (
+                                <p className="mt-2 text-sm font-semibold text-red-600">{deletePasswordError}</p>
+                            )}
+                        </div>
+                    )}
 
                     <div className="mt-7 flex justify-end gap-3">
                         <button
                             type="button"
-                            onClick={() => setRefuseModalItem(null)}
+                            onClick={closeRefuseModal}
                             className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-black text-slate-700 transition hover:bg-slate-50"
                         >
                             Annuler
@@ -566,6 +592,7 @@ function normalizeEtablissement(item) {
             item.university ??
             '—',
         email: item.email ?? '',
+        acronyme: item.acronyme ?? '',
     };
 }
 

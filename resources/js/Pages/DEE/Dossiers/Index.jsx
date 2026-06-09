@@ -1,4 +1,4 @@
-import { Head, Link, useForm } from '@inertiajs/react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
 import DashboardShell from '@/Layouts/DashboardShell';
 import { useMemo, useState } from 'react';
 
@@ -81,11 +81,15 @@ function formatDateVisite(d) {
 }
 
 function DossiersIndex({ dossiers = [] }) {
+    const { props } = usePage();
+    const isChefDee = props?.auth?.user?.dee_role === 'chef_dee';
+
     const [search, setSearch]                     = useState('');
     const [selectedDossier, setSelectedDossier]   = useState(null);
     const [showDeleteModal, setShowDeleteModal]   = useState(false);
-
-    const deleteForm = useForm({ delete_password: '' });
+    const [deletePassword, setDeletePassword]     = useState('');
+    const [deletePasswordError, setDeletePasswordError] = useState('');
+    const [deleteProcessing, setDeleteProcessing] = useState(false);
 
     const filtered = useMemo(() => {
         const q = search.toLowerCase().trim();
@@ -105,32 +109,34 @@ function DossiersIndex({ dossiers = [] }) {
 
     const openDeleteModal = (dossier) => {
         setSelectedDossier(dossier);
-        deleteForm.setData('delete_password', '');
-        deleteForm.clearErrors();
+        setDeletePassword('');
+        setDeletePasswordError('');
         setShowDeleteModal(true);
     };
 
     const closeDeleteModal = () => {
         setSelectedDossier(null);
         setShowDeleteModal(false);
-        deleteForm.reset();
-        deleteForm.clearErrors();
+        setDeletePassword('');
+        setDeletePasswordError('');
     };
 
-    const submitDelete = (e) => {
-        e.preventDefault();
-        deleteForm.clearErrors();
+    const submitDelete = () => {
         if (!selectedDossier) return;
-        if (!deleteForm.data.delete_password.trim()) {
-            deleteForm.setError('delete_password', 'Le mot de passe est obligatoire.');
+        if (!isChefDee && !deletePassword.trim()) {
+            setDeletePasswordError('Le mot de passe est obligatoire.');
             return;
         }
-        deleteForm.delete(`/dee/dossiers/${selectedDossier.id}`, {
+        setDeleteProcessing(true);
+        router.delete(`/dee/dossiers/${selectedDossier.id}`, {
+            data: isChefDee ? {} : { password: deletePassword },
             preserveScroll: true,
             preserveState: true,
-            onSuccess: closeDeleteModal,
-            onError: (errors) =>
-                deleteForm.setError('delete_password', errors.delete_password || 'Mot de passe incorrect.'),
+            onSuccess: () => { setDeleteProcessing(false); closeDeleteModal(); },
+            onError: (errors) => {
+                setDeleteProcessing(false);
+                if (errors.password) setDeletePasswordError(errors.password);
+            },
         });
     };
 
@@ -191,6 +197,7 @@ function DossiersIndex({ dossiers = [] }) {
                                 value={search}
                                 onChange={e => setSearch(e.target.value)}
                                 placeholder="Dossier, établissement, statut…"
+                                autoComplete="off"
                                 style={{ height: 36, borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', paddingLeft: 32, paddingRight: 12, fontSize: 13, color: '#374151', outline: 'none', width: 260 }}
                             />
                         </div>
@@ -270,53 +277,42 @@ function DossiersIndex({ dossiers = [] }) {
 
             {/* ── Delete modal ── */}
             {showDeleteModal && selectedDossier && (
-                <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: 16, backdropFilter: 'blur(4px)' }}>
-                    <div style={{ background: '#fff', borderRadius: 20, width: '100%', maxWidth: 440, boxShadow: '0 24px 64px rgba(0,0,0,0.2)', overflow: 'hidden' }}>
-                        <div style={{ padding: '1.5rem', borderBottom: '1px solid #f1f5f9' }}>
-                            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-                                <div>
-                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 99, background: '#fff1f2', color: RED, marginBottom: 10 }}>
-                                        Suppression sécurisée
-                                    </span>
-                                    <h3 style={{ fontSize: 18, fontWeight: 700, color: '#0f172a', margin: 0 }}>Confirmer la suppression</h3>
-                                    <p style={{ fontSize: 13, color: '#64748b', margin: '6px 0 0', lineHeight: 1.5 }}>
-                                        Saisissez le mot de passe administrateur DEE pour supprimer le dossier{' '}
-                                        <strong style={{ color: '#0f172a' }}>
-                                            {selectedDossier.reference || `#${selectedDossier.id}`}
-                                        </strong>.
-                                    </p>
-                                </div>
-                                <button onClick={closeDeleteModal} style={{ background: '#f1f5f9', border: 'none', borderRadius: 8, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
-                                    <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                                </button>
-                            </div>
+                <div onClick={closeDeleteModal} style={{position:'fixed',inset:0,background:'rgba(15,23,42,0.5)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:9999,padding:16,backdropFilter:'blur(4px)'}}>
+                    <div onClick={e=>e.stopPropagation()} style={{background:'#fff',borderRadius:20,width:'100%',maxWidth:420,boxShadow:'0 24px 64px rgba(0,0,0,0.2)',padding:'2rem'}}>
+                        <div style={{width:52,height:52,borderRadius:14,background:'#fef2f2',display:'flex',alignItems:'center',justifyContent:'center',marginBottom:16}}>
+                            <svg width={24} height={24} viewBox="0 0 24 24" fill="none" stroke="#e11d48" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+                                <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+                            </svg>
                         </div>
-                        <form onSubmit={submitDelete} style={{ padding: '1.5rem' }}>
-                            <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 8 }}>Mot de passe DEE</label>
-                            <div style={{ position: 'relative' }}>
-                                <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke={RED} strokeWidth="2" style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)' }}><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                        <h3 style={{fontSize:18,fontWeight:700,color:'#0f172a',margin:'0 0 8px'}}>Confirmer la suppression</h3>
+                        <p style={{fontSize:13,color:'#64748b',margin:'0 0 20px',lineHeight:1.6}}>
+                            Êtes-vous sûr de vouloir supprimer le dossier <strong style={{color:'#0f172a'}}>{selectedDossier.reference || `#${selectedDossier.id}`}</strong> ? Cette action est irréversible.
+                        </p>
+                        {!isChefDee && (
+                            <div style={{marginBottom:20}}>
+                                <label style={{display:'block',fontSize:12,fontWeight:600,color:'#374151',marginBottom:6}}>
+                                    Confirmez avec votre mot de passe
+                                </label>
                                 <input
-                                    type="password"
-                                    value={deleteForm.data.delete_password}
-                                    onChange={e => {
-                                        deleteForm.setData('delete_password', e.target.value);
-                                        deleteForm.clearErrors('delete_password');
-                                    }}
-                                    placeholder="Mot de passe de confirmation"
-                                    style={{ height: 42, width: '100%', borderRadius: 10, border: deleteForm.errors.delete_password ? '1px solid #fca5a5' : '1px solid #e2e8f0', paddingLeft: 36, paddingRight: 12, fontSize: 13, color: '#0f172a', outline: 'none', background: '#fafbfc' }}
+                                    type="password" autoFocus
+                                    autoComplete="new-password"
+                                    placeholder="Votre mot de passe"
+                                    value={deletePassword}
+                                    onChange={e=>{setDeletePassword(e.target.value);setDeletePasswordError('');}}
+                                    onKeyDown={e=>e.key==='Enter'&&submitDelete()}
+                                    style={{width:'100%',padding:'10px 14px',border:`1.5px solid ${deletePasswordError?'#fca5a5':'#e2e8f0'}`,borderRadius:9,fontSize:13,color:'#0f172a',outline:'none',boxSizing:'border-box'}}
                                 />
+                                {deletePasswordError&&<p style={{margin:'5px 0 0',fontSize:12,color:'#e11d48'}}>{deletePasswordError}</p>}
                             </div>
-                            {deleteForm.errors.delete_password && (
-                                <p style={{ fontSize: 12, color: RED, margin: '6px 0 0', fontWeight: 500 }}>{deleteForm.errors.delete_password}</p>
-                            )}
-                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 20 }}>
-                                <button type="button" onClick={closeDeleteModal} style={{ height: 38, padding: '0 16px', borderRadius: 9, border: '1px solid #e2e8f0', background: '#fff', color: '#374151', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Annuler</button>
-                                <button type="submit" disabled={deleteForm.processing} style={{ display: 'flex', alignItems: 'center', gap: 6, height: 38, padding: '0 16px', borderRadius: 9, border: 'none', background: RED, color: '#fff', fontSize: 13, fontWeight: 700, cursor: deleteForm.processing ? 'not-allowed' : 'pointer', opacity: deleteForm.processing ? 0.6 : 1 }}>
-                                    <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
-                                    {deleteForm.processing ? 'Suppression…' : 'Supprimer définitivement'}
-                                </button>
-                            </div>
-                        </form>
+                        )}
+                        <div style={{display:'flex',justifyContent:'flex-end',gap:10}}>
+                            <button onClick={closeDeleteModal} style={{height:38,padding:'0 16px',borderRadius:9,border:'1px solid #e2e8f0',background:'#fff',color:'#374151',fontSize:13,fontWeight:600,cursor:'pointer'}}>Annuler</button>
+                            <button onClick={submitDelete} disabled={deleteProcessing} style={{display:'flex',alignItems:'center',gap:6,height:38,padding:'0 16px',borderRadius:9,border:'none',background:'#e11d48',color:'#fff',fontSize:13,fontWeight:700,cursor:deleteProcessing?'not-allowed':'pointer',opacity:deleteProcessing?0.6:1}}>
+                                <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+                                {deleteProcessing?'Suppression…':'Supprimer définitivement'}
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}

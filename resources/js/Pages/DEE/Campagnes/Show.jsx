@@ -5,6 +5,7 @@ import {
     Building2,
     CheckCircle2,
     ClipboardList,
+    Download,
     Edit3,
     FileUp,
     FolderKanban,
@@ -32,6 +33,7 @@ function CampagneShow({
 }) {
     const { props } = usePage();
     const flash = props.flash || {};
+    const isChefDee = props?.auth?.user?.dee_role === 'chef_dee';
 
     const [isEditingInfo, setIsEditingInfo] = useState(false);
     const [addModalOpen, setAddModalOpen] = useState(false);
@@ -42,8 +44,13 @@ function CampagneShow({
 
     const [refuseModalOpen, setRefuseModalOpen] = useState(false);
     const [refuseTarget, setRefuseTarget] = useState(null);
+    const [refusePassword, setRefusePassword] = useState('');
+    const [refusePasswordError, setRefusePasswordError] = useState('');
 
     const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+    const [deletePassword, setDeletePassword] = useState('');
+    const [deletePasswordError, setDeletePasswordError] = useState('');
+    const [deleteProcessing, setDeleteProcessing] = useState(false);
 
     const infoForm = useForm({
         annee: campagne.annee || '',
@@ -65,35 +72,20 @@ function CampagneShow({
         message_lettre: '',
     });
 
-    const refuseForm = useForm({});
 
-    const deleteForm = useForm({
-        delete_password: '',
-    });
+
+    const normalize = (str) =>
+        (str || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
     const filteredAvailableEtablissements = useMemo(() => {
-        const value = search.toLowerCase().trim();
-
-        if (!value) {
-            return availableEtablissements;
-        }
-
+        const q = normalize(search.trim());
+        if (!q) return availableEtablissements;
         return availableEtablissements.filter((item) => {
-            return [
-                item.nom,
-                item.etablissement,
-                item.etablissement_2,
-                item.type,
-                item.vocation,
-                item.domaine_connaissances,
-                item.ville,
-                item.universite,
-                item.email,
-            ]
-                .filter(Boolean)
-                .join(' ')
-                .toLowerCase()
-                .includes(value);
+            const words = normalize(
+                [item.nom, item.etablissement, item.etablissement_2, item.acronyme, item.ville, item.universite, item.email]
+                    .filter(Boolean).join(' ')
+            ).split(/\s+/);
+            return words.some(w => w.startsWith(q));
         });
     }, [search, availableEtablissements]);
 
@@ -183,43 +175,59 @@ function CampagneShow({
     const closeRefuseModal = () => {
         setRefuseTarget(null);
         setRefuseModalOpen(false);
+        setRefusePassword('');
+        setRefusePasswordError('');
     };
 
+    const [refuseProcessing, setRefuseProcessing] = useState(false);
+
     const submitRefuse = () => {
-        if (!refuseTarget) {
+        if (!refuseTarget) return;
+        if (!isChefDee && !refusePassword.trim()) {
+            setRefusePasswordError('Le mot de passe est obligatoire.');
             return;
         }
-
-        refuseForm.delete(
+        setRefuseProcessing(true);
+        router.delete(
             `/dee/campagnes/${campagne.id}/etablissements/${refuseTarget.id}/refuse`,
             {
+                data: isChefDee ? {} : { password: refusePassword },
                 preserveScroll: true,
-                onSuccess: () => {
-                    closeRefuseModal();
+                onSuccess: () => { setRefuseProcessing(false); closeRefuseModal(); },
+                onError: (errors) => {
+                    setRefuseProcessing(false);
+                    if (errors.password) setRefusePasswordError(errors.password);
                 },
             }
         );
     };
 
     const openDeleteModal = () => {
-        deleteForm.setData('delete_password', '');
-        deleteForm.clearErrors();
+        setDeletePassword('');
+        setDeletePasswordError('');
         setDeleteModalOpen(true);
     };
 
     const closeDeleteModal = () => {
         setDeleteModalOpen(false);
-        deleteForm.reset();
-        deleteForm.clearErrors();
+        setDeletePassword('');
+        setDeletePasswordError('');
     };
 
-    const submitDeleteCampagne = (e) => {
-        e.preventDefault();
-
-        deleteForm.delete(`/dee/campagnes/${campagne.id}`, {
+    const submitDeleteCampagne = () => {
+        if (!isChefDee && !deletePassword.trim()) {
+            setDeletePasswordError('Le mot de passe est obligatoire.');
+            return;
+        }
+        setDeleteProcessing(true);
+        router.delete(`/dee/campagnes/${campagne.id}`, {
+            data: isChefDee ? {} : { password: deletePassword },
             preserveScroll: true,
-            onSuccess: () => {
-                closeDeleteModal();
+            preserveState: true,
+            onSuccess: () => { setDeleteProcessing(false); closeDeleteModal(); },
+            onError: (errors) => {
+                setDeleteProcessing(false);
+                if (errors.password) setDeletePasswordError(errors.password);
             },
         });
     };
@@ -228,7 +236,7 @@ function CampagneShow({
         <>
             <Head title={`Vague ${campagne.reference}`} />
 
-            <div className="mx-auto max-w-[98rem] px-4 py-10 sm:px-6 lg:px-8">
+            <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
                 <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                         <p className="text-sm font-black uppercase tracking-[0.25em] text-blue-600">
@@ -248,6 +256,14 @@ function CampagneShow({
                             <ArrowLeft size={17} />
                             Retour aux vagues
                         </Link>
+
+                        <a
+                            href={`/dee/campagnes/${campagne.id}/export`}
+                            className="inline-flex items-center gap-2 rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-black text-white shadow-sm transition hover:bg-emerald-700"
+                        >
+                            <Download size={17} />
+                            Exporter les établissements
+                        </a>
 
                         <button
                             type="button"
@@ -285,7 +301,7 @@ function CampagneShow({
                     <div className="grid gap-8 p-8 lg:grid-cols-[1.35fr_0.65fr] lg:p-10">
                         <div>
                             <p className="text-sm font-bold uppercase tracking-[0.28em] text-blue-100">
-                                Vague d’évaluation
+                                Vague d'évaluation
                             </p>
 
                             <h2 className="mt-3 text-4xl font-black tracking-tight">
@@ -294,7 +310,7 @@ function CampagneShow({
 
                             <p className="mt-4 max-w-3xl text-sm leading-7 text-blue-50/90">
                                 Cette page permet de piloter la vague, suivre les établissements rattachés,
-                                confirmer les accès, consulter les dossiers et contrôler l’avancement global.
+                                confirmer les accès, consulter les dossiers et contrôler l'avancement global.
                             </p>
 
                             <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
@@ -476,7 +492,7 @@ function CampagneShow({
                                 </h3>
 
                                 <p className="mt-1 text-sm font-medium text-slate-500">
-                                    Le statut ne change qu’après clic sur enregistrer.
+                                    Le statut ne change qu'après clic sur enregistrer.
                                 </p>
                             </div>
                         </div>
@@ -580,7 +596,7 @@ function CampagneShow({
 
                             <p className="mt-2 max-w-xl text-sm leading-7 text-slate-500">
                                 Ajoute des établissements à cette vague pour commencer le processus
-                                d’évaluation.
+                                d'évaluation.
                             </p>
 
                             <button
@@ -608,7 +624,7 @@ function CampagneShow({
                             <input
                                 value={search}
                                 onChange={(e) => setSearch(e.target.value)}
-                                placeholder="Rechercher par nom, ville, université..."
+                                placeholder="Rechercher par nom, acronyme, ville, université..."
                                 className="h-14 w-full rounded-2xl border border-slate-200 bg-slate-50 pl-12 pr-4 text-sm font-bold text-slate-700 outline-none transition focus:border-blue-500"
                             />
                         </div>
@@ -636,6 +652,9 @@ function CampagneShow({
                                                         <MapPin size={12} />
                                                         {item.ville || '—'}
                                                     </Badge>
+                                                    {item.acronyme && item.acronyme !== '—' && (
+                                                        <Badge>{item.acronyme}</Badge>
+                                                    )}
                                                 </div>
 
                                                 <p className="mt-2 text-sm font-semibold text-slate-500">
@@ -697,9 +716,22 @@ function CampagneShow({
                         </div>
 
                         <div>
-                            <label className="mb-2 block text-sm font-black text-slate-700">
-                                Email de l’établissement
-                            </label>
+                            <div className="mb-2 flex items-center justify-between">
+                                <label className="text-sm font-black text-slate-700">
+                                    Email de l'établissement <span className="text-red-500">*</span>
+                                </label>
+                                {confirmForm.data.email && (confirmTarget?.email || confirmTarget?.etablissement?.email) ? (
+                                    <span className="flex items-center gap-1 text-xs font-semibold text-green-600">
+                                        <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                                        Pré-rempli depuis la base de données
+                                    </span>
+                                ) : (
+                                    <span className="flex items-center gap-1 text-xs font-semibold text-amber-500">
+                                        <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                                        Aucun email en base — à saisir manuellement
+                                    </span>
+                                )}
+                            </div>
 
                             <div className="relative">
                                 <Mail
@@ -715,7 +747,11 @@ function CampagneShow({
                                     }
                                     placeholder="email@exemple.com"
                                     required
-                                    className="h-14 w-full rounded-2xl border border-slate-200 bg-white pl-12 pr-4 text-sm font-bold text-slate-700 outline-none transition focus:border-blue-500"
+                                    className={`h-14 w-full rounded-2xl border pl-12 pr-4 text-sm font-bold text-slate-700 outline-none transition focus:border-blue-500 ${
+                                        !confirmForm.data.email
+                                            ? 'border-amber-300 bg-amber-50'
+                                            : 'border-slate-200 bg-white'
+                                    }`}
                                 />
                             </div>
 
@@ -791,7 +827,7 @@ function CampagneShow({
                                 onChange={(e) =>
                                     confirmForm.setData('message_lettre', e.target.value)
                                 }
-                                placeholder="Écrivez ici le message officiel qui sera envoyé dans l’email..."
+                                placeholder="Écrivez ici le message officiel qui sera envoyé dans l'email..."
                                 className="w-full resize-none rounded-2xl border border-slate-200 bg-white px-4 py-4 text-sm font-bold text-slate-700 outline-none transition focus:border-blue-500"
                             />
 
@@ -844,18 +880,39 @@ function CampagneShow({
             )}
 
             {refuseModalOpen && (
-                <Modal onClose={closeRefuseModal} title="Refuser l’établissement">
+                <Modal onClose={closeRefuseModal} title="Refuser l'établissement">
                     <div className="space-y-5">
                         <div className="rounded-2xl bg-red-50 p-5">
                             <p className="text-sm font-bold leading-7 text-red-700">
                                 Voulez-vous vraiment refuser cet établissement ?
                                 Il sera supprimé de la vague.
                             </p>
-
                             <p className="mt-3 text-base font-black text-red-900">
                                 {getAttachedName(refuseTarget)}
                             </p>
                         </div>
+
+                        {!isChefDee && (
+                            <div>
+                                <label className="mb-2 block text-sm font-bold text-slate-700">
+                                    Confirmez avec votre mot de passe
+                                </label>
+                                <input
+                                    type="password"
+                                    autoComplete="new-password"
+                                    autoFocus
+                                    placeholder="Votre mot de passe"
+                                    value={refusePassword}
+                                    onChange={e => { setRefusePassword(e.target.value); setRefusePasswordError(''); }}
+                                    onKeyDown={e => e.key === 'Enter' && submitRefuse()}
+                                    className="w-full rounded-xl border px-4 py-3 text-sm outline-none"
+                                    style={{ borderColor: refusePasswordError ? '#fca5a5' : '#e2e8f0' }}
+                                />
+                                {refusePasswordError && (
+                                    <p className="mt-1 text-xs font-semibold text-red-600">{refusePasswordError}</p>
+                                )}
+                            </div>
+                        )}
 
                         <div className="flex justify-end gap-3">
                             <button
@@ -868,12 +925,12 @@ function CampagneShow({
 
                             <button
                                 type="button"
-                                disabled={refuseForm.processing}
+                                disabled={refuseProcessing}
                                 onClick={submitRefuse}
                                 className="inline-flex items-center justify-center gap-2 rounded-2xl bg-red-600 px-6 py-3 text-sm font-black text-white transition hover:bg-red-700 disabled:opacity-60"
                             >
                                 <Trash2 size={18} />
-                                {refuseForm.processing ? 'Suppression...' : 'Confirmer le refus'}
+                                {refuseProcessing ? 'Suppression...' : 'Confirmer le refus'}
                             </button>
                         </div>
                     </div>
@@ -882,52 +939,47 @@ function CampagneShow({
 
             {deleteModalOpen && (
                 <Modal onClose={closeDeleteModal} title="Supprimer la vague">
-                    <form onSubmit={submitDeleteCampagne} className="space-y-5">
+                    <div className="space-y-5">
                         <div className="rounded-2xl bg-red-50 p-5">
                             <div className="flex items-start gap-3">
                                 <ShieldCheck size={24} className="mt-1 text-red-600" />
-
                                 <div>
                                     <p className="text-sm font-bold leading-7 text-red-700">
-                                        Cette action va supprimer la vague et ses rattachements.
-                                        Pour confirmer, saisissez le mot de passe unique administrateur DEE.
-                                    </p>
-
-                                    <p className="mt-3 text-base font-black text-red-900">
-                                        {campagne.reference}
+                                        Êtes-vous sûr de vouloir supprimer la vague <strong>{campagne.reference}</strong> et tous ses rattachements ? Cette action est irréversible.
                                     </p>
                                 </div>
                             </div>
                         </div>
 
-                        <div>
-                            <label className="mb-2 block text-sm font-black text-slate-700">
-                                Mot de passe DEE
-                            </label>
+                        {!isChefDee && (
+                            <div>
+                                <label className="mb-2 block text-sm font-black text-slate-700">
+                                    Confirmez avec votre mot de passe
+                                </label>
 
-                            <div className="relative">
-                                <LockKeyhole
-                                    size={18}
-                                    className="absolute left-4 top-1/2 -translate-y-1/2 text-red-500"
-                                />
+                                <div className="relative">
+                                    <LockKeyhole
+                                        size={18}
+                                        className="absolute left-4 top-1/2 -translate-y-1/2 text-red-500"
+                                    />
+                                    <input
+                                        type="password"
+                                        autoFocus
+                                        value={deletePassword}
+                                        onChange={(e) => { setDeletePassword(e.target.value); setDeletePasswordError(''); }}
+                                        onKeyDown={(e) => e.key === 'Enter' && submitDeleteCampagne()}
+                                        placeholder="Votre mot de passe"
+                                        className={`h-14 w-full rounded-2xl border bg-white pl-12 pr-4 text-sm font-bold text-slate-700 outline-none transition focus:border-red-500 ${deletePasswordError ? 'border-red-300' : 'border-slate-200'}`}
+                                    />
+                                </div>
 
-                                <input
-                                    type="password"
-                                    value={deleteForm.data.delete_password}
-                                    onChange={(e) =>
-                                        deleteForm.setData('delete_password', e.target.value)
-                                    }
-                                    placeholder="Mot de passe de confirmation"
-                                    className="h-14 w-full rounded-2xl border border-slate-200 bg-white pl-12 pr-4 text-sm font-bold text-slate-700 outline-none transition focus:border-red-500"
-                                />
+                                {deletePasswordError && (
+                                    <p className="mt-2 text-sm font-semibold text-red-600">
+                                        {deletePasswordError}
+                                    </p>
+                                )}
                             </div>
-
-                            {deleteForm.errors.delete_password && (
-                                <p className="mt-2 text-sm font-semibold text-red-600">
-                                    {deleteForm.errors.delete_password}
-                                </p>
-                            )}
-                        </div>
+                        )}
 
                         <div className="flex justify-end gap-3">
                             <button
@@ -939,15 +991,16 @@ function CampagneShow({
                             </button>
 
                             <button
-                                type="submit"
-                                disabled={deleteForm.processing}
-                                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-red-600 px-6 py-3 text-sm font-black text-white transition hover:bg-red-700 disabled:opacity-60"
+                                type="button"
+                                onClick={submitDeleteCampagne}
+                                disabled={deleteProcessing}
+                                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-red-600 px-6 py-3 text-sm font-black text-white transition hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed"
                             >
                                 <Trash2 size={18} />
-                                {deleteForm.processing ? 'Suppression...' : 'Supprimer définitivement'}
+                                {deleteProcessing ? 'Suppression...' : 'Supprimer définitivement'}
                             </button>
                         </div>
-                    </form>
+                    </div>
                 </Modal>
             )}
         </>

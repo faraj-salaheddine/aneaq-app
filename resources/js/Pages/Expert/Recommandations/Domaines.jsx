@@ -22,7 +22,7 @@ const S = {
     renvoyee_expert: { label: 'À réviser',      bg: '#fff7ed', color: '#c2410c', border: '#fed7aa', icon: '↩️' },
     validee_dee:     { label: 'Validée',        bg: '#f0fdf4', color: '#15803d', border: '#bbf7d0', icon: '✅' },
     envoyee_etablissement: { label: 'Envoyée étab.', bg: '#faf5ff', color: PURPLE, border: '#e9d5ff', icon: '🏫' },
-    en_cours:        { label: 'En cours',       bg: '#fefce8', color: '#a16207', border: '#fef08a', icon: '⏳' },
+    en_cours:        { label: 'En attente',     bg: '#fefce8', color: '#a16207', border: '#fef08a', icon: '⏳' },
     cloturee:        { label: 'Clôturée',       bg: '#f0fdf4', color: '#166534', border: '#86efac', icon: '🔒' },
 };
 
@@ -36,6 +36,7 @@ export default function RecommandationsDomaines({
 }) {
     const { props } = usePage();
     const flash = props.flash || {};
+    const errors = props.errors || {};
     const etab = dossier.etablissement || {};
 
     /* state */
@@ -66,6 +67,10 @@ export default function RecommandationsDomaines({
         return true;
     }), [recommandations, filterU, filterD, filterS]);
 
+    const domainesDisponibles = domaines;
+
+    const domainesDisponiblesPourEdition = domaines;
+
     const counts = {
         rouge:    recommandations.filter(r => r.urgence === 'rouge').length,
         orange:   recommandations.filter(r => r.urgence === 'orange').length,
@@ -80,7 +85,7 @@ export default function RecommandationsDomaines({
     /* handlers */
     function submitAdd(e) {
         e.preventDefault();
-        if (!form.recommandation.trim() || saving) return;
+        if (!form.domaine_code || !form.recommandation.trim() || saving) return;
         setSaving(true);
         router.post(`/expert/recommandations-domaine/${dossier.id}`, {
             domaine_code:   form.domaine_code || null,
@@ -95,7 +100,7 @@ export default function RecommandationsDomaines({
 
     function submitEdit(e) {
         e.preventDefault();
-        if (!editForm.recommandation?.trim() || saving) return;
+        if (!editForm.domaine_code || !editForm.recommandation?.trim() || saving) return;
         setSaving(true);
         router.patch(`/expert/recommandations-domaine/${dossier.id}/${editId}`, editForm, {
             preserveScroll: true,
@@ -174,6 +179,11 @@ export default function RecommandationsDomaines({
                     {flash.error && (
                         <div className="fu" style={{ background: '#fef2f2', border: '1px solid #fecaca', borderLeft: '4px solid #ef4444', borderRadius: 12, padding: '14px 18px', marginBottom: 18, color: '#991b1b', fontSize: 14, fontWeight: 600 }}>
                             ✕ {flash.error}
+                        </div>
+                    )}
+                    {errors.domaine_code && (
+                        <div className="fu" style={{ background: '#fef2f2', border: '1px solid #fecaca', borderLeft: '4px solid #ef4444', borderRadius: 12, padding: '14px 18px', marginBottom: 18, color: '#991b1b', fontSize: 14, fontWeight: 600 }}>
+                            ✕ {errors.domaine_code}
                         </div>
                     )}
 
@@ -327,9 +337,12 @@ export default function RecommandationsDomaines({
                             )}
 
                             <div style={{ marginLeft: 'auto' }}>
-                                <button className="add-btn" onClick={() => { setShowAddPanel(p => !p); setEditId(null); }}
-                                    style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '10px 20px', borderRadius: 11, background: showAddPanel ? '#e2e8f0' : BLUE, color: showAddPanel ? '#374151' : '#fff', fontSize: 13, fontWeight: 800, border: 'none', cursor: 'pointer', boxShadow: showAddPanel ? 'none' : `0 4px 14px ${BLUE}33` }}>
-                                    {showAddPanel ? <><IcoX size={13}/> Fermer</> : <><IcoPlus size={13}/> Nouvelle recommandation</>}
+                                <button className="add-btn"
+                                    onClick={() => { setShowAddPanel(p => !p); setEditId(null); }}
+                                    style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '10px 20px', borderRadius: 11, background: showAddPanel ? '#e2e8f0' : BLUE, color: showAddPanel ? '#64748b' : '#fff', fontSize: 13, fontWeight: 800, border: 'none', cursor: 'pointer', boxShadow: showAddPanel ? 'none' : `0 4px 14px ${BLUE}33` }}>
+                                    {showAddPanel
+                                        ? <><IcoX size={13}/> Fermer</>
+                                        : <><IcoPlus size={13}/> Nouvelle recommandation</>}
                                 </button>
                             </div>
                         </div>
@@ -340,11 +353,11 @@ export default function RecommandationsDomaines({
                                 <form onSubmit={submitAdd}>
                                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 14, marginBottom: 14, alignItems: 'start' }}>
                                         <div>
-                                            <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '.12em', marginBottom: 7 }}>Domaine <span style={{ fontWeight: 500, color: '#cbd5e1' }}>(optionnel)</span></label>
-                                            <select value={form.domaine_code} onChange={e => setForm(f => ({ ...f, domaine_code: e.target.value }))}
+                                            <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '.12em', marginBottom: 7 }}>Domaine <span style={{ color: RED }}>*</span></label>
+                                            <select required value={form.domaine_code} onChange={e => setForm(f => ({ ...f, domaine_code: e.target.value }))}
                                                 style={{ width: '100%', padding: '10px 12px', borderRadius: 11, border: '1.5px solid #e2e8f0', fontSize: 13, fontWeight: 600, color: '#374151', background: '#fff' }}>
-                                                <option value="">— Aucun domaine —</option>
-                                                {domaines.map(d => <option key={d.code ?? d.id} value={d.code ?? d.id}>{d.code} — {d.libelle}</option>)}
+                                                <option value="">— Sélectionner un domaine —</option>
+                                                {domainesDisponibles.map(d => <option key={d.code ?? d.id} value={d.code ?? d.id}>{d.code} — {d.libelle}</option>)}
                                             </select>
                                         </div>
                                         <div>
@@ -366,7 +379,7 @@ export default function RecommandationsDomaines({
                                         <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
                                             <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: 'transparent', textTransform: 'uppercase', letterSpacing: '.12em', marginBottom: 7, userSelect: 'none' }}>.</label>
                                             <button type="submit" disabled={saving}
-                                                style={{ padding: '10px 22px', borderRadius: 11, background: saving ? '#e2e8f0' : U[form.urgence].color, color: saving ? '#94a3b8' : '#fff', fontSize: 13, fontWeight: 800, border: 'none', cursor: saving ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap', boxShadow: saving ? 'none' : `0 3px 12px ${U[form.urgence].color}44`, transition: 'all .15s' }}>
+                                                style={{ padding: '10px 22px', borderRadius: 11, background: saving ? '#e2e8f0' : '#1d4ed8', color: saving ? '#94a3b8' : '#fff', fontSize: 13, fontWeight: 800, border: 'none', cursor: saving ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap', boxShadow: saving ? 'none' : '0 3px 12px #1d4ed844', transition: 'all .15s' }}>
                                                 {saving ? <Spinner /> : '+ Enreg. brouillon'}
                                             </button>
                                         </div>
@@ -454,6 +467,11 @@ export default function RecommandationsDomaines({
                                                     <td style={{ ...TD, maxWidth: 0 }}>
                                                         {isEditing ? (
                                                             <form onSubmit={submitEdit}>
+                                                                <select required value={editForm.domaine_code || ''} onChange={e => setEditForm(f => ({ ...f, domaine_code: e.target.value }))}
+                                                                    style={{ width: '100%', marginBottom: 9, padding: '8px 10px', borderRadius: 8, border: '1.5px solid #e2e8f0', fontSize: 12, fontWeight: 600, color: '#374151', background: '#fff' }}>
+                                                                    <option value="">— Sélectionner un domaine —</option>
+                                                                    {domainesDisponiblesPourEdition.map(d => <option key={d.code ?? d.id} value={d.code ?? d.id}>{d.code} — {d.libelle}</option>)}
+                                                                </select>
                                                                 <div style={{ display: 'flex', gap: 8, marginBottom: 9 }}>
                                                                     {Object.entries(U).map(([key, meta]) => {
                                                                         const sel = editForm.urgence === key;
@@ -511,7 +529,7 @@ export default function RecommandationsDomaines({
                                                         {canEdit || canDelete ? (
                                                             <div className="row-actions" style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
                                                                 {canEdit && (
-                                                                    <IconBtn title="Modifier" color={BLUE} bg={`${BLUE}0d`} onClick={() => { setEditId(rec.id); setEditForm({ recommandation: rec.recommandation, urgence: rec.urgence, commentaire_revision: '' }); setShowAddPanel(false); }}>
+                                                                    <IconBtn title="Modifier" color={BLUE} bg={`${BLUE}0d`} onClick={() => { setEditId(rec.id); setEditForm({ domaine_code: rec.domaine_code || '', recommandation: rec.recommandation, urgence: rec.urgence, commentaire_revision: '' }); setShowAddPanel(false); }}>
                                                                         <IcoEdit />
                                                                     </IconBtn>
                                                                 )}

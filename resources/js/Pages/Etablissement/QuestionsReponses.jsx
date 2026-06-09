@@ -66,10 +66,10 @@ export default function QuestionsReponses({ dossier, questions }) {
 
                 <div style={{ marginBottom: 24 }}>
                     <h1 style={{ fontSize: 20, fontWeight: 700, color: BLUE, margin: 0 }}>Questions & Réponses</h1>
-                    <p style={{ color: '#64748b', fontSize: 14, margin: '4px 0 0' }}>Dossier {dossier.reference}</p>
+                    {dossier && <p style={{ color: '#64748b', fontSize: 14, margin: '4px 0 0' }}>Dossier {dossier.reference}</p>}
                 </div>
 
-                <NouvelleQuestionForm dossierId={dossier.id}/>
+                {dossier && <NouvelleQuestionForm dossierId={dossier.id}/>}
 
                 {questions.length === 0 ? (
                     <div style={{ textAlign: 'center', padding: 40, color: '#94a3b8', fontSize: 14 }}>Vous n'avez pas encore posé de questions.</div>

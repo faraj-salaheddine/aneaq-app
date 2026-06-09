@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Expert;
 
 use App\Http\Controllers\Controller;
 use App\Models\Dossier;
+use App\Services\ActivityLogger;
+use App\Services\NotifierDee;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -49,6 +51,28 @@ class RecommandationDomaineController extends Controller
         ]);
     }
 
+    public function redirect()
+    {
+        $user   = Auth::user();
+        $expert = $this->findExpertForUser($user);
+
+        if (!$expert || !Schema::hasTable('dossier_experts')) {
+            return redirect('/expert/dossiers');
+        }
+
+        $dossier = DB::table('dossier_experts')
+            ->where('expert_id', $expert->id)
+            ->whereIn('status', ['accepte_par_expert', 'confirme_par_expert', 'comite_confirme'])
+            ->orderByDesc('created_at')
+            ->first();
+
+        if (!$dossier) {
+            return redirect('/expert/dossiers')->with('info', 'Aucun dossier actif trouvé.');
+        }
+
+        return redirect("/expert/recommandations-domaine/{$dossier->dossier_id}");
+    }
+
     public function store(Request $request, Dossier $dossier)
     {
         $user   = Auth::user();
@@ -57,7 +81,7 @@ class RecommandationDomaineController extends Controller
         $this->autoriser($expert->id, $dossier->id);
 
         $validated = $request->validate([
-            'domaine_code'   => 'nullable|string|max:10',
+            'domaine_code'   => 'required|string|max:10',
             'recommandation' => 'required|string|max:3000',
             'urgence'        => 'required|in:rouge,orange,vert',
         ]);
@@ -75,6 +99,8 @@ class RecommandationDomaineController extends Controller
             'updated_at'     => now(),
         ]);
 
+        ActivityLogger::log('recommandation_brouillon_ajoutee', "Recommandation ajoutée en brouillon pour le dossier {$dossier->reference}", $dossier);
+
         return back()->with('success', 'Recommandation enregistrée en brouillon.');
     }
 
@@ -86,6 +112,7 @@ class RecommandationDomaineController extends Controller
         $this->autoriser($expert->id, $dossier->id);
 
         $validated = $request->validate([
+            'domaine_code'   => 'required|string|max:10',
             'recommandation' => 'required|string|max:3000',
             'urgence'        => 'required|in:rouge,orange,vert',
         ]);
@@ -104,11 +131,14 @@ class RecommandationDomaineController extends Controller
         DB::table('recommandations_domaines')
             ->where('id', $recommandation)
             ->update([
+                'domaine_code'        => $validated['domaine_code'],
                 'recommandation'      => $validated['recommandation'],
                 'urgence'             => $validated['urgence'],
                 'commentaire_revision' => $request->commentaire_revision ?? null,
                 'updated_at'          => now(),
             ]);
+
+        ActivityLogger::log('recommandation_brouillon_modifiee', "Recommandation mise à jour pour le dossier {$dossier->reference}", $dossier);
 
         return back()->with('success', 'Recommandation mise à jour.');
     }
@@ -134,6 +164,8 @@ class RecommandationDomaineController extends Controller
         DB::table('recommandations_domaines')
             ->where('id', $recommandation)
             ->delete();
+
+        ActivityLogger::log('recommandation_brouillon_supprimee', "Recommandation brouillon supprimée pour le dossier {$dossier->reference}", $dossier);
 
         return back()->with('success', 'Recommandation supprimée.');
     }
@@ -165,22 +197,16 @@ class RecommandationDomaineController extends Controller
                 'updated_at'          => now(),
             ]);
 
-        // Notifier les admins DEE
-        $dossierRow = DB::table('dossiers')->where('id', $dossier->id)->first();
-        $ref = $dossierRow->reference ?? "#{$dossier->id}";
         $expertNom = trim(($expert->prenom ?? '') . ' ' . ($expert->nom ?? '')) ?: ($expert->name ?? 'Expert');
 
-        $deeAdmins = DB::table('users')->where('role', 'admin_dee')->pluck('id');
-        foreach ($deeAdmins as $adminId) {
-            try {
-                \App\Models\NotificationAneaq::envoyer(
-                    $adminId, 'general',
-                    "Recommandations soumises — {$ref}",
-                    "{$expertNom} a soumis {$count} recommandation(s) pour le dossier {$ref}. En attente de votre validation.",
-                    'Dossier', $dossier->id
-                );
-            } catch (\Throwable) {}
-        }
+        NotifierDee::pourDossier(
+            $dossier,
+            'general',
+            "Recommandations soumises — {$dossier->reference}",
+            "{$expertNom} a soumis {$count} recommandation(s) pour le dossier {$dossier->reference}. En attente de votre validation."
+        );
+
+        ActivityLogger::log('recommandations_soumises_dee', "{$count} recommandation(s) soumise(s) à la DEE pour le dossier {$dossier->reference}", $dossier);
 
         return back()->with('success', "{$count} recommandation(s) soumise(s) à la DEE.");
     }
@@ -228,23 +254,11 @@ class RecommandationDomaineController extends Controller
 
     private function ensureTable(): void
     {
-        if (Schema::hasTable('recommandations_domaines')) {
-            return;
-        }
-
-        DB::statement("
-            CREATE TABLE recommandations_domaines (
-                id              BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-                dossier_id      BIGINT UNSIGNED NOT NULL,
-                expert_id       BIGINT UNSIGNED NOT NULL,
-                domaine_code    VARCHAR(10) NULL,
-                recommandation  TEXT NOT NULL,
-                urgence         ENUM('rouge','orange','vert') NOT NULL DEFAULT 'vert',
-                created_at      TIMESTAMP NULL,
-                updated_at      TIMESTAMP NULL,
-                INDEX idx_expert_dossier (expert_id, dossier_id)
-            )
-        ");
+        abort_unless(
+            Schema::hasTable('recommandations_domaines'),
+            503,
+            'Le module de recommandations doit être initialisé par les migrations.'
+        );
     }
 
     private function autoriser(int $expertId, int $dossierId): void
@@ -252,7 +266,7 @@ class RecommandationDomaineController extends Controller
         $ok = DB::table('dossier_experts')
             ->where('expert_id', $expertId)
             ->where('dossier_id', $dossierId)
-            ->whereIn('status', ['confirme_par_expert', 'comite_confirme'])
+            ->whereIn('status', ['accepte_par_expert', 'confirme_par_expert', 'comite_confirme'])
             ->exists();
 
         if (!$ok && Schema::hasTable('expert_dossier')) {

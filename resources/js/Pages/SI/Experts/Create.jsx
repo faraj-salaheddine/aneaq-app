@@ -104,7 +104,12 @@ const SectionHeader = ({ icon, title, subtitle, color = BLUE }) => (
 export default function Create() {
     const [form, setForm] = useState({
         nom: "", prenom: "", email: "", password: "",
-        telephone: "", cin_number: "", rib: "",
+        telephone: "", ville: "", pays: "", date_naissance: "",
+        cin_number: "", rib: "",
+        grade: "", fonction_actuelle: "", specialite: "",
+        etablissement: "", type_etablissement: "",
+        universite_ou_departement_ministeriel: "",
+        diplomes_obtenus: "", responsabilite: "", date_recrutement: "",
         contract_start: "", contract_end: "",
         contract_renewals: "", car_horsepower: "",
     });
@@ -215,6 +220,64 @@ export default function Create() {
                             <div style={{ marginTop: 16 }}>
                                 <Field label="Téléphone" optional error={errors.telephone}>
                                     <input className="field-input" style={inputStyle(errors.telephone)} type="tel" placeholder="+212 6XX XXX XXX" value={form.telephone} onChange={e => set("telephone", e.target.value)} />
+                                </Field>
+                            </div>
+                        </div>
+
+                        {/* Section 1b — Profil académique */}
+                        <div className="section-card" style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 18, padding: "2rem", boxShadow: "0 1px 6px rgba(0,0,0,0.05)" }}>
+                            <SectionHeader color="#7e22ce"
+                                icon={<><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></>}
+                                title="Profil académique" subtitle="Informations professionnelles et académiques"
+                            />
+                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                                <Field label="Grade" optional error={errors.grade}>
+                                    <input className="field-input" style={inputStyle(errors.grade)} type="text" placeholder="Ex: Professeur, Maître de conf." value={form.grade} onChange={e => set("grade", e.target.value)} />
+                                </Field>
+                                <Field label="Fonction actuelle" optional error={errors.fonction_actuelle}>
+                                    <input className="field-input" style={inputStyle(errors.fonction_actuelle)} type="text" placeholder="Ex: Directeur de laboratoire" value={form.fonction_actuelle} onChange={e => set("fonction_actuelle", e.target.value)} />
+                                </Field>
+                                <Field label="Spécialité" optional error={errors.specialite}>
+                                    <input className="field-input" style={inputStyle(errors.specialite)} type="text" placeholder="Ex: Génie informatique" value={form.specialite} onChange={e => set("specialite", e.target.value)} />
+                                </Field>
+                                <Field label="Établissement" optional error={errors.etablissement}>
+                                    <input className="field-input" style={inputStyle(errors.etablissement)} type="text" placeholder="Ex: ENSIAS" value={form.etablissement} onChange={e => set("etablissement", e.target.value)} />
+                                </Field>
+                                <Field label="Type établissement" optional error={errors.type_etablissement}>
+                                    <input className="field-input" style={inputStyle(errors.type_etablissement)} type="text" placeholder="Ex: Université publique" value={form.type_etablissement} onChange={e => set("type_etablissement", e.target.value)} />
+                                </Field>
+                                <Field label="Université / Département" optional error={errors.universite_ou_departement_ministeriel}>
+                                    <input className="field-input" style={inputStyle(errors.universite_ou_departement_ministeriel)} type="text" placeholder="Ex: UM5 Rabat" value={form.universite_ou_departement_ministeriel} onChange={e => set("universite_ou_departement_ministeriel", e.target.value)} />
+                                </Field>
+                                <Field label="Responsabilité" optional error={errors.responsabilite}>
+                                    <input className="field-input" style={inputStyle(errors.responsabilite)} type="text" placeholder="Ex: Chef de département" value={form.responsabilite} onChange={e => set("responsabilite", e.target.value)} />
+                                </Field>
+                                <Field label="Date de recrutement" optional error={errors.date_recrutement}>
+                                    <input className="field-input" style={inputStyle(errors.date_recrutement)} type="date" value={form.date_recrutement} onChange={e => set("date_recrutement", e.target.value)} />
+                                </Field>
+                            </div>
+                            <div style={{ marginTop: 16 }}>
+                                <Field label="Diplômes obtenus" optional error={errors.diplomes_obtenus}>
+                                    <textarea className="field-input" style={{ ...inputStyle(errors.diplomes_obtenus), height: 80, resize: "vertical", paddingTop: 10 }} placeholder="Ex: Doctorat en informatique (2005), Master en réseaux (2001)..." value={form.diplomes_obtenus} onChange={e => set("diplomes_obtenus", e.target.value)} />
+                                </Field>
+                            </div>
+                        </div>
+
+                        {/* Section 1c — Informations personnelles complémentaires */}
+                        <div className="section-card" style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 18, padding: "2rem", boxShadow: "0 1px 6px rgba(0,0,0,0.05)" }}>
+                            <SectionHeader color={BLUE}
+                                icon={<><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></>}
+                                title="Informations personnelles" subtitle="Données d'identité complémentaires"
+                            />
+                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
+                                <Field label="Date de naissance" optional error={errors.date_naissance}>
+                                    <input className="field-input" style={inputStyle(errors.date_naissance)} type="date" value={form.date_naissance} onChange={e => set("date_naissance", e.target.value)} />
+                                </Field>
+                                <Field label="Ville" optional error={errors.ville}>
+                                    <input className="field-input" style={inputStyle(errors.ville)} type="text" placeholder="Ex: Rabat" value={form.ville} onChange={e => set("ville", e.target.value)} />
+                                </Field>
+                                <Field label="Pays" optional error={errors.pays}>
+                                    <input className="field-input" style={inputStyle(errors.pays)} type="text" placeholder="Ex: Maroc" value={form.pays} onChange={e => set("pays", e.target.value)} />
                                 </Field>
                             </div>
                         </div>

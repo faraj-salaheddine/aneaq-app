@@ -20,8 +20,21 @@ class WorkflowController extends Controller
             return Inertia::render('DEE/Workflow/Affectations', ['dossiers' => []]);
         }
 
+        $affectationStatuses = [
+            'acces_envoye',
+            'en_attente_confirmation_expert',
+            'confirme_par_expert',
+            'accepte_par_expert',
+            'confirme',
+            'comite_confirme',
+            'visite_planifiee',
+            'visite_realisee',
+            'rapport_depose',
+            'rapport_valide',
+        ];
+
         $dossierIds = DossierExpert::query()
-            ->whereIn('status', ['acces_envoye', 'confirme_par_expert'])
+            ->whereIn('status', $affectationStatuses)
             ->pluck('dossier_id')
             ->unique()
             ->values();
@@ -47,7 +60,7 @@ class WorkflowController extends Controller
 
         $confirmedDossierExperts = DossierExpert::query()
             ->whereIn('dossier_id', $dossierIds)
-            ->whereIn('status', ['acces_envoye', 'confirme_par_expert'])
+            ->whereIn('status', $affectationStatuses)
             ->get();
 
         $expertIds = $confirmedDossierExperts->pluck('expert_id')->filter()->unique()->values();
@@ -103,15 +116,24 @@ class WorkflowController extends Controller
         }
 
         $confirmedExperts = DossierExpert::query()
-            ->whereIn('status', ['acces_envoye', 'confirme_par_expert'])
+            ->whereIn('status', [
+                'acces_envoye',
+                'en_attente_confirmation_expert',
+                'confirme_par_expert',
+                'accepte_par_expert',
+                'confirme',
+                'comite_confirme',
+                'visite_planifiee',
+                'visite_realisee',
+                'rapport_depose',
+                'rapport_valide',
+            ])
             ->get();
 
         $groups = $confirmedExperts->groupBy('dossier_id');
 
         $eligibleDossierIds = $groups->filter(function ($expertGroup) {
-            $chefs = $expertGroup->where('role_expert', 'chef_comite')->count();
-            $experts = $expertGroup->where('role_expert', 'expert')->count();
-            return $chefs >= 1 && $experts >= 2;
+            return $expertGroup->count() >= 1;
         })->keys();
 
         if ($eligibleDossierIds->isEmpty()) {
@@ -216,12 +238,38 @@ class WorkflowController extends Controller
                 ->pluck('total', 'dossier_id');
         }
 
-        $result = $dossiers->map(function ($dossier) use ($etablissements, $expertCountByDossier) {
+        $recommandationsByDossier = Schema::hasTable('recommandations_domaines')
+            ? DB::table('recommandations_domaines')
+                ->select('dossier_id', 'statut', 'statut_mise_en_oeuvre', 'updated_at')
+                ->get()
+                ->groupBy('dossier_id')
+            : collect();
+
+        $result = $dossiers->map(function ($dossier) use ($etablissements, $expertCountByDossier, $recommandationsByDossier) {
             $etablissement = $etablissements->get($dossier->etablissement_id);
+            $recommandations = $recommandationsByDossier->get($dossier->id, collect());
 
             $etablissementNom = $etablissement
                 ? ($etablissement->etablissement_2 ?? $etablissement->etablissement ?? $etablissement->acronyme ?? '—')
                 : $this->read($dossier, ['etablissement_nom', 'etablissement'], '—');
+
+            $total       = $recommandations->count();
+            $soumises    = $recommandations->where('statut', 'soumise_dee')->count();
+            $renvoyees   = $recommandations->where('statut', 'renvoyee_expert')->count();
+            $validees    = $recommandations->where('statut', 'validee_dee')->count();
+            $enSuivi     = $recommandations->whereIn('statut', ['envoyee_etablissement', 'en_cours'])->count();
+            $realisees   = $recommandations->where('statut_mise_en_oeuvre', 'realisee')->count();
+            $cloturees   = $recommandations->where('statut', 'cloturee')->count();
+
+            [$statutRecommandations, $priorite] = match (true) {
+                $soumises > 0                     => ['À réviser par la DEE', 6],
+                $validees > 0                     => ['Validées, prêtes à envoyer', 5],
+                $enSuivi > 0                      => ['Suivi établissement en cours', 4],
+                $renvoyees > 0                    => ['En révision chez l’expert', 3],
+                $total > 0 && $cloturees === $total => ['Toutes clôturées', 2],
+                $total > 0                        => ['Brouillons expert', 1],
+                default                           => ['Aucune recommandation', 0],
+            };
 
             return [
                 'id' => $dossier->id,
@@ -229,11 +277,19 @@ class WorkflowController extends Controller
                 'etablissement' => $etablissementNom,
                 'campagne' => $this->read($dossier, ['campagne', 'campagne_reference'], '—'),
                 'experts_count' => $expertCountByDossier->get($dossier->id, 0),
-                'documents_count' => 0,
-                'statut' => $this->read($dossier, ['statut', 'status'], '—'),
-                'url' => route('dee.dossiers.show', $dossier->id),
+                'recommandations_count' => $total,
+                'soumises_count' => $soumises,
+                'renvoyees_count' => $renvoyees,
+                'validees_count' => $validees,
+                'suivi_count' => $enSuivi,
+                'realisees_count' => $realisees,
+                'cloturees_count' => $cloturees,
+                'statut_recommandations' => $statutRecommandations,
+                'priorite' => $priorite,
+                'updated_at' => $recommandations->max('updated_at'),
+                'url' => route('dee.recommandations-suivi.index', $dossier->id),
             ];
-        })->values();
+        })->sortByDesc('priorite')->values();
 
         return Inertia::render('DEE/Workflow/Recommandations', ['dossiers' => $result]);
     }

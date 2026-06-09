@@ -3,6 +3,7 @@ import { useEffect } from "react";
 
 const NAV = [
     { key: "dashboard",     label: "Tableau de bord", icon: "grid",          route: "etablissement.dashboard" },
+    { key: "dossier",       label: "Dossier affecté",  icon: "folder",        route: "etablissement.dossier.show" },
     { key: "profil",        label: "Mon profil",       icon: "building",      route: "etablissement.profil.show" },
     { key: "documents", label: "Rapport d'autoévaluation", icon: "file-text", route: "etablissement.documents.index" },
     { key: "annexes",       label: "Annexes",          icon: "clipboard-list",route: "etablissement.annexes" },
@@ -112,6 +113,7 @@ function Inject() {
 function Icon({ name, cls = "el-nav-icon" }) {
     const paths = {
         grid:           "M4 4h5v5H4V4zm7 0h5v5h-5V4zM4 11h5v5H4v-5zm7 0h5v5h-5v-5z",
+        folder:         "M4 6h6l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V8a2 2 0 012-2z",
         building:       "M3 21h18M5 21V7l7-4 7 4v14M9 21v-4h2v4m4 0v-4h2v4M9 10h2v2H9v-2zm4 0h2v2h-2v-2z",
         "file-text":    "M14 3v4a1 1 0 001 1h4M17 21H7a2 2 0 01-2-2V5a2 2 0 012-2h7l5 5v11a2 2 0 01-2 2zM9 9h1m-1 4h6m-6 4h6",
         "clipboard-list":"M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h.01M9 12h.01M9 16h.01m3-4h3m-3 4h3",
@@ -136,12 +138,10 @@ export default function EtablissementLayout({ children, active }) {
     const dossierId    = props.etablissement_dossier_id;
     const notifsCount  = props.notifs_non_lues ?? 0;
 
-    const DOSSIER_REQUIRED = ['qr', 'documents', 'complementaires', 'rapport-aneaq', 'annexes'];
-
     const handleNavClick = (item) => {
         if (item.key === 'qr') {
             if (dossierId) router.visit(`/etablissement/questions-reponses/${dossierId}`);
-            else router.visit('/etablissement/sans-dossier');
+            else router.visit('/etablissement/questions-reponses');
             return;
         }
         router.visit(route(item.route));

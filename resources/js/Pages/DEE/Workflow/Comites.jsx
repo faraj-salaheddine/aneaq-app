@@ -128,9 +128,17 @@ function ComiteItem({ comite, idx }) {
 function MemberChip({ name, role, status, bg, icon }) {
     const initial = (name || '?').charAt(0).toUpperCase();
     const statusLabel = {
-        acces_envoye:                '✓',
-        confirme_par_expert:         '✓✓',
-        en_attente_confirmation_dee: '…',
+        acces_envoye:                   '✓',
+        en_attente_confirmation_expert: '✓',
+        confirme_par_expert:            '✓✓',
+        accepte_par_expert:             '✓✓',
+        confirme:                       '✓✓',
+        comite_confirme:                '✓✓',
+        visite_planifiee:               '✓✓',
+        visite_realisee:                '✓✓',
+        rapport_depose:                 '✓✓',
+        rapport_valide:                 '✓✓',
+        en_attente_confirmation_dee:    '…',
     }[status] ?? '';
 
     return (
@@ -177,7 +185,7 @@ function EmptyState() {
             </div>
             <p className="mt-5 text-xl font-black text-slate-900">Aucun comité constitué</p>
             <p className="mt-2 max-w-sm text-sm text-slate-500">
-                Un comité apparaît ici dès qu'un dossier a 1 chef de comité + 2 experts confirmés.
+                Un comité apparaît ici dès qu'au moins un expert est affecté à un dossier.
             </p>
             <Link
                 href="/dee/dossiers"

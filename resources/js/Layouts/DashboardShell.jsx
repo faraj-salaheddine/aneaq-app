@@ -4,6 +4,7 @@ import axios from 'axios';
 import {
     Activity,
     BarChart2,
+    Bell,
     Building2,
     CalendarCheck,
     ChevronRight,
@@ -13,6 +14,7 @@ import {
     LayoutDashboard,
     Layers3,
     LogOut,
+    Settings2,
     Users,
 } from 'lucide-react';
 
@@ -29,6 +31,7 @@ const NAV_GROUPS = [
             { label: 'Établissements',      href: '/dee/etablissements',         icon: Building2,       color: '#ef9f27' },
             { label: 'Experts',             href: '/dee/experts',                icon: Users,           color: GREEN     },
             { label: 'Dossiers',            href: '/dee/dossiers',               icon: ClipboardCheck,  color: '#8b5cf6' },
+            { label: 'Notifications',        href: '/dee/notifications',          icon: Bell,            color: '#e11d48' },
         ],
     },
     {
@@ -42,12 +45,7 @@ const NAV_GROUPS = [
             { label: 'Suivi avancement',  href: '/dee/suivi-avancement',      icon: Activity,      color: '#10b981' },
             { label: 'Calendrier',       href: '/dee/calendrier-visites',    icon: CalendarCheck, color: '#ec4899' },
             { label: 'Q&R',              href: '/dee/questions-reponses',    icon: FileText,      color: '#f97316' },
-        ],
-    },
-    {
-        group: 'Paramétrage',
-        items: [
-            { label: 'Critères',         href: '/dee/criteres',              icon: ClipboardCheck, color: '#6366f1' },
+            { label: 'Paramètres',       href: '/dee/parametres',             icon: Settings2,     color: '#64748b' },
         ],
     },
 ];
@@ -67,8 +65,9 @@ export default function DashboardShell({ children }) {
                 .catch(() => {});
         };
         fetchCount();
-        const interval = setInterval(fetchCount, 30000);
-        return () => clearInterval(interval);
+        const interval = setInterval(fetchCount, 10000);
+        const unsubscribe = router.on('finish', fetchCount);
+        return () => { clearInterval(interval); unsubscribe(); };
     }, []);
 
     const isActive = (href) => {
@@ -84,6 +83,7 @@ export default function DashboardShell({ children }) {
             <style>{`
                 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap');
                 .dee-layout * { font-family: 'DM Sans', sans-serif; box-sizing: border-box; }
+                .dee-layout { zoom: 0.9; }
                 .dee-nav-link { transition: all 0.18s ease; }
                 .dee-nav-link:hover { background: rgba(255,255,255,0.07) !important; }
                 .dee-logout-btn { transition: all 0.18s ease; }
@@ -100,7 +100,7 @@ export default function DashboardShell({ children }) {
             <div
                 className="dee-layout"
                 dir={isArabic ? 'rtl' : 'ltr'}
-                style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: '#f1f5f9' }}
+                style={{ display: 'flex', height: 'calc(100vh / 0.9)', overflow: 'hidden', background: '#f1f5f9', zoom: 0.9 }}
             >
                 {/* ── Sidebar ── */}
                 <aside style={{
@@ -149,7 +149,9 @@ export default function DashboardShell({ children }) {
                                     <p style={{ fontSize: 12, fontWeight: 600, color: '#fff', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                         {user?.name || 'Administrateur DEE'}
                                     </p>
-                                    <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', margin: '1px 0 0' }}>Accès administrateur</p>
+                                    <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', margin: '1px 0 0' }}>
+                                        {user?.dee_role === 'chef_dee' ? 'Chef DEE' : 'Administrateur DEE'}
+                                    </p>
                                 </div>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
                                     <div style={{ width: 7, height: 7, borderRadius: '50%', background: GREEN }} />
@@ -169,6 +171,7 @@ export default function DashboardShell({ children }) {
 
                                 {items.map(({ label, href, icon: Icon, color }, i) => {
                                     const active = isActive(href);
+                                    const showBadge = href === '/dee/notifications' && notifCount > 0;
                                     return (
                                         <Link
                                             key={href}
@@ -200,6 +203,17 @@ export default function DashboardShell({ children }) {
                                             <span style={{ fontSize: 13, fontWeight: active ? 600 : 500, color: active ? '#fff' : 'rgba(255,255,255,0.65)', flex: 1 }}>
                                                 {label}
                                             </span>
+
+                                            {showBadge && (
+                                                <span style={{
+                                                    minWidth: 20, height: 20, borderRadius: 999,
+                                                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                                                    padding: '0 5px', background: '#e11d48', color: '#fff',
+                                                    fontSize: 10, fontWeight: 800,
+                                                }}>
+                                                    {notifCount > 99 ? '99+' : notifCount}
+                                                </span>
+                                            )}
 
                                             {active && <ChevronRight size={13} color="rgba(255,255,255,0.4)" />}
                                         </Link>

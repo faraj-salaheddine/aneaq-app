@@ -121,23 +121,26 @@ class CampagneEtablissementController extends Controller
             }
         }
 
-        $isNewUser = false;
+        $isNewUser   = false;
+        $mailPayload = null; // filled inside transaction, used outside
 
-        DB::transaction(function () use ($request, $validated, $campagneEvaluation, $campagneEtablissement, $etablissement, &$isNewUser) {
+        DB::transaction(function () use ($request, $validated, $campagneEvaluation, $campagneEtablissement, $etablissement, &$isNewUser, &$mailPayload) {
             $password = Str::random(10);
 
             $user = User::query()
                 ->where('email', $validated['email'])
                 ->first();
 
-            $isNewUser = !$user; // exposed to outer scope via reference
+            $isNewUser = !$user;
 
             if ($isNewUser) {
                 $user = new User();
                 $user->name = $this->etablissementName($etablissement);
                 $user->email = $validated['email'];
-                $user->password = Hash::make($password);
             }
+
+            // Always reset the password so the email credentials are always valid
+            $user->password = Hash::make($password);
 
             if ($this->hasColumn('users', 'role')) {
                 $user->role = 'etablissement';
@@ -194,48 +197,70 @@ class CampagneEtablissementController extends Controller
                 $messageLettre = null;
             }
 
-            Log::info('MESSAGE LETTRE DEE RECU AVANT EMAIL', [
-                'email' => $validated['email'],
+            // Store mail data to send AFTER the transaction commits (so DB rollback doesn't happen on SMTP failure)
+            $mailPayload = [
+                'to'             => $validated['email'],
+                'etab_nom'       => $this->etablissementName($etablissement),
+                'password'       => $password,
+                'dossier_ref'    => $this->read($dossier, ['reference'], null),
+                'campagne_ref'   => $this->read($campagneEvaluation, ['reference'], null),
                 'message_lettre' => $messageLettre,
-                'request_all' => $request->except(['lettre_dee']),
-                'has_file_lettre_dee' => $request->hasFile('lettre_dee'),
-            ]);
-
-            if ($isNewUser) {
-                Mail::to($validated['email'])->send(
-                    new EtablissementAccountCreatedMail(
-                        $this->etablissementName($etablissement),
-                        $validated['email'],
-                        $password,
-                        $this->read($dossier, ['reference'], null),
-                        $this->read($campagneEvaluation, ['reference'], null),
-                        $messageLettre
-                    )
-                );
-
-                Log::info('EMAIL ETABLISSEMENT ENVOYE AVEC SUCCES', [
-                    'email' => $validated['email'],
-                    'etablissement' => $this->etablissementName($etablissement),
-                    'dossier' => $this->read($dossier, ['reference'], null),
-                    'campagne' => $this->read($campagneEvaluation, ['reference'], null),
-                    'message_lettre' => $messageLettre,
-                ]);
-            }
+            ];
         });
 
-        $msg = $isNewUser
-            ? 'Compte établissement créé, dossier assigné et email envoyé avec succès.'
-            : 'Dossier assigné avec succès. Le compte existant a été conservé (aucune réinitialisation de mot de passe).';
+        // Send email outside the transaction so SMTP errors don't rollback DB changes
+        $mailError = null;
+        if ($mailPayload) {
+            try {
+                Mail::to($mailPayload['to'])->send(
+                    new EtablissementAccountCreatedMail(
+                        $mailPayload['etab_nom'],
+                        $mailPayload['to'],
+                        $mailPayload['password'],
+                        $mailPayload['dossier_ref'],
+                        $mailPayload['campagne_ref'],
+                        $mailPayload['message_lettre']
+                    )
+                );
+                Log::info('EMAIL ETABLISSEMENT ENVOYE AVEC SUCCES', $mailPayload);
+            } catch (\Throwable $e) {
+                $mailError = $e->getMessage();
+                Log::error('ECHEC ENVOI EMAIL ETABLISSEMENT', ['error' => $mailError, 'to' => $mailPayload['to']]);
+            }
+        }
+
+        if ($mailError) {
+            $msg = 'Compte établissement ' . ($isNewUser ? 'créé' : 'mis à jour') . ' et dossier assigné avec succès. ⚠️ L\'email n\'a pas pu être envoyé (erreur SMTP). Vérifiez les paramètres email dans Paramètres.';
+            return back()->with('success', $msg);
+        }
+
+        $msg = 'Compte établissement ' . ($isNewUser ? 'créé' : 'mis à jour') . ', dossier assigné et email envoyé avec succès.';
 
         return back()->with('success', $msg);
     }
 
     public function refuse(
+        Request $request,
         CampagneEvaluation $campagneEvaluation,
         CampagneEtablissement $campagneEtablissement
     ) {
         if ((int) $campagneEtablissement->campagne_evaluation_id !== (int) $campagneEvaluation->id) {
             abort(404);
+        }
+
+        $currentUser = $request->user();
+        $deeProfile  = \App\Models\UtilisateurDEE::where('user_id', $currentUser->id)->first();
+        $isChefDee   = $deeProfile && $deeProfile->role === 'chef_dee';
+
+        if (!$isChefDee) {
+            $request->validate(['password' => 'required|string'], [
+                'password.required' => 'Le mot de passe est obligatoire.',
+            ]);
+
+            $expectedPwd = env('DEE_DELETE_PASSWORD');
+            if (!$expectedPwd || !hash_equals((string) $expectedPwd, (string) $request->password)) {
+                return back()->withErrors(['password' => 'Mot de passe incorrect.']);
+            }
         }
 
         $campagneEtablissement->delete();

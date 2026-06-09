@@ -17,6 +17,7 @@ class DossierDocument extends Model
         'file_path',
         'original_name',
         'observation',
+        'motif_rejet',
         'uploaded_by',
         'uploaded_by_role',
         'status',

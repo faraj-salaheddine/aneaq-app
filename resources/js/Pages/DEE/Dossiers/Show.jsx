@@ -1,28 +1,33 @@
 import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
+import SuiviRecommandationsTab from '@/Components/DEE/SuiviRecommandationsTab';
 import DashboardShell from '@/Layouts/DashboardShell';
-import MessageriePanel from '@/Components/MessageriePanel';
 import ConfirmModal from '@/Components/ConfirmModal';
+import AnnexesConformityDashboard from '@/Components/DEE/AnnexesConformityDashboard';
+import PreviewModal from '@/Components/PreviewModal';
 import {
     AlertTriangle,
     ArrowLeft,
+    BarChart3,
     BadgeCheck,
     Building2,
     CalendarDays,
     Camera,
     CheckCircle2,
+    ChevronDown,
     ClipboardCheck,
     Clock3,
+    Download,
     Eye,
     FileText,
     FolderKanban,
     Image,
     LockKeyhole,
+    ListTree,
     Mail,
     MapPin,
     Save,
     Search,
     Send,
-    ShieldCheck,
     Trash2,
     Upload,
     UserCheck,
@@ -32,11 +37,562 @@ import {
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
-function Show({ dossier, experts = [], allExperts = [], dossierExperts = [], documents = [], photos = [], rapportsExperts = [] }) {
+/* ── Note options ── */
+const NOTE_OPTS_DEE = [
+    { val:0, label:'Absent',       color:'#c0344a', bg:'#fdf0f2', border:'#f8cdd3' },
+    { val:1, label:'Non conforme', color:'#b35c00', bg:'#fdf5ec', border:'#fde8cc' },
+    { val:2, label:'Acceptable',   color:'#5046a8', bg:'#f0effc', border:'#dddaf7' },
+    { val:3, label:'Conforme',     color:'#0e7c5b', bg:'#ecfaf4', border:'#c6f0df' },
+];
+
+/* ── Preuve row (read-only) ── */
+function PreuveDEE({ preuve, dossierId }) {
+    const opt = NOTE_OPTS_DEE.find(o => o.val === preuve.note);
+    const [preview, setPreview] = useState(null);
+    return (
+        <tr className="border-t border-slate-100 hover:bg-slate-50/50">
+            {preview && <PreviewModal url={preview.url} fileName={preview.fileName} onClose={() => setPreview(null)} />}
+            <td className="px-4 py-2.5 text-center">
+                <span className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-slate-200 bg-slate-100 text-xs font-bold text-slate-600">
+                    {preuve.preuve_index + 1}
+                </span>
+            </td>
+            <td className="max-w-sm px-4 py-2.5 text-xs text-slate-700">{preuve.preuve_label}</td>
+            <td className="px-4 py-2.5">
+                {preuve.fichier_nom ? (
+                    <div className="inline-flex items-center gap-2">
+                        <span className="inline-flex items-center gap-1 rounded-lg bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-600 border border-slate-200">
+                            📄 {preuve.fichier_nom.length > 22 ? preuve.fichier_nom.slice(0,22)+'…' : preuve.fichier_nom}
+                        </span>
+                        <button
+                            title="Visualiser le fichier"
+                            onClick={() => setPreview({ url: route('dee.dossiers.annexes.voir', { dossier: dossierId, criterePreuve: preuve.fichier_id }), fileName: preuve.fichier_nom })}
+                            className="inline-flex items-center justify-center rounded-md border border-slate-200 bg-slate-50 text-slate-500 hover:bg-blue-50 hover:border-blue-200 hover:text-blue-600 transition"
+                            style={{ width: 26, height: 26, cursor: 'pointer', flexShrink: 0 }}>
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                        </button>
+                    </div>
+                ) : <span className="text-xs italic text-slate-400">Aucun fichier</span>}
+            </td>
+            <td className="px-4 py-2.5 text-center">
+                {opt ? (
+                    <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-black whitespace-nowrap"
+                        style={{ background: opt.bg, color: opt.color, border: `1px solid ${opt.border}` }}>
+                        {opt.val} — {opt.label}
+                    </span>
+                ) : <span className="text-xs text-slate-300">—</span>}
+            </td>
+            <td className="max-w-xs px-4 py-2.5 text-xs italic text-slate-500">
+                {preuve.observation || <span className="text-slate-300">—</span>}
+            </td>
+        </tr>
+    );
+}
+
+/* ── Critere block ── */
+function CritereDEE({ critere, dossierId }) {
+    const [open, setOpen] = useState(false);
+    const conf = critere.preuves.filter(p => p.note !== null).length;
+    return (
+        <div className="border-t border-slate-100">
+            <button onClick={() => setOpen(o => !o)}
+                className="flex w-full items-start gap-3 px-6 py-3 text-left hover:bg-slate-50/60 transition">
+                <span className="mt-0.5 shrink-0 rounded bg-blue-50 px-2 py-0.5 font-mono text-xs font-black text-blue-700">
+                    {critere.critere_num}
+                </span>
+                <span className="flex-1 text-xs font-medium text-slate-700">{critere.critere_label}</span>
+                <span className={`shrink-0 text-xs font-bold ${conf === critere.preuves.length ? 'text-emerald-600' : 'text-slate-400'}`}>
+                    {conf}/{critere.preuves.length}
+                </span>
+                <svg className={`h-4 w-4 shrink-0 text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`} viewBox="0 0 16 16" fill="none">
+                    <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+            </button>
+            {open && (
+                <div className="overflow-x-auto bg-white">
+                    <table className="w-full text-sm">
+                        <thead>
+                            <tr className="bg-slate-50 text-left text-xs font-black uppercase tracking-wide text-slate-400">
+                                <th className="px-4 py-2">#</th>
+                                <th className="px-4 py-2">Preuve</th>
+                                <th className="px-4 py-2">Fichier</th>
+                                <th className="px-4 py-2 text-center">Note</th>
+                                <th className="px-4 py-2">Observation</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {critere.preuves.map((p, i) => (
+                                <PreuveDEE key={i} preuve={p} dossierId={dossierId} />
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            )}
+        </div>
+    );
+}
+
+/* ── Reference block ── */
+function ReferenceDEE({ reference, dossierId }) {
+    const [open, setOpen] = useState(false);
+    const tot  = reference.criteres.reduce((a, c) => a + c.preuves.length, 0);
+    const conf = reference.criteres.reduce((a, c) => a + c.preuves.filter(p => p.note !== null).length, 0);
+    return (
+        <div className="border-t border-slate-100">
+            <button onClick={() => setOpen(o => !o)}
+                className="flex w-full items-center gap-3 bg-slate-50/60 px-6 py-2.5 text-left hover:bg-slate-100/60 transition">
+                <span className="shrink-0 rounded border border-blue-200 bg-blue-50 px-2 py-0.5 font-mono text-xs font-black text-blue-600">
+                    {reference.reference}
+                </span>
+                <span className="flex-1 text-xs text-slate-600 leading-snug">{reference.reference_label}</span>
+                <span className="shrink-0 text-xs font-bold text-slate-400">{conf}/{tot}</span>
+                <svg className={`h-4 w-4 shrink-0 text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`} viewBox="0 0 16 16" fill="none">
+                    <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+            </button>
+            {open && reference.criteres.map(c => (
+                <CritereDEE key={c.critere_id} critere={c} dossierId={dossierId} />
+            ))}
+        </div>
+    );
+}
+
+/* ── Champ block ── */
+function ChampDEE({ champ, dossierId }) {
+    const [open, setOpen] = useState(false);
+    const tot  = champ.references.reduce((a, r) => a + r.criteres.reduce((b, c) => b + c.preuves.length, 0), 0);
+    const conf = champ.references.reduce((a, r) => a + r.criteres.reduce((b, c) => b + c.preuves.filter(p => p.note !== null).length, 0), 0);
+    const full = conf === tot && tot > 0;
+    return (
+        <div className="border-t border-slate-200">
+            <button onClick={() => setOpen(o => !o)}
+                className="flex w-full items-center gap-3 px-5 py-3 text-left hover:bg-slate-50 transition">
+                <span className="shrink-0 rounded bg-slate-200 px-2 py-0.5 font-mono text-xs font-black text-slate-700">
+                    {champ.champ}
+                </span>
+                <span className="flex-1 text-sm font-semibold text-slate-800">{champ.champ_label}</span>
+                <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-black ${full ? 'bg-emerald-100 text-emerald-700' : conf === 0 ? 'bg-slate-100 text-slate-500' : 'bg-blue-100 text-blue-700'}`}>
+                    {conf}/{tot}
+                </span>
+                <svg className={`h-4 w-4 shrink-0 text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`} viewBox="0 0 16 16" fill="none">
+                    <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+            </button>
+            {open && champ.references.map(r => (
+                <ReferenceDEE key={r.reference} reference={r} dossierId={dossierId} />
+            ))}
+        </div>
+    );
+}
+
+/* ── Domaine block ── */
+const SWOT_DEE = [
+    { key:"forces",       label:"Forces",       color:"#0e7c5b", bg:"#ecfaf4", border:"#c6f0df" },
+    { key:"faiblesses",   label:"Faiblesses",   color:"#c0344a", bg:"#fdf0f2", border:"#f8cdd3" },
+    { key:"opportunites", label:"Opportunités",  color:"#1c5fdc", bg:"#eef3fd", border:"#d6e4fb" },
+    { key:"menaces",      label:"Menaces",       color:"#b35c00", bg:"#fdf5ec", border:"#fde8cc" },
+];
+
+function SwotDEE({ swot }) {
+    if (!swot) return (
+        <div className="mx-6 mb-4 rounded-xl border border-dashed border-slate-200 bg-slate-50 px-5 py-3 text-xs italic text-slate-400">
+            Analyse SWOT non remplie par l'expert pour ce domaine.
+        </div>
+    );
+    const filled = SWOT_DEE.filter(f => swot[f.key]?.trim()).length;
+    if (filled === 0) return (
+        <div className="mx-6 mb-4 rounded-xl border border-dashed border-slate-200 bg-slate-50 px-5 py-3 text-xs italic text-slate-400">
+            Analyse SWOT non remplie par l'expert pour ce domaine.
+        </div>
+    );
+    return (
+        <div className="mx-6 mb-4 overflow-hidden rounded-xl border border-slate-200">
+            <div className="flex items-center gap-3 bg-slate-800 px-4 py-2.5">
+                <span className="rounded bg-white/10 px-2 py-0.5 font-mono text-xs font-black text-white/80">SWOT</span>
+                <span className="text-xs font-bold uppercase tracking-widest text-white/60">Analyse SWOT</span>
+                <span className="ml-auto rounded-full bg-emerald-500/20 px-2 py-0.5 text-xs font-black text-emerald-300">{filled}/4 rempli{filled>1?"s":""}</span>
+            </div>
+            <div className="grid grid-cols-2 divide-x divide-y divide-slate-100">
+                {SWOT_DEE.map(f => swot[f.key]?.trim() ? (
+                    <div key={f.key} className="p-4" style={{ background: f.bg }}>
+                        <div className="mb-2 flex items-center gap-2">
+                            <div className="h-2 w-2 rounded-full" style={{ background: f.color }}/>
+                            <span className="text-xs font-black uppercase tracking-wide" style={{ color: f.color }}>{f.label}</span>
+                        </div>
+                        <p className="whitespace-pre-wrap text-xs leading-relaxed text-slate-700">{swot[f.key]}</p>
+                    </div>
+                ) : (
+                    <div key={f.key} className="p-4 text-xs italic text-slate-400">
+                        <span className="text-xs font-black uppercase tracking-wide text-slate-300">{f.label} —</span> Non renseigné
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+}
+
+function DomaineDEE({ domaine, dossierId }) {
+    const [open, setOpen] = useState(false);
+    const tot  = domaine.champs.reduce((a, ch) => a + ch.references.reduce((b, r) => b + r.criteres.reduce((c, cr) => c + cr.preuves.length, 0), 0), 0);
+    const conf = domaine.champs.reduce((a, ch) => a + ch.references.reduce((b, r) => b + r.criteres.reduce((c, cr) => c + cr.preuves.filter(p => p.note !== null).length, 0), 0), 0);
+    const pct  = tot > 0 ? Math.round(conf / tot * 100) : 0;
+    const swotFilled = domaine.swot ? ['forces','faiblesses','opportunites','menaces'].filter(k => domaine.swot[k]?.trim()).length : 0;
+    return (
+        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <button onClick={() => setOpen(o => !o)}
+                className="flex w-full items-center gap-4 px-6 py-4 text-left hover:bg-slate-50 transition">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-800 font-mono text-sm font-black text-white">
+                    {domaine.domaine}
+                </div>
+                <div className="flex-1">
+                    <p className="font-black text-slate-900">Domaine {domaine.domaine} — {domaine.domaine_label}</p>
+                    <div className="mt-1.5 h-1.5 w-40 overflow-hidden rounded-full bg-slate-100">
+                        <div className="h-full rounded-full transition-all duration-500"
+                            style={{ width:`${pct}%`, background: pct===100 ? '#0e7c5b' : '#1c5fdc' }}/>
+                    </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                    {swotFilled > 0 && (
+                        <span className="rounded bg-slate-800 px-2 py-0.5 font-mono text-xs font-black text-white">
+                            SWOT {swotFilled}/4
+                        </span>
+                    )}
+                    <span className="text-sm font-black text-slate-600">{conf}/{tot}</span>
+                </div>
+                <svg className={`h-4 w-4 shrink-0 text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`} viewBox="0 0 16 16" fill="none">
+                    <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+            </button>
+            {open && (
+                <>
+                    <SwotDEE swot={domaine.swot} />
+                    {domaine.champs.map(ch => (
+                        <ChampDEE key={ch.champ} champ={ch} dossierId={dossierId} />
+                    ))}
+                </>
+            )}
+        </div>
+    );
+}
+
+function ExpertAnnexesEvaluationDEE({ evaluation, dossierId }) {
+    const [activeView, setActiveView] = useState('summary');
+
+    return (
+        <div className="space-y-4">
+            <div className="flex flex-col gap-4 rounded-2xl border border-emerald-200 bg-gradient-to-r from-emerald-50 to-slate-50 px-6 py-4 shadow-sm xl:flex-row xl:items-center xl:justify-between">
+                <div className="flex items-center gap-3">
+                    <div className="flex h-11 w-11 items-center justify-center rounded-full bg-emerald-600 text-sm font-black text-white shadow">
+                        {(evaluation.expert_nom || '?')[0].toUpperCase()}
+                    </div>
+                    <div>
+                        <p className="font-black text-slate-900">{evaluation.expert_nom}</p>
+                        <p className="text-xs text-slate-500">Soumis le {evaluation.soumis_le} · {evaluation.total} preuves évaluées</p>
+                    </div>
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                    {NOTE_OPTS_DEE.map((opt) => (
+                        <div key={opt.val} className="rounded-xl px-3 py-2 text-center"
+                            style={{ background: opt.bg, border: `1px solid ${opt.border}` }}>
+                            <p className="text-lg font-black" style={{ color: opt.color }}>{evaluation.stats[opt.val] ?? 0}</p>
+                            <p className="text-xs font-bold" style={{ color: opt.color }}>{opt.label}</p>
+                        </div>
+                    ))}
+                </div>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+                <button type="button" onClick={() => setActiveView('summary')}
+                    className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-black transition ${
+                        activeView === 'summary'
+                            ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'
+                            : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                    }`}>
+                    <BarChart3 size={16} />
+                    Synthèse graphique
+                </button>
+                <button type="button" onClick={() => setActiveView('details')}
+                    className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-black transition ${
+                        activeView === 'details'
+                            ? 'bg-slate-800 text-white shadow-lg shadow-slate-800/20'
+                            : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                    }`}>
+                    <ListTree size={16} />
+                    Détail des notes
+                </button>
+            </div>
+
+            {activeView === 'summary' ? (
+                <AnnexesConformityDashboard grouped={evaluation.grouped} />
+            ) : (
+                <div className="space-y-3">
+                    {evaluation.grouped.map((domaine) => (
+                        <DomaineDEE key={domaine.domaine} domaine={domaine} dossierId={dossierId} />
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+}
+
+/* ── Annexes établissement (DEE review + send to experts) ── */
+function AnnexesEtablissementTab({ annexesEtablissement = [], annexesEnvoyeesExperts = null, dossierId }) {
+    const [expandedDomaines, setExpandedDomaines] = useState({});
+    const [sending, setSending] = useState(false);
+
+    const totalExpected    = annexesEtablissement.reduce((a, d) => a + d.total, 0);
+    const totalRenseignes  = annexesEtablissement.reduce((a, d) => a + d.renseignes, 0);
+    const totalAvecFichier = annexesEtablissement.reduce((a, d) => a + d.avec_fichier, 0);
+    const totalSansPreuve  = totalRenseignes - totalAvecFichier;
+    const totalNonRenseigne= totalExpected - totalRenseignes;
+
+    const toggleDomaine = (d) => setExpandedDomaines(prev => ({ ...prev, [d]: !prev[d] }));
+
+    const handleEnvoyer = () => {
+        setSending(true);
+        router.post(route('dee.dossiers.annexes.envoyer-experts', { dossier: dossierId }), {}, {
+            onFinish: () => setSending(false),
+        });
+    };
+
+    const BADGE = {
+        avec_fichier:  { label: 'Fichier joint', color: '#166534', bg: '#f0fdf4', border: '#bbf7d0' },
+        sans_preuve:   { label: 'Sans preuve',   color: '#92400e', bg: '#fffbeb', border: '#fde68a' },
+        non_renseigne: { label: 'Non renseigné', color: '#94a3b8', bg: '#f8fafc', border: '#e2e8f0' },
+    };
+
+    if (annexesEtablissement.length === 0) return (
+        <div style={{ textAlign: 'center', padding: '60px 20px', background: '#fff', borderRadius: 24, border: '1px solid #e2e8f0' }}>
+            <ListTree size={44} style={{ margin: '0 auto 16px', color: '#cbd5e1' }} />
+            <p style={{ fontSize: 18, fontWeight: 900, color: '#0f172a', margin: '0 0 6px' }}>Aucune annexe déposée</p>
+            <p style={{ fontSize: 13, color: '#94a3b8', margin: 0 }}>L'établissement n'a pas encore renseigné ses annexes.</p>
+        </div>
+    );
+
+    return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+            {/* ── Header ── */}
+            <div style={{ background: '#fff', borderRadius: 24, border: '1px solid #e2e8f0', padding: '28px 32px', boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 20, flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                        <div style={{ width: 52, height: 52, borderRadius: 14, background: '#f0fdfa', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0d9488', flexShrink: 0 }}>
+                            <ListTree size={24} />
+                        </div>
+                        <div>
+                            <h3 style={{ fontSize: 22, fontWeight: 900, color: '#0f172a', margin: 0 }}>Annexes de l'établissement</h3>
+                            <p style={{ fontSize: 13, color: '#64748b', margin: '4px 0 0', fontWeight: 600 }}>
+                                {totalRenseignes}/{totalExpected} critères renseignés
+                            </p>
+                        </div>
+                    </div>
+
+                    {annexesEnvoyeesExperts ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 20px', background: '#f0fdf4', borderRadius: 14, border: '1px solid #bbf7d0', fontSize: 13, fontWeight: 800, color: '#166534' }}>
+                            <CheckCircle2 size={16} />
+                            Envoyé aux experts le {annexesEnvoyeesExperts}
+                        </div>
+                    ) : (
+                        <button
+                            type="button"
+                            onClick={handleEnvoyer}
+                            disabled={sending || totalRenseignes === 0}
+                            style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '13px 26px', background: '#0d9488', border: 'none', borderRadius: 14, color: '#fff', fontSize: 14, fontWeight: 800, cursor: sending || totalRenseignes === 0 ? 'not-allowed' : 'pointer', boxShadow: '0 4px 14px rgba(13,148,136,0.3)', opacity: (sending || totalRenseignes === 0) ? 0.55 : 1 }}
+                        >
+                            <Send size={16} />
+                            {sending ? 'Envoi…' : 'Envoyer aux experts'}
+                        </button>
+                    )}
+                </div>
+
+                {/* Stats row */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12, marginTop: 22 }}>
+                    {[
+                        { val: totalAvecFichier,  label: 'Avec fichier',   num: '#166534', bg: '#f0fdf4', border: '#bbf7d0', dot: '#22c55e' },
+                        { val: totalSansPreuve,   label: 'Sans preuve',    num: '#92400e', bg: '#fffbeb', border: '#fde68a', dot: '#f59e0b' },
+                        { val: totalNonRenseigne, label: 'Non renseignés', num: '#475569', bg: '#f8fafc', border: '#e2e8f0', dot: '#cbd5e1' },
+                    ].map(({ val, label, num, bg, border, dot }) => (
+                        <div key={label} style={{ background: bg, borderRadius: 14, padding: '16px 18px', border: `1px solid ${border}` }}>
+                            <p style={{ fontSize: 28, fontWeight: 900, color: num, margin: 0, lineHeight: 1 }}>{val}</p>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6 }}>
+                                <span style={{ width: 7, height: 7, borderRadius: '50%', background: dot, display: 'inline-block', flexShrink: 0 }} />
+                                <p style={{ fontSize: 12, fontWeight: 700, color: num, margin: 0 }}>{label}</p>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </div>
+
+            {/* ── Domaines ── */}
+            {annexesEtablissement.map((domaine) => {
+                const pct   = domaine.total > 0 ? Math.round((domaine.renseignes / domaine.total) * 100) : 0;
+                const isOpen = !!expandedDomaines[domaine.domaine];
+                return (
+                    <div key={domaine.domaine} style={{ background: '#fff', borderRadius: 20, border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+
+                        {/* Domaine header */}
+                        <button
+                            type="button"
+                            onClick={() => toggleDomaine(domaine.domaine)}
+                            style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 24px', background: isOpen ? '#f0fdfa' : 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left', borderBottom: isOpen ? '1px solid #ccfbf1' : 'none' }}
+                        >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                                <div style={{ width: 42, height: 42, borderRadius: 12, background: '#0d9488', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 13, fontWeight: 900, flexShrink: 0 }}>
+                                    {domaine.domaine}
+                                </div>
+                                <div>
+                                    <p style={{ fontSize: 15, fontWeight: 800, color: '#0f172a', margin: 0 }}>{domaine.domaine_label || domaine.domaine}</p>
+                                    <p style={{ fontSize: 12, color: '#64748b', margin: '2px 0 0', fontWeight: 600 }}>
+                                        {domaine.renseignes}/{domaine.total} critères · {domaine.avec_fichier} fichiers
+                                    </p>
+                                </div>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0, marginLeft: 16 }}>
+                                <div style={{ width: 100, height: 6, borderRadius: 6, background: '#e2e8f0', overflow: 'hidden' }}>
+                                    <div style={{ height: '100%', width: `${pct}%`, background: '#0d9488', borderRadius: 6 }} />
+                                </div>
+                                <span style={{ fontSize: 12, fontWeight: 800, color: '#0d9488', minWidth: 34, textAlign: 'right' }}>{pct}%</span>
+                                <ChevronDown size={18} style={{ color: '#94a3b8', transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s', flexShrink: 0 }} />
+                            </div>
+                        </button>
+
+                        {/* Domaine content */}
+                        {isOpen && (
+                            <div style={{ padding: '20px 24px' }}>
+                                {domaine.champs.map((champ) => (
+                                    <div key={champ.champ} style={{ marginBottom: 28 }}>
+
+                                        {/* Champ separator */}
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+                                            <div style={{ height: 1, flex: 1, background: '#e2e8f0' }} />
+                                            <span style={{ fontSize: 11, fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.1em', padding: '0 6px', whiteSpace: 'nowrap' }}>
+                                                {champ.champ_label || champ.champ}
+                                            </span>
+                                            <div style={{ height: 1, flex: 1, background: '#e2e8f0' }} />
+                                        </div>
+
+                                        {champ.references.map((ref) => (
+                                            <div key={ref.reference} style={{ marginBottom: 18 }}>
+
+                                                {/* Reference label */}
+                                                <p style={{ fontSize: 12, fontWeight: 700, color: '#334155', margin: '0 0 10px', padding: '6px 12px', background: '#f1f5f9', borderRadius: 8, borderLeft: '3px solid #94a3b8' }}>
+                                                    {ref.reference_label || ref.reference}
+                                                </p>
+
+                                                {/* Critères */}
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                                    {ref.criteres.map((critere) => (
+                                                        <div key={critere.critere_id} style={{ background: '#f8fafc', borderRadius: 14, border: '1px solid #e2e8f0', padding: '12px 16px' }}>
+
+                                                            {/* Critère header */}
+                                                            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: critere.preuves.length ? 10 : 0 }}>
+                                                                <span style={{ fontSize: 11, fontWeight: 800, color: '#0d9488', background: '#f0fdfa', border: '1px solid #99f6e4', borderRadius: 6, padding: '2px 8px', flexShrink: 0, marginTop: 1 }}>
+                                                                    {critere.critere_num}
+                                                                </span>
+                                                                <p style={{ fontSize: 13, fontWeight: 700, color: '#1e293b', margin: 0, flex: 1, lineHeight: 1.45 }}>
+                                                                    {critere.critere_label}
+                                                                </p>
+                                                                <span style={{ fontSize: 12, fontWeight: 800, color: critere.renseignes === critere.total ? '#0d9488' : '#94a3b8', flexShrink: 0, marginTop: 1 }}>
+                                                                    {critere.renseignes}/{critere.total}
+                                                                </span>
+                                                            </div>
+
+                                                            {/* Preuves */}
+                                                            {critere.preuves.length > 0 && (
+                                                                <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                                                                    {critere.preuves.map((preuve) => {
+                                                                        const cfg = BADGE[preuve.statut] || BADGE.non_renseigne;
+                                                                        return (
+                                                                            <div key={preuve.index} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', background: cfg.bg, borderRadius: 8, border: `1px solid ${cfg.border}` }}>
+                                                                                <span style={{ fontSize: 11, fontWeight: 800, color: cfg.color, minWidth: 22, flexShrink: 0 }}>P{preuve.index + 1}</span>
+                                                                                <span style={{ fontSize: 12, color: '#475569', flex: 1, lineHeight: 1.4 }}>{preuve.label}</span>
+                                                                                <span style={{ fontSize: 11, fontWeight: 800, color: cfg.color, padding: '2px 9px', background: 'rgba(255,255,255,0.7)', borderRadius: 6, flexShrink: 0 }}>
+                                                                                    {cfg.label}
+                                                                                </span>
+                                                                                {preuve.fichier_nom && preuve.fichier_id && (
+                                                                                    <a
+                                                                                        href={route('dee.dossiers.annexes.voir', { dossier: dossierId, criterePreuve: preuve.fichier_id })}
+                                                                                        target="_blank"
+                                                                                        rel="noopener noreferrer"
+                                                                                        style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 9px', background: '#fff', border: '1px solid #99f6e4', borderRadius: 6, fontSize: 11, fontWeight: 800, color: '#0d9488', flexShrink: 0, textDecoration: 'none' }}
+                                                                                    >
+                                                                                        <Eye size={11} />Voir
+                                                                                    </a>
+                                                                                )}
+                                                                            </div>
+                                                                        );
+                                                                    })}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                );
+            })}
+        </div>
+    );
+}
+
+/* ── Main annexes tab ── */
+function AnnexesEvalTab({ evaluationsAnnexes, dossierId }) {
+    if (evaluationsAnnexes.length === 0) return (
+        <div className="rounded-[2rem] border border-slate-200 bg-white p-12 text-center shadow-sm">
+            <ClipboardCheck className="mx-auto text-slate-300" size={44} />
+            <p className="mt-4 text-lg font-black text-slate-900">Aucune évaluation soumise</p>
+            <p className="mt-1 text-sm text-slate-500">Les experts n'ont pas encore soumis leurs évaluations des annexes.</p>
+        </div>
+    );
+
+    return (
+        <div className="space-y-8">
+            {evaluationsAnnexes.map((evaluation) => (
+                <ExpertAnnexesEvaluationDEE key={evaluation.expert_id} evaluation={evaluation} dossierId={dossierId} />
+            ))}
+        </div>
+    );
+}
+
+function Show({ dossier, experts = [], allExperts = [], dossierExperts = [], documents = [], photos = [], rapportsExperts = [], evaluationsAnnexes = [], expectedDocuments = {}, recommandations = [], recommandationsStats = {}, recommandationsRappels = [], recommandationsProchainRappel = null, visiteConfirmations = null, annexesEtablissement = [], annexesEnvoyeesExperts = null }) {
     const { props } = usePage();
     const flash = props.flash || {};
 
     const [activeTab, setActiveTab] = useState('pilotage');
+    const annexesBadgeStorageKey = `dee:dossier:${dossier.id}:evaluations-annexes:seen`;
+    const annexesBadgeSignature = evaluationsAnnexes
+        .map((evaluation) => `${evaluation.expert_id}:${evaluation.soumis_le ?? ''}`)
+        .sort()
+        .join('|');
+    const [seenAnnexesSignature, setSeenAnnexesSignature] = useState(() => {
+        if (typeof window === 'undefined') return '';
+
+        try {
+            return window.localStorage.getItem(annexesBadgeStorageKey) || '';
+        } catch {
+            return '';
+        }
+    });
+    const hasUnreadAnnexes = evaluationsAnnexes.length > 0 && seenAnnexesSignature !== annexesBadgeSignature;
+
+    const openAnnexesTab = () => {
+        setActiveTab('annexes');
+        setSeenAnnexesSignature(annexesBadgeSignature);
+
+        if (typeof window === 'undefined') return;
+
+        try {
+            window.localStorage.setItem(annexesBadgeStorageKey, annexesBadgeSignature);
+        } catch {
+            // The badge still disappears for the current page if storage is unavailable.
+        }
+    };
     const [expertSearch, setExpertSearch] = useState('');
     const [selectedExpert, setSelectedExpert] = useState(null);
     const [expertFilterActive, setExpertFilterActive] = useState(true);
@@ -44,10 +600,19 @@ function Show({ dossier, experts = [], allExperts = [], dossierExperts = [], doc
     const [dialog, setDialog] = useState(null);
     const [rejectModal, setRejectModal] = useState({ open: false, rapport: null });
     const [motifRejet, setMotifRejet] = useState('');
+    const [autoevaluationRejectModal, setAutoevaluationRejectModal] = useState(false);
+    const [motifRejetAutoevaluation, setMotifRejetAutoevaluation] = useState('');
     const [confirmAcceptModal, setConfirmAcceptModal] = useState({ open: false, rapport: null });
     const [cloturerModal, setCloturerModal] = useState(false);
     const [codeCloturer, setCodeCloturer] = useState('');
     const [codeError, setCodeError] = useState('');
+    const [envoyerModal, setEnvoyerModal] = useState({ open: false, rapport: null });
+    const [toast, setToast] = useState(null);
+
+    const showToast = (message, type = 'success') => {
+        setToast({ message, type });
+        setTimeout(() => setToast(null), 4000);
+    };
 
     const [deleteModal, setDeleteModal] = useState({
         open: false,
@@ -199,6 +764,68 @@ function Show({ dossier, experts = [], allExperts = [], dossierExperts = [], doc
         openSecureDeleteModal('document', item);
     };
 
+    const accepterRapportAutoevaluation = () => {
+        setDialog({
+            title: "Accepter le rapport d'autoévaluation",
+            message: "Accepter ce rapport le marquera comme validé par la DEE. Vous pourrez ensuite l'envoyer aux experts quand vous le souhaitez.",
+            confirmLabel: 'Accepter',
+            danger: false,
+            onConfirm: () => {
+                router.post(
+                    `/dee/dossiers/${dossier.id}/documents/rapport-autoevaluation/accepter`,
+                    {},
+                    {
+                        preserveScroll: true,
+                        onSuccess: () => setDialog(null),
+                    }
+                );
+            },
+        });
+    };
+
+    const confirmRapportAutoevaluation = () => {
+        setDialog({
+            title: "Envoyer le rapport aux experts",
+            message: "Ce rapport sera immédiatement visible à tous les experts confirmés du dossier.",
+            confirmLabel: 'Envoyer aux experts',
+            danger: false,
+            onConfirm: () => {
+                router.post(
+                    `/dee/dossiers/${dossier.id}/documents/rapport-autoevaluation/confirmer`,
+                    {},
+                    {
+                        preserveScroll: true,
+                        onSuccess: () => setDialog(null),
+                    }
+                );
+            },
+        });
+    };
+
+    const openRejectRapportAutoevaluation = () => {
+        setMotifRejetAutoevaluation('');
+        setAutoevaluationRejectModal(true);
+    };
+
+    const closeRejectRapportAutoevaluation = () => {
+        setMotifRejetAutoevaluation('');
+        setAutoevaluationRejectModal(false);
+    };
+
+    const submitRejectRapportAutoevaluation = (e) => {
+        e.preventDefault();
+        if (!motifRejetAutoevaluation.trim()) return;
+
+        router.post(
+            `/dee/dossiers/${dossier.id}/documents/rapport-autoevaluation/refuser`,
+            { motif: motifRejetAutoevaluation },
+            {
+                preserveScroll: true,
+                onSuccess: closeRejectRapportAutoevaluation,
+            }
+        );
+    };
+
     const deletePhoto = (photo) => {
         openSecureDeleteModal('photo', photo);
     };
@@ -224,6 +851,20 @@ function Show({ dossier, experts = [], allExperts = [], dossierExperts = [], doc
 
     const validerRapport = (rapport) => {
         setConfirmAcceptModal({ open: true, rapport });
+    };
+
+    const envoyerRapportAEtablissement = () => {
+        router.post(
+            `/dee/dossiers/${dossier.id}/rapports/${envoyerModal.rapport.id}/envoyer-etablissement`,
+            {},
+            {
+                preserveScroll: true,
+                onSuccess: () => {
+                    setEnvoyerModal({ open: false, rapport: null });
+                    showToast('Rapport final envoyé à l\'établissement avec succès.');
+                },
+            }
+        );
     };
 
     const confirmValider = () => {
@@ -305,6 +946,10 @@ function Show({ dossier, experts = [], allExperts = [], dossierExperts = [], doc
         );
     }, [dossierExperts]);
 
+    const chefComite = useMemo(() =>
+        dossierExperts.find((item) => item.role_expert === 'chef_comite') ?? null,
+    [dossierExperts]);
+
     const filteredExperts = useMemo(() => {
         const search = expertSearch.toLowerCase().trim();
         const source = expertFilterActive ? experts : allExperts;
@@ -333,6 +978,15 @@ function Show({ dossier, experts = [], allExperts = [], dossierExperts = [], doc
 
     const cloture = !!dossier.est_cloture;
     const etablissement = dossier.etablissement || {};
+    const pendingAutoevaluationDocument = documents.find(
+        (document) => document.requires_dee_confirmation && document.pending_dee_confirmation
+    );
+    const acceptedAutoevaluationDocument = documents.find(
+        (document) => document.requires_dee_confirmation && document.accepted_by_dee
+    );
+    const rejectedAutoevaluationDocument = documents.find(
+        (document) => document.requires_dee_confirmation && document.rejected_by_dee
+    );
 
     const dateVisiteBrute =
         dossier?.date_visite_value ||
@@ -349,10 +1003,10 @@ function Show({ dossier, experts = [], allExperts = [], dossierExperts = [], doc
             <Head title={dossier.nom || dossier.reference || 'Dossier'} />
             {dialog && (
                 <ConfirmModal
-                    title="Refuser l'expert"
+                    title={dialog.title || "Refuser l'expert"}
                     message={dialog.message}
-                    danger
-                    confirmLabel="Refuser"
+                    danger={dialog.danger ?? true}
+                    confirmLabel={dialog.confirmLabel || 'Refuser'}
                     onConfirm={dialog.onConfirm}
                     onCancel={() => setDialog(null)}
                 />
@@ -404,6 +1058,55 @@ function Show({ dossier, experts = [], allExperts = [], dossierExperts = [], doc
                 </div>
             )}
 
+            {autoevaluationRejectModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+                    <div className="w-full max-w-lg rounded-3xl bg-white p-8 shadow-2xl">
+                        <div className="flex items-center gap-3">
+                            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-red-100 text-red-600">
+                                <AlertTriangle size={22} />
+                            </div>
+                            <div>
+                                <h3 className="text-xl font-black text-slate-900">Refuser le rapport d'autoévaluation</h3>
+                                <p className="text-sm font-medium text-slate-500">
+                                    Le motif sera envoyé à l'établissement pour correction.
+                                </p>
+                            </div>
+                        </div>
+                        <form onSubmit={submitRejectRapportAutoevaluation} className="mt-6 space-y-4">
+                            <div>
+                                <label className="mb-2 block text-sm font-black text-slate-700">
+                                    Motif de correction <span className="text-red-500">*</span>
+                                </label>
+                                <textarea
+                                    rows={5}
+                                    value={motifRejetAutoevaluation}
+                                    onChange={(e) => setMotifRejetAutoevaluation(e.target.value)}
+                                    placeholder="Exemple : le rapport PDF ne correspond pas au canevas, certaines sections sont incomplètes..."
+                                    className="w-full rounded-2xl border border-slate-200 p-4 text-sm font-medium text-slate-700 placeholder-slate-400 outline-none focus:border-red-400 focus:ring-2 focus:ring-red-100"
+                                    required
+                                />
+                            </div>
+                            <div className="flex justify-end gap-3">
+                                <button
+                                    type="button"
+                                    onClick={closeRejectRapportAutoevaluation}
+                                    className="rounded-2xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-black text-slate-700 hover:bg-slate-50"
+                                >
+                                    Annuler
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={!motifRejetAutoevaluation.trim()}
+                                    className="rounded-2xl bg-red-600 px-5 py-2.5 text-sm font-black text-white transition hover:bg-red-700 disabled:opacity-50"
+                                >
+                                    Refuser et envoyer à corriger
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
             {confirmAcceptModal.open && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
                     <div className="w-full max-w-md rounded-3xl bg-white p-8 shadow-2xl">
@@ -439,9 +1142,42 @@ function Show({ dossier, experts = [], allExperts = [], dossierExperts = [], doc
                 </div>
             )}
 
-            <MessageriePanel dossierId={dossier.id} currentRole="admin_dee" />
+            {envoyerModal.open && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+                    <div className="w-full max-w-md rounded-3xl bg-white p-8 shadow-2xl">
+                        <div className="flex items-center gap-3">
+                            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-100 text-blue-600">
+                                <Send size={22} />
+                            </div>
+                            <div>
+                                <h3 className="text-xl font-black text-slate-900">Envoyer à l'établissement</h3>
+                                <p className="text-sm font-medium text-slate-500">Expert : {envoyerModal.rapport?.expert_nom}</p>
+                            </div>
+                        </div>
+                        <p className="mt-5 text-sm font-medium text-slate-600 leading-7">
+                            Confirmez-vous l'envoi de ce rapport final à l'établissement ? Il recevra une notification.
+                        </p>
+                        <div className="mt-6 flex justify-end gap-3">
+                            <button
+                                type="button"
+                                onClick={() => setEnvoyerModal({ open: false, rapport: null })}
+                                className="rounded-2xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-black text-slate-700 hover:bg-slate-50"
+                            >
+                                Annuler
+                            </button>
+                            <button
+                                type="button"
+                                onClick={envoyerRapportAEtablissement}
+                                className="rounded-2xl bg-blue-600 px-5 py-2.5 text-sm font-black text-white transition hover:bg-blue-700"
+                            >
+                                Confirmer l'envoi
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
-            <div className="mx-auto max-w-[98rem] px-4 py-10 sm:px-6 lg:px-8">
+<div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
                 <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                     <div>
                         <p className="text-sm font-black uppercase tracking-[0.25em] text-blue-600">
@@ -473,22 +1209,23 @@ function Show({ dossier, experts = [], allExperts = [], dossierExperts = [], doc
                         )}
 
                         <a
-                            href={`/dee/dossiers/${dossier.id}/export/matrice`}
-                            target="_blank"
-                            className="inline-flex items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-3 text-sm font-black text-emerald-700 shadow-sm transition hover:bg-emerald-100"
+                            href={`/dee/dossiers/${dossier.id}/export/experts`}
+                            className="inline-flex items-center gap-2 rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-black text-white shadow-sm transition hover:bg-emerald-700"
                         >
-                            <FileText size={17} />
-                            Export matrice PDF
+                            <Download size={17} />
+                            Exporter les experts
                         </a>
 
-                        <a
-                            href={`/dee/dossiers/${dossier.id}/export/rapport`}
-                            target="_blank"
-                            className="inline-flex items-center gap-2 rounded-2xl border border-purple-200 bg-purple-50 px-5 py-3 text-sm font-black text-purple-700 shadow-sm transition hover:bg-purple-100"
-                        >
-                            <FileText size={17} />
-                            Export rapport PDF
-                        </a>
+                        {evaluationsAnnexes.length > 0 && (
+                            <a
+                                href={`/dee/dossiers/${dossier.id}/export/evaluation-annexes`}
+                                target="_blank"
+                                className="inline-flex items-center gap-2 rounded-2xl border border-orange-200 bg-orange-50 px-5 py-3 text-sm font-black text-orange-700 shadow-sm transition hover:bg-orange-100"
+                            >
+                                <FileText size={17} />
+                                Éval. Annexes PDF
+                            </a>
+                        )}
                     </div>
                 </div>
 
@@ -598,10 +1335,32 @@ function Show({ dossier, experts = [], allExperts = [], dossierExperts = [], doc
                                     <Mail size={16} />
                                     {etablissement.email || dossier.email || '—'}
                                 </div>
+
+                                {etablissement.telephone && (
+                                    <div className="flex items-center gap-2">
+                                        <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81a19.79 19.79 0 01-3.07-8.67A2 2 0 012 1h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.91 8.09a16 16 0 006 6l.38-.38a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg>
+                                        {etablissement.telephone}
+                                    </div>
+                                )}
+
+                                {etablissement.responsable_nom && (
+                                    <div className="flex items-start gap-2 pt-2 border-t border-blue-400/30">
+                                        <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="mt-0.5 shrink-0"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                                        <span>
+                                            <span className="text-blue-200 font-semibold">Coordonnateur expert : </span>
+                                            <span className="font-bold">{etablissement.responsable_nom}</span>
+                                            {etablissement.responsable_fonction && (
+                                                <span className="text-blue-200"> — {etablissement.responsable_fonction}</span>
+                                            )}
+                                        </span>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>
                 </div>
+
+                <WorkflowProgressBar expectedDocuments={expectedDocuments} hasDateVisite={hasDateVisite} evaluationsAnnexes={evaluationsAnnexes} visiteConfirmee={!!visiteConfirmations?.tous_acceptes} />
 
                 <div className="mt-7 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                     <StatCard
@@ -676,13 +1435,59 @@ function Show({ dossier, experts = [], allExperts = [], dossierExperts = [], doc
                         Photos de visite
                     </button>
 
-                    <Link
-                        href={`/dee/dossiers/${dossier.id}/recommandations-suivi`}
-                        className="inline-flex items-center gap-2 rounded-2xl border border-violet-200 bg-violet-50 px-5 py-3 text-sm font-black text-violet-700 transition hover:bg-violet-100"
+                        <button
+                            type="button"
+                            onClick={() => setActiveTab('annexes-etab')}
+                            className={`inline-flex items-center gap-2 rounded-2xl px-5 py-3 text-sm font-black transition ${
+                                activeTab === 'annexes-etab'
+                                    ? 'bg-teal-600 text-white shadow-lg shadow-teal-600/20'
+                                    : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                            }`}
+                        >
+                            <ListTree size={16} />
+                            Annexes étab.
+                            {annexesEnvoyeesExperts && (
+                                <span className={`ml-1 rounded-full px-2 py-0.5 text-xs font-black ${activeTab === 'annexes-etab' ? 'bg-white/30 text-white' : 'bg-teal-100 text-teal-700'}`}>
+                                    ✓
+                                </span>
+                            )}
+                        </button>
+
+                        <button
+                            type="button"
+                            onClick={openAnnexesTab}
+                            className={`inline-flex items-center gap-2 rounded-2xl px-5 py-3 text-sm font-black transition ${
+                                activeTab === 'annexes'
+                                    ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/20'
+                                : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                        }`}
+                        >
+                            <ClipboardCheck size={16} />
+                            Éval. Annexes
+                            {hasUnreadAnnexes && (
+                                <span className={`ml-1 rounded-full px-2 py-0.5 text-xs font-black ${activeTab === 'annexes' ? 'bg-white/30 text-white' : 'bg-emerald-100 text-emerald-700'}`}>
+                                    {evaluationsAnnexes.length}
+                                </span>
+                        )}
+                    </button>
+
+                    <button
+                        type="button"
+                        onClick={() => setActiveTab('recommandations')}
+                        className={`inline-flex items-center gap-2 rounded-2xl px-5 py-3 text-sm font-black transition ${
+                            activeTab === 'recommandations'
+                                ? 'bg-violet-600 text-white shadow-lg shadow-violet-600/20'
+                                : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                        }`}
                     >
                         <ClipboardCheck size={16} />
                         Suivi recommandations
-                    </Link>
+                        {(recommandationsStats?.soumises ?? 0) > 0 && (
+                            <span className={`ml-1 rounded-full px-2 py-0.5 text-xs font-black ${activeTab === 'recommandations' ? 'bg-white/30 text-white' : 'bg-violet-100 text-violet-700'}`}>
+                                {recommandationsStats.soumises}
+                            </span>
+                        )}
+                    </button>
 
                     {dossier.statut === 'valide' && !dossier.est_cloture && (
                         <button
@@ -821,40 +1626,197 @@ function Show({ dossier, experts = [], allExperts = [], dossierExperts = [], doc
                                         <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">Date de visite</p>
                                         <p className="mt-2 text-lg font-black text-slate-900">{dateVisiteAffichee}</p>
                                     </div>
-                                ) : (
-                                <form onSubmit={submitDate} className="mt-7 space-y-5">
-                                    <div>
-                                        <label className="mb-2 block text-sm font-bold text-slate-700">
-                                            Date et heure de visite
-                                        </label>
+                                ) : (() => {
+                                    const rapportOk  = expectedDocuments?.rapport_autoevaluation?.statut === 'valid';
+                                    const annexesOk  = expectedDocuments?.annexes?.statut !== 'waiting';
+                                    const canPlan    = rapportOk && annexesOk;
 
-                                        <input
-                                            type="datetime-local"
-                                            value={dateForm.data.date_visite || ''}
-                                            onChange={(e) => dateForm.setData('date_visite', e.target.value)}
-                                            className="h-14 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 outline-none transition focus:border-blue-500"
-                                        />
+                                    const cancelDate = () => {
+                                        router.patch(`/dee/dossiers/${dossier.id}`, { date_visite: '' }, { preserveScroll: true });
+                                    };
 
-                                        {dateForm.errors.date_visite && (
-                                            <p className="mt-2 text-sm font-semibold text-red-600">
-                                                {dateForm.errors.date_visite}
-                                            </p>
-                                        )}
-                                    </div>
+                                    return (
+                                        <>
+                                            {/* Statut confirmations établissement + experts */}
+                                            {visiteConfirmations && (() => {
+                                                const etab         = visiteConfirmations.etablissement || {};
+                                                const experts      = visiteConfirmations.experts || [];
+                                                const tousAcceptes = visiteConfirmations.tous_acceptes;
+                                                const all          = [
+                                                    etab.statut ? { nom: etab.nom || 'Établissement', statut: etab.statut, message: etab.message } : null,
+                                                    ...experts.filter(e => e.statut),
+                                                ].filter(Boolean);
 
-                                    <div className="flex justify-end">
-                                        <button
-                                            type="submit"
-                                            disabled={dateForm.processing}
-                                            className="inline-flex h-14 items-center justify-center gap-2 rounded-2xl bg-blue-600 px-7 text-sm font-black text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
-                                        >
-                                            <CalendarDays size={18} />
-                                            {dateForm.processing ? 'Enregistrement...' : 'Enregistrer la date'}
-                                        </button>
-                                    </div>
-                                </form>
-                                )}
+                                                if (all.length === 0 && !tousAcceptes) return null;
+
+                                                const badge = (statut) => statut === 'accepte'
+                                                    ? { label: 'Accepté', cls: 'bg-emerald-50 border-emerald-200 text-emerald-700', dot: 'bg-emerald-500', icon: '✓' }
+                                                    : statut === 'refuse'
+                                                    ? { label: 'Refusé', cls: 'bg-red-50 border-red-200 text-red-700', dot: 'bg-red-500', icon: '✕' }
+                                                    : { label: 'En attente', cls: 'bg-amber-50 border-amber-200 text-amber-700', dot: 'bg-amber-400', icon: '…' };
+
+                                                return (
+                                                    <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                                                        <p className="mb-3 text-xs font-black uppercase tracking-widest text-slate-400">Confirmations de visite</p>
+
+                                                        {tousAcceptes ? (
+                                                            <div className="mb-3 flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3">
+                                                                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-xs font-black text-white">✓</div>
+                                                                <div>
+                                                                    <p className="text-sm font-black text-emerald-700">Visite confirmée par tous les participants</p>
+                                                                    <p className="text-xs font-semibold text-emerald-600">L'établissement et tous les experts ont accepté.</p>
+                                                                </div>
+                                                            </div>
+                                                        ) : (
+                                                            <div className="mb-3 flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3">
+                                                                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-amber-400 text-xs font-black text-white">⏳</div>
+                                                                <p className="text-sm font-black text-amber-700">En attente de confirmation de tous les participants</p>
+                                                            </div>
+                                                        )}
+
+                                                        <div className="space-y-3">
+                                                            {all.map((item, i) => {
+                                                                const b = badge(item.statut);
+                                                                return (
+                                                                    <div key={i} className={`flex items-start gap-3 rounded-xl border p-3 ${b.cls}`}>
+                                                                        <div className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-black text-white ${b.dot}`}>
+                                                                            {b.icon}
+                                                                        </div>
+                                                                        <div className="flex-1 min-w-0">
+                                                                            <div className="flex items-center gap-2 flex-wrap">
+                                                                                <span className="text-sm font-black">{item.nom}</span>
+                                                                                <span className="rounded-full px-2 py-0.5 text-xs font-bold border" style={{ background: 'rgba(255,255,255,0.6)' }}>
+                                                                                    {b.label}
+                                                                                </span>
+                                                                            </div>
+                                                                            {item.message && (
+                                                                                <p className="mt-1 text-xs font-semibold opacity-80">
+                                                                                    Motif : {item.message}
+                                                                                </p>
+                                                                            )}
+                                                                        </div>
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })()}
+
+                                            {/* Alertes bloquantes */}
+                                            {!rapportOk && (
+                                                <div className="mt-7 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                                                    <div className="flex items-start gap-3">
+                                                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-amber-100">
+                                                            <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                                                <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+                                                                <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+                                                            </svg>
+                                                        </div>
+                                                        <div>
+                                                            <p className="text-sm font-black text-amber-800">Rapport d'autoévaluation manquant</p>
+                                                            <p className="mt-0.5 text-xs font-semibold text-amber-700">
+                                                                L'établissement doit déposer son rapport avant de planifier la visite.
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {!annexesOk && (
+                                                <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                                                    <div className="flex items-start gap-3">
+                                                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-amber-100">
+                                                            <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                                                <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+                                                                <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+                                                            </svg>
+                                                        </div>
+                                                        <div>
+                                                            <p className="text-sm font-black text-amber-800">Annexes non déposées</p>
+                                                            <p className="mt-0.5 text-xs font-semibold text-amber-700">
+                                                                L'établissement doit remplir ses annexes avant de planifier la visite.
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* Formulaire date (visible si conditions ok) */}
+                                            {canPlan && (
+                                                <form onSubmit={submitDate} className="mt-7 space-y-5">
+                                                    <div>
+                                                        <label className="mb-2 block text-sm font-bold text-slate-700">
+                                                            Date et heure de visite
+                                                        </label>
+
+                                                        <input
+                                                            type="datetime-local"
+                                                            value={dateForm.data.date_visite || ''}
+                                                            onChange={(e) => dateForm.setData('date_visite', e.target.value)}
+                                                            className="h-14 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 outline-none transition focus:border-blue-500"
+                                                        />
+
+                                                        {dateForm.errors.date_visite && (
+                                                            <p className="mt-2 text-sm font-semibold text-red-600">
+                                                                {dateForm.errors.date_visite}
+                                                            </p>
+                                                        )}
+                                                    </div>
+
+                                                    <div className="flex items-center justify-between gap-3">
+                                                        {/* Bouton Annuler la date */}
+                                                        {hasDateVisite && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={cancelDate}
+                                                                className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl border border-red-200 bg-red-50 px-5 text-sm font-bold text-red-600 transition hover:bg-red-100"
+                                                            >
+                                                                <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                                                    <circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>
+                                                                </svg>
+                                                                Annuler la date de visite
+                                                            </button>
+                                                        )}
+
+                                                        <button
+                                                            type="submit"
+                                                            disabled={dateForm.processing}
+                                                            className="ml-auto inline-flex h-14 items-center justify-center gap-2 rounded-2xl bg-blue-600 px-7 text-sm font-black text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                                                        >
+                                                            <CalendarDays size={18} />
+                                                            {dateForm.processing ? 'Enregistrement...' : 'Enregistrer la date'}
+                                                        </button>
+                                                    </div>
+                                                </form>
+                                            )}
+                                        </>
+                                    );
+                                })()}
                             </div>
+                        )}
+
+                        {activeTab === 'annexes-etab' && (
+                            <AnnexesEtablissementTab
+                                annexesEtablissement={annexesEtablissement}
+                                annexesEnvoyeesExperts={annexesEnvoyeesExperts}
+                                dossierId={dossier.id}
+                            />
+                        )}
+
+                        {activeTab === 'annexes' && (
+                            <AnnexesEvalTab evaluationsAnnexes={evaluationsAnnexes} dossierId={dossier.id} />
+                        )}
+
+                        {activeTab === 'recommandations' && (
+                            <SuiviRecommandationsTab
+                                dossier={dossier}
+                                recommandations={recommandations}
+                                stats={recommandationsStats}
+                                rappels={recommandationsRappels}
+                                prochainRappel={recommandationsProchainRappel}
+                                etablissement={dossier.etablissement || {}}
+                            />
                         )}
 
                         {activeTab === 'photos' && (
@@ -1138,7 +2100,7 @@ function Show({ dossier, experts = [], allExperts = [], dossierExperts = [], doc
                                                     className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 outline-none focus:border-blue-500"
                                                 >
                                                     <option value="expert">Expert</option>
-                                                    <option value="chef_comite">Chef de comité</option>
+                                                    <option value="chef_comite">Coordonnateur expert</option>
                                                 </select>
 
                                                 {expertForm.errors.role_expert && (
@@ -1209,55 +2171,124 @@ function Show({ dossier, experts = [], allExperts = [], dossierExperts = [], doc
                         </div>
 
                         <div className="rounded-[2rem] border border-slate-200 bg-white p-7 shadow-sm">
-                            <div className="flex items-start gap-4">
+                            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                                 <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600">
                                     <FileText size={24} />
                                 </div>
 
-                                <div>
-                                    <h3 className="text-2xl font-black text-slate-900">
-                                        Documents déposés
-                                    </h3>
+                                <div className="min-w-0 flex-1">
+                                    <div className="flex flex-wrap items-center gap-3">
+                                        <h3 className="text-2xl font-black text-slate-900">
+                                            Documents déposés
+                                        </h3>
+                                        <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-600">
+                                            {documents.length} fichier{documents.length !== 1 ? 's' : ''}
+                                        </span>
+                                    </div>
 
                                     <p className="mt-1 text-sm font-medium text-slate-500">
-                                        Le statut du dossier évolue automatiquement selon les documents ajoutés.
+                                        Consultez, confirmez et gérez les documents transmis dans ce dossier.
                                     </p>
                                 </div>
                             </div>
 
-                            <div className="mt-7 space-y-3">
-                                {documents.length > 0 ? (
-                                    documents.map((document) => (
-                                        <div
-                                            key={document.id}
-                                            className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:flex-row sm:items-center sm:justify-between"
+                            {pendingAutoevaluationDocument && (
+                                <div style={{ marginTop: 24, borderRadius: 16, border: '1.5px solid #ddd6fe', background: 'linear-gradient(135deg, #f5f3ff, #eff6ff)', overflow: 'hidden' }}>
+                                    <div style={{ padding: '16px 20px', borderBottom: '1px solid #ddd6fe', display: 'flex', alignItems: 'center', gap: 12 }}>
+                                        <div style={{ width: 38, height: 38, borderRadius: 11, background: '#7c3aed', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                            <BadgeCheck size={18} color="#fff" />
+                                        </div>
+                                        <div>
+                                            <p style={{ margin: 0, fontSize: 14, fontWeight: 800, color: '#1e1b4b' }}>Rapport d'autoévaluation en attente de décision</p>
+                                            <p style={{ margin: '3px 0 0', fontSize: 12, fontWeight: 500, color: '#64748b', lineHeight: 1.5 }}>
+                                                Les fichiers restent invisibles aux experts jusqu'à l'envoi.
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div style={{ padding: '14px 20px', display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                                        <button
+                                            type="button"
+                                            onClick={accepterRapportAutoevaluation}
+                                            style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '9px 18px', borderRadius: 10, border: 'none', background: '#16a34a', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
                                         >
-                                            <div className="min-w-0">
-                                                <p className="font-black text-slate-900">
-                                                    {document.original_name || document.nom || document.name || 'Document'}
-                                                </p>
-                                                <p className="mt-0.5 text-sm font-medium text-slate-500">
-                                                    {document.type || document.document_type || 'Type non défini'}
-                                                </p>
-                                                <div className="mt-2 flex flex-wrap items-center gap-2">
-                                                    <span className="text-xs font-semibold text-slate-500">
-                                                        Déposé par : <span className="font-black text-slate-700">{document.uploader_nom || '—'}</span>
-                                                    </span>
-                                                    <CategorieBadge categorie={document.uploader_categorie} />
-                                                </div>
-                                            </div>
+                                            <BadgeCheck size={15} />
+                                            Accepter
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={confirmRapportAutoevaluation}
+                                            style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '9px 18px', borderRadius: 10, border: 'none', background: '#7c3aed', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+                                        >
+                                            <Send size={15} />
+                                            Envoyer aux experts
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={openRejectRapportAutoevaluation}
+                                            style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '9px 18px', borderRadius: 10, border: 'none', background: '#dc2626', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+                                        >
+                                            <XCircle size={15} />
+                                            Refuser
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
 
-                                            <div className="flex shrink-0 gap-2">
-                                                {document.url && (
-                                                    <a
-                                                        href={document.url}
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                        className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-black text-white transition hover:bg-blue-700"
-                                                    >
-                                                        <Eye size={15} />
-                                                        Ouvrir
-                                                    </a>
+                            {acceptedAutoevaluationDocument && (
+                                <div style={{ marginTop: 24, borderRadius: 16, border: '1.5px solid #bbf7d0', background: 'linear-gradient(135deg, #f0fdf4, #eff6ff)', overflow: 'hidden' }}>
+                                    <div style={{ padding: '16px 20px', borderBottom: '1px solid #bbf7d0', display: 'flex', alignItems: 'center', gap: 12 }}>
+                                        <div style={{ width: 38, height: 38, borderRadius: 11, background: '#16a34a', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                            <BadgeCheck size={18} color="#fff" />
+                                        </div>
+                                        <div>
+                                            <p style={{ margin: 0, fontSize: 14, fontWeight: 800, color: '#14532d' }}>Rapport accepté — en attente d'envoi aux experts</p>
+                                            <p style={{ margin: '3px 0 0', fontSize: 12, fontWeight: 500, color: '#64748b', lineHeight: 1.5 }}>
+                                                Le rapport est validé. Cliquez sur "Envoyer aux experts" pour le rendre visible.
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div style={{ padding: '14px 20px', display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                                        <button
+                                            type="button"
+                                            onClick={confirmRapportAutoevaluation}
+                                            style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '9px 18px', borderRadius: 10, border: 'none', background: '#7c3aed', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+                                        >
+                                            <Send size={15} />
+                                            Envoyer aux experts
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={openRejectRapportAutoevaluation}
+                                            style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '9px 18px', borderRadius: 10, border: 'none', background: '#dc2626', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+                                        >
+                                            <XCircle size={15} />
+                                            Refuser
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {!pendingAutoevaluationDocument && rejectedAutoevaluationDocument && (
+                                <div className="mt-7 overflow-hidden rounded-2xl border border-red-200 bg-red-50">
+                                    <div className="flex flex-col gap-4 p-5 lg:flex-row lg:items-start lg:justify-between">
+                                        <div className="flex min-w-0 items-start gap-4">
+                                            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-red-600 text-white shadow-sm shadow-red-600/20">
+                                                <AlertTriangle size={21} />
+                                            </div>
+                                            <div className="min-w-0">
+                                                <p className="font-black text-red-900">
+                                                    Rapport d'autoévaluation refusé
+                                                </p>
+                                                <p className="mt-1 text-sm font-medium leading-6 text-red-700">
+                                                    L'établissement a été notifié. Il doit déposer une version corrigée avant transmission aux experts.
+                                                </p>
+                                                {rejectedAutoevaluationDocument.motif_rejet && (
+                                                    <div className="mt-3 rounded-xl border border-red-200 bg-white px-4 py-3">
+                                                        <p className="text-xs font-black uppercase tracking-wider text-red-500">Motif envoyé</p>
+                                                        <p className="mt-1 text-sm font-medium text-red-700">
+                                                            {rejectedAutoevaluationDocument.motif_rejet}
+                                                        </p>
+                                                    </div>
                                                 )}
                                                 {!cloture && (
                                                 <button
@@ -1271,7 +2302,102 @@ function Show({ dossier, experts = [], allExperts = [], dossierExperts = [], doc
                                                 )}
                                             </div>
                                         </div>
-                                    ))
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="mt-5 space-y-3">
+                                {documents.length > 0 ? (
+                                    documents.map((document) => {
+                                        const documentName = document.original_name || document.nom || document.name || 'Document';
+                                        const ext = documentName.includes('.') ? documentName.split('.').pop().toLowerCase() : '';
+                                        const viewable = ['pdf', 'jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext);
+
+                                        return (
+                                            <div
+                                                key={document.id}
+                                                className="overflow-hidden rounded-2xl border border-slate-200 bg-white transition hover:border-slate-300 hover:shadow-sm"
+                                            >
+                                                <div className="flex items-start gap-4 p-5">
+                                                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-blue-100 bg-blue-50 text-blue-600">
+                                                        <FileText size={20} />
+                                                    </div>
+
+                                                    <div className="min-w-0 flex-1">
+                                                        <p className="break-words text-base font-black leading-6 text-slate-900">
+                                                            {documentName}
+                                                        </p>
+                                                        <div className="mt-2 flex flex-wrap items-center gap-2">
+                                                            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-600">
+                                                                {formatDocumentType(document.type || document.document_type)}
+                                                            </span>
+                                                            <CategorieBadge categorie={document.uploader_categorie} />
+                                                            {document.requires_dee_confirmation && (
+                                                                <span className={`rounded-full px-3 py-1 text-xs font-black ${
+                                                                    document.available_to_experts
+                                                                        ? 'bg-emerald-100 text-emerald-700'
+                                                                        : document.rejected_by_dee
+                                                                            ? 'bg-red-100 text-red-700'
+                                                                            : 'bg-amber-100 text-amber-700'
+                                                                }`}>
+                                                                    {document.available_to_experts
+                                                                        ? 'Disponible aux experts'
+                                                                        : document.rejected_by_dee
+                                                                            ? 'Refusé par la DEE'
+                                                                            : 'À confirmer par la DEE'}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        {document.rejected_by_dee && document.motif_rejet && (
+                                                            <div className="mt-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+                                                                <p className="text-xs font-black uppercase tracking-wider text-red-500">Motif du refus</p>
+                                                                <p className="mt-1 text-sm font-medium leading-6 text-red-700">{document.motif_rejet}</p>
+                                                            </div>
+                                                        )}
+                                                        <p className="mt-3 text-xs font-semibold text-slate-500">
+                                                            Déposé par <span className="font-black text-slate-700">{document.uploader_nom || '—'}</span>
+                                                            {document.created_at ? ` · ${document.created_at}` : ''}
+                                                        </p>
+                                                    </div>
+                                                </div>
+
+                                                <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 bg-slate-50/80 px-5 py-3">
+                                                    <span className="text-xs font-bold text-slate-400">
+                                                        {ext ? ext.toUpperCase() : 'FICHIER'}
+                                                    </span>
+
+                                                    <div className="flex flex-wrap justify-end gap-2">
+                                                        {viewable && (
+                                                            <a
+                                                                href={document.url}
+                                                                target="_blank"
+                                                                rel="noopener noreferrer"
+                                                                className="inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-white px-3 py-2 text-xs font-black text-blue-700 transition hover:bg-blue-50"
+                                                            >
+                                                                <Eye size={14} />
+                                                                Ouvrir
+                                                            </a>
+                                                        )}
+                                                        <a
+                                                            href={document.download_url}
+                                                            className="inline-flex items-center gap-2 rounded-lg border border-emerald-200 bg-white px-3 py-2 text-xs font-black text-emerald-700 transition hover:bg-emerald-50"
+                                                        >
+                                                            <Download size={14} />
+                                                            Télécharger
+                                                        </a>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => deleteDocument(document)}
+                                                            className="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-black text-red-600 transition hover:bg-red-50"
+                                                        >
+                                                            <Trash2 size={14} />
+                                                            Supprimer
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })
                                 ) : (
                                     <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
                                         <FileText className="mx-auto text-slate-300" size={34} />
@@ -1306,6 +2432,7 @@ function Show({ dossier, experts = [], allExperts = [], dossierExperts = [], doc
                                             readOnly={cloture}
                                             onValider={() => validerRapport(rapport)}
                                             onRejeter={() => openRejectModal(rapport)}
+                                            onEnvoyer={() => setEnvoyerModal({ open: true, rapport })}
                                         />
                                     ))}
                                 </div>
@@ -1332,12 +2459,138 @@ function Show({ dossier, experts = [], allExperts = [], dossierExperts = [], doc
                             </div>
 
                             <div className="mt-7 space-y-4">
+                                {/* ── Identité ── */}
                                 <InfoBox label="Nom" value={etablissement.nom || dossier.etablissement_nom} />
+                                {etablissement.acronyme && <InfoBox label="Acronyme" value={etablissement.acronyme} />}
                                 <InfoBox label="Ville" value={etablissement.ville || dossier.ville} />
                                 <InfoBox label="Université" value={etablissement.universite || dossier.universite} />
+                                {etablissement.domaine_connaissances && <InfoBox label="Domaine" value={etablissement.domaine_connaissances} />}
                                 <InfoBox label="Email" value={etablissement.email || dossier.email} />
+
+                                {/* ── Profil complété par l'établissement ── */}
+                                {etablissement.profil_complete && (
+                                    <>
+                                        <div className="flex items-center gap-2 pt-2">
+                                            <div className="h-px flex-1 bg-slate-200" />
+                                            <span className="text-xs font-bold uppercase tracking-widest text-emerald-600">
+                                                Profil complété
+                                            </span>
+                                            <div className="h-px flex-1 bg-slate-200" />
+                                        </div>
+                                        {etablissement.adresse && <InfoBox label="Adresse" value={etablissement.adresse} />}
+                                        {etablissement.telephone && <InfoBox label="Téléphone" value={etablissement.telephone} />}
+                                        {etablissement.site_web && (
+                                            <div className="rounded-2xl bg-slate-50 p-5">
+                                                <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">Site web</p>
+                                                <a href={etablissement.site_web} target="_blank" rel="noreferrer"
+                                                    className="mt-3 block break-words text-sm font-bold leading-7 text-blue-600 hover:underline">
+                                                    {etablissement.site_web}
+                                                </a>
+                                            </div>
+                                        )}
+                                        {(etablissement.responsable_nom || etablissement.responsable_fonction) && (
+                                            <div className="rounded-2xl bg-emerald-50 p-5 space-y-1">
+                                                <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">Responsable</p>
+                                                {etablissement.responsable_nom && (
+                                                    <p className="mt-2 text-sm font-bold text-slate-800">{etablissement.responsable_nom}</p>
+                                                )}
+                                                {etablissement.responsable_fonction && (
+                                                    <p className="text-xs text-slate-500">{etablissement.responsable_fonction}</p>
+                                                )}
+                                                {etablissement.responsable_email && (
+                                                    <p className="text-xs text-blue-600">{etablissement.responsable_email}</p>
+                                                )}
+                                                {etablissement.responsable_telephone && (
+                                                    <p className="text-xs text-slate-500">{etablissement.responsable_telephone}</p>
+                                                )}
+                                            </div>
+                                        )}
+                                    </>
+                                )}
+
                                 <InfoBox label="Créé par" value={dossier.created_by || dossier.created_by_name} />
                                 <InfoBox label="Mise à jour" value={dossier.updated_at} />
+                            </div>
+                        </div>
+
+                        {/* ── Coordonnateur expert ── */}
+                        <div className="rounded-[2rem] border border-slate-200 bg-white p-7 shadow-sm">
+                            <div className="flex items-start gap-4">
+                                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-purple-50 text-purple-600">
+                                    <svg width={24} height={24} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                                        <circle cx="12" cy="8" r="4"/><path d="M6 20v-2a4 4 0 014-4h4a4 4 0 014 4v2"/>
+                                        <path d="M16 3.5l1.5 1.5L20 2" strokeWidth="2"/>
+                                    </svg>
+                                </div>
+                                <div>
+                                    <h3 className="text-2xl font-black text-slate-900">Coordonnateur expert</h3>
+                                    <p className="mt-1 text-sm font-medium text-slate-500">
+                                        Expert désigné comme chef du comité d'évaluation.
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div className="mt-7">
+                                {chefComite ? (
+                                    <div className="space-y-4">
+                                        <div className="rounded-2xl bg-purple-50 p-5">
+                                            <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">Nom complet</p>
+                                            <p className="mt-2 text-sm font-bold text-slate-800">
+                                                {chefComite.expert?.name || '—'}
+                                            </p>
+                                        </div>
+                                        {chefComite.expert?.email && (
+                                            <div className="rounded-2xl bg-slate-50 p-5">
+                                                <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">Email</p>
+                                                <p className="mt-2 text-sm font-bold text-slate-800 break-words">
+                                                    {chefComite.expert.email}
+                                                </p>
+                                            </div>
+                                        )}
+                                        {chefComite.expert?.specialite && (
+                                            <div className="rounded-2xl bg-slate-50 p-5">
+                                                <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">Spécialité</p>
+                                                <p className="mt-2 text-sm font-bold text-slate-800">
+                                                    {chefComite.expert.specialite}
+                                                </p>
+                                            </div>
+                                        )}
+                                        {chefComite.expert?.etablissement && (
+                                            <div className="rounded-2xl bg-slate-50 p-5">
+                                                <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">Établissement</p>
+                                                <p className="mt-2 text-sm font-bold text-slate-800">
+                                                    {chefComite.expert.etablissement}
+                                                </p>
+                                            </div>
+                                        )}
+                                        {chefComite.expert?.ville && (
+                                            <div className="rounded-2xl bg-slate-50 p-5">
+                                                <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">Ville</p>
+                                                <p className="mt-2 text-sm font-bold text-slate-800">
+                                                    {chefComite.expert.ville}
+                                                </p>
+                                            </div>
+                                        )}
+                                        <div className="rounded-2xl bg-slate-50 p-5">
+                                            <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">Statut participation</p>
+                                            <span className={`mt-2 inline-block rounded-full px-3 py-1 text-xs font-black ${
+                                                chefComite.status === 'confirme' || chefComite.status === 'confirmed'
+                                                    ? 'bg-emerald-100 text-emerald-700'
+                                                    : chefComite.status === 'en_attente' || chefComite.status === 'pending'
+                                                    ? 'bg-amber-100 text-amber-700'
+                                                    : 'bg-slate-100 text-slate-600'
+                                            }`}>
+                                                {formatExpertStatus(chefComite.status)}
+                                            </span>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="rounded-2xl border-2 border-dashed border-slate-200 p-6 text-center">
+                                        <svg className="mx-auto mb-3 text-slate-300" width={32} height={32} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="12" cy="8" r="4"/><path d="M6 20v-2a4 4 0 014-4h4a4 4 0 014 4v2"/></svg>
+                                        <p className="text-sm font-semibold text-slate-400">Aucun coordonnateur expert désigné</p>
+                                        <p className="mt-1 text-xs text-slate-400">Modifiez le rôle d'un expert pour le désigner.</p>
+                                    </div>
+                                )}
                             </div>
                         </div>
 
@@ -1359,39 +2612,13 @@ function Show({ dossier, experts = [], allExperts = [], dossierExperts = [], doc
                             </div>
 
                             <div className="mt-7 space-y-3">
-                                <ExpectedDocument label="Formulaire ajouté" documents={documents} keywords={['formulaire']} />
-                                <ExpectedDocument label="Rapport d'autoévaluation" documents={documents} keywords={['auto', 'autoevaluation', 'autoévaluation']} />
-                                <ExpectedDocument label="Annexes" documents={documents} keywords={['annexe']} />
-                                <ExpectedDocument label="Rapport expert" documents={documents} keywords={['rapport expert']} />
+                                <ExpectedDocument label="Formulaire ajouté" item={expectedDocuments.formulaire} />
+                                <ExpectedDocument label="Rapport d'autoévaluation" item={expectedDocuments.rapport_autoevaluation} />
+                                <ExpectedDocument label="Annexes" item={expectedDocuments.annexes} />
+                                <ExpectedDocument label="Rapport expert" item={expectedDocuments.rapport_expert} />
                             </div>
                         </div>
 
-                        <div className="rounded-[2rem] bg-gradient-to-br from-[#13255c] to-[#223983] p-7 text-white shadow-xl">
-                            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/10 text-white">
-                                <ShieldCheck size={24} />
-                            </div>
-
-                            <p className="mt-6 text-sm font-bold uppercase tracking-[0.24em] text-blue-100">
-                                Workflow
-                            </p>
-
-                            <h3 className="mt-3 text-2xl font-black">
-                                Statut automatique
-                            </h3>
-
-                            <p className="mt-4 text-sm leading-7 text-blue-50/80">
-                                Le statut change selon les documents déposés par l'établissement ou les experts,
-                                et selon la date de visite planifiée.
-                            </p>
-
-                            <div className="mt-6 space-y-3">
-                                <WorkflowItem text="Formulaire rempli" />
-                                <WorkflowItem text="Rapport d'autoévaluation ajouté" />
-                                <WorkflowItem text="Annexes ajoutées" />
-                                <WorkflowItem text="Rapport expert ajouté" />
-                                <WorkflowItem text="Date de visite planifiée" />
-                            </div>
-                        </div>
                     </div>
                 </div>
             </div>
@@ -1500,6 +2727,18 @@ function Show({ dossier, experts = [], allExperts = [], dossierExperts = [], doc
                     </div>
                 </div>
             )}
+
+            {/* Toast notification */}
+            {toast && (
+                <div className={`fixed bottom-6 right-6 z-50 flex items-center gap-3 rounded-2xl px-5 py-4 text-sm font-black shadow-2xl transition-all ${
+                    toast.type === 'success'
+                        ? 'border border-emerald-200 bg-emerald-600 text-white'
+                        : 'border border-red-200 bg-red-600 text-white'
+                }`}>
+                    <CheckCircle2 size={18} className="shrink-0" />
+                    {toast.message}
+                </div>
+            )}
         </>
     );
 }
@@ -1561,11 +2800,12 @@ function ExpertAssignedCard({ item, readOnly = false, onAccept, onRefuse, onDele
     const isPending = item.status === 'en_attente_confirmation_dee';
     const isSent = item.status === 'acces_envoye' || item.status === 'en_attente_confirmation_expert';
     const isConfirmed = item.status === 'confirme_par_expert';
+    const isRefused = item.status === 'refuse_par_expert';
 
     return (
         <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                <div>
+                <div className="flex-1">
                     <h4 className="font-black text-slate-900">
                         {expertFullName(expert)}
                     </h4>
@@ -1593,12 +2833,24 @@ function ExpertAssignedCard({ item, readOnly = false, onAccept, onRefuse, onDele
                                       ? 'bg-emerald-100 text-emerald-700'
                                       : isSent
                                         ? 'bg-cyan-100 text-cyan-700'
-                                        : 'bg-slate-100 text-slate-700'
+                                        : isRefused
+                                          ? 'bg-red-100 text-red-700'
+                                          : 'bg-slate-100 text-slate-700'
                             }`}
                         >
                             {formatExpertStatus(item.status)}
                         </span>
                     </div>
+
+                    {isRefused && item.motif_refus && (
+                        <div className="mt-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+                            <p className="text-xs font-black text-red-600 uppercase tracking-wide mb-1">Motif de refus</p>
+                            <p className="text-sm text-red-800">{item.motif_refus}</p>
+                            {item.expert_refused_at && (
+                                <p className="mt-1 text-xs text-red-400">Le {item.expert_refused_at}</p>
+                            )}
+                        </div>
+                    )}
                 </div>
 
                 {!readOnly && (
@@ -1653,22 +2905,29 @@ function ExpertAssignedCard({ item, readOnly = false, onAccept, onRefuse, onDele
     );
 }
 
-function ExpectedDocument({ label, documents, keywords }) {
-    const exists = documents.some((document) => {
-        const text = [
-            document.type,
-            document.document_type,
-            document.categorie,
-            document.nom,
-            document.name,
-            document.filename,
-        ]
-            .filter(Boolean)
-            .join(' ')
-            .toLowerCase();
-
-        return keywords.some((keyword) => text.includes(keyword.toLowerCase()));
-    });
+function ExpectedDocument({ label, item = {} }) {
+    const status = item?.statut || 'waiting';
+    const isPendingDeeConfirmation = item?.confirmation_statut === 'pending' && status === 'valid';
+    const isRejectedDee = item?.confirmation_statut === 'rejected';
+    const styles = {
+        valid: {
+            label: 'Validé',
+            badge: 'bg-emerald-100 text-emerald-700',
+        },
+        progress: {
+            label: 'En cours',
+            badge: 'bg-blue-100 text-blue-700',
+        },
+        waiting: {
+            label: 'En attente',
+            badge: 'bg-amber-100 text-amber-700',
+        },
+    };
+    const meta = isRejectedDee
+        ? { label: 'Refusé', badge: 'bg-red-100 text-red-700' }
+        : isPendingDeeConfirmation
+        ? { label: 'À confirmer', badge: 'bg-violet-100 text-violet-700' }
+        : (styles[status] || styles.waiting);
 
     return (
         <div className="flex items-center justify-between rounded-2xl bg-slate-50 p-4">
@@ -1678,32 +2937,95 @@ function ExpectedDocument({ label, documents, keywords }) {
                 </p>
 
                 <p className="mt-1 text-xs font-semibold text-slate-500">
-                    {exists ? 'Document déposé' : 'En attente'}
+                    {item?.detail || 'En attente'}
                 </p>
+                {isRejectedDee && item?.motif_rejet && (
+                    <p className="mt-2 max-w-xs text-xs font-semibold leading-5 text-red-600">
+                        Motif : {item.motif_rejet}
+                    </p>
+                )}
             </div>
 
             <span
-                className={`rounded-full px-3 py-1 text-xs font-black ${
-                    exists ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
-                }`}
+                className={`rounded-full px-3 py-1 text-xs font-black ${meta.badge}`}
             >
-                {exists ? 'Validé' : 'En attente'}
+                {meta.label}
             </span>
         </div>
     );
 }
 
-function WorkflowItem({ text }) {
+function WorkflowProgressBar({ expectedDocuments, hasDateVisite, evaluationsAnnexes, visiteConfirmee = false }) {
+    // Each step reflects its real state independently — no cascade
+    const steps = [
+        { label: 'Formulaire',     done: expectedDocuments?.formulaire?.statut === 'valid' },
+        {
+            label: 'Autoévaluation',
+            done: expectedDocuments?.rapport_autoevaluation?.statut === 'valid'
+                && expectedDocuments?.rapport_autoevaluation?.confirmation_statut === 'confirmed',
+        },
+        { label: 'Annexes',        done: expectedDocuments?.annexes?.envoyees_experts === true },
+        { label: 'Date de visite', done: !!hasDateVisite && visiteConfirmee },
+        { label: 'Éval. Annexes',  done: (evaluationsAnnexes?.length ?? 0) > 0 && evaluationsAnnexes.some(e => e.soumis_le) },
+        { label: 'Rapport expert', done: expectedDocuments?.rapport_expert?.statut === 'valid' },
+    ];
+
+    const doneCount = steps.filter(s => s.done).length;
+    const pct = Math.round((doneCount / steps.length) * 100);
+
     return (
-        <div className="flex items-center gap-3 rounded-2xl bg-white/10 p-3">
-            <BadgeCheck size={18} className="text-blue-200" />
+        <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            {/* top progress bar */}
+            <div className="h-1.5 w-full bg-slate-100">
+                <div
+                    className="h-full bg-gradient-to-r from-emerald-400 to-emerald-500 transition-all duration-500"
+                    style={{ width: `${pct}%` }}
+                />
+            </div>
 
-            <span className="text-sm font-semibold text-blue-50">
-                {text}
-            </span>
+            <div className="px-6 py-3">
+                <div className="mb-3 flex items-center justify-between">
+                    <p className="text-xs font-black uppercase tracking-widest text-slate-400">Progression du dossier</p>
+                    <span className="rounded-full bg-emerald-50 px-3 py-0.5 text-xs font-black text-emerald-600">
+                        {doneCount}/{steps.length} étapes
+                    </span>
+                </div>
+
+                <div className="flex items-center">
+                    {steps.map((step, i) => (
+                        <div key={step.label} className={`flex items-center ${i < steps.length - 1 ? 'flex-1' : 'flex-shrink-0'}`}>
+                            <div className="flex flex-col items-center gap-1.5 flex-shrink-0">
+                                <div className={`flex h-10 w-10 items-center justify-center rounded-full shadow-sm transition-all duration-300 ${
+                                    step.done
+                                        ? 'bg-emerald-500 text-white shadow-emerald-200'
+                                        : 'bg-slate-100 text-slate-400 border border-slate-200'
+                                }`}>
+                                    {step.done
+                                        ? <CheckCircle2 size={20} strokeWidth={2.5} />
+                                        : <span className="text-xs font-black">{i + 1}</span>
+                                    }
+                                </div>
+                                <span className={`text-[11px] font-bold text-center leading-tight w-[72px] ${
+                                    step.done ? 'text-emerald-600' : 'text-slate-400'
+                                }`}>{step.label}</span>
+                            </div>
+                            {i < steps.length - 1 && (
+                                <div className="flex-1 mx-1 mb-5">
+                                    <div className="h-0.5 w-full rounded-full bg-slate-100 overflow-hidden">
+                                        <div className={`h-full rounded-full transition-all duration-500 ${
+                                            step.done ? 'bg-emerald-400 w-full' : 'w-0'
+                                        }`} />
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    ))}
+                </div>
+            </div>
         </div>
     );
 }
+
 
 function CategorieBadge({ categorie }) {
     const styles = {
@@ -1720,11 +3042,31 @@ function CategorieBadge({ categorie }) {
     );
 }
 
-function RapportExpertCard({ rapport, readOnly = false, onValider, onRejeter }) {
+function formatDocumentType(type) {
+    const value = String(type || 'document').trim();
+    const normalized = value.toLowerCase();
+    const labels = {
+        rapport_autoevaluation: "Rapport d'autoévaluation",
+        rapport_auto_evaluation: "Rapport d'autoévaluation",
+        document_complementaire: 'Document complémentaire',
+        lettre_dee: 'Lettre DEE',
+        rapport_aneaq: 'Rapport ANEAQ',
+        rapport_expert: 'Rapport expert',
+        formulaire: 'Formulaire',
+        annexe: 'Annexe',
+        document: 'Document',
+    };
+
+    return labels[normalized]
+        || value.replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function RapportExpertCard({ rapport, readOnly = false, onValider, onRejeter, onEnvoyer }) {
     const statutStyles = {
-        depose: { bg: 'bg-amber-100 text-amber-700', label: 'En attente' },
-        valide: { bg: 'bg-emerald-100 text-emerald-700', label: 'Validé' },
-        rejete: { bg: 'bg-red-100 text-red-700', label: 'Refusé' },
+        depose:               { bg: 'bg-amber-100 text-amber-700',   label: 'En attente' },
+        valide:               { bg: 'bg-emerald-100 text-emerald-700', label: 'Validé' },
+        rejete:               { bg: 'bg-red-100 text-red-700',        label: 'Refusé' },
+        envoye_etablissement: { bg: 'bg-blue-100 text-blue-700',      label: 'Envoyé à l\'établissement' },
     };
     const s = statutStyles[rapport.statut] || statutStyles.depose;
 
@@ -1755,7 +3097,7 @@ function RapportExpertCard({ rapport, readOnly = false, onValider, onRejeter }) 
                             <p className="mt-1 text-sm font-medium text-red-700">{rapport.motif_rejet}</p>
                         </div>
                     )}
-                    {rapport.statut === 'valide' && rapport.valide_le && (
+                    {['valide', 'envoye_etablissement'].includes(rapport.statut) && rapport.valide_le && (
                         <p className="mt-2 text-xs font-semibold text-emerald-600">
                             Validé le {rapport.valide_le}{rapport.valide_par ? ` par ${rapport.valide_par}` : ''}
                         </p>
@@ -1774,6 +3116,22 @@ function RapportExpertCard({ rapport, readOnly = false, onValider, onRejeter }) 
                             <Eye size={15} />
                             Ouvrir
                         </a>
+                    )}
+                    {rapport.statut === 'valide' && !readOnly && (
+                        <button
+                            type="button"
+                            onClick={onEnvoyer}
+                            className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-black text-white transition hover:bg-blue-700"
+                        >
+                            <Send size={15} />
+                            Envoyer à l'établissement
+                        </button>
+                    )}
+                    {rapport.statut === 'envoye_etablissement' && (
+                        <span className="inline-flex items-center gap-2 rounded-xl bg-emerald-50 border border-emerald-200 px-4 py-2.5 text-sm font-black text-emerald-700">
+                            <CheckCircle2 size={15} />
+                            Rapport envoyé
+                        </span>
                     )}
                     {rapport.statut === 'depose' && !readOnly && (
                         <>
@@ -1810,7 +3168,7 @@ function expertFullName(expert) {
 function formatExpertRole(role) {
     const labels = {
         expert: 'Expert',
-        chef_comite: 'Chef de comité',
+        chef_comite: 'Coordonnateur expert',
     };
 
     return labels[role] || 'Expert';

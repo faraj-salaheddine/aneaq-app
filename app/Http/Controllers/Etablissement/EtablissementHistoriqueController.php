@@ -12,9 +12,10 @@ use Inertia\Inertia;
 
 class EtablissementHistoriqueController extends Controller
 {
+    use ResolvesActiveEtablissement;
     public function index()
     {
-        $etablissement = Etablissement::where('user_id', Auth::id())->firstOrFail();
+        $etablissement = $this->activeEtablissement();
         $dossier       = Dossier::where('etablissement_id', $etablissement->id)->latest()->first();
         $dossierIds    = Dossier::where('etablissement_id', $etablissement->id)->pluck('id');
 
@@ -144,7 +145,7 @@ class EtablissementHistoriqueController extends Controller
                 foreach ($assignments as $de) {
                     $expert = DB::table('experts')->where('id', $de->expert_id)->first();
                     $expertName = $expert ? trim(($expert->prenom ?? '') . ' ' . ($expert->nom ?? '')) : 'Expert';
-                    $role = $de->role_expert === 'chef_comite' ? 'Chef de comité' : 'Expert';
+                    $role = $de->role_expert === 'chef_comite' ? 'Coordonnateur expert' : 'Expert';
 
                     $events->push([
                         'id'           => 'expert_assigned_' . $de->id,

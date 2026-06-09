@@ -1,6 +1,5 @@
 import { Head, router } from "@inertiajs/react";
 import EtablissementLayout from "@/Layouts/Etablissement/EtablissementLayout";
-import MessageriePanel from "@/Components/MessageriePanel";
 
 const BLUE = "#0C447C", GREEN = "#1D9E75", ORANGE = "#EF9F27";
 
@@ -64,6 +63,41 @@ export default function EtablissementDashboard({
                         </div>
                     );
                 })()}
+
+                {/* Accès dossier affecté */}
+                {dossier && (
+                    <div className="fade-up" style={{ marginBottom: "1.5rem", borderRadius: 18, overflow: "hidden", background: "#fff", border: "1px solid #bfdbfe", boxShadow: "0 10px 28px rgba(12,68,124,.08)", animationDelay: "0.04s" }}>
+                        <div style={{ padding: "1.4rem 1.6rem", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 18, background: "linear-gradient(135deg,#eff6ff,#ffffff)" }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 14, minWidth: 0 }}>
+                                <div style={{ width: 46, height: 46, borderRadius: 14, background: BLUE, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 900, flexShrink: 0 }}>
+                                    D
+                                </div>
+                                <div style={{ minWidth: 0 }}>
+                                    <div style={{ fontSize: 11, fontWeight: 900, color: BLUE, textTransform: "uppercase", letterSpacing: ".12em", marginBottom: 4 }}>Dossier affecté</div>
+                                    <div style={{ fontSize: 18, fontWeight: 900, color: "#0f172a", lineHeight: 1.2 }}>
+                                        {dossier.reference || "Dossier en cours"}
+                                    </div>
+                                    <div style={{ fontSize: 12, color: "#64748b", fontWeight: 600, marginTop: 4 }}>
+                                        Consultez les informations du dossier, les documents, les annexes, les recommandations et les échanges DEE.
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
+                                {sm && (
+                                    <span style={{ fontSize: 12, fontWeight: 800, padding: "6px 12px", borderRadius: 99, color: sm.color, background: sm.bg }}>
+                                        {sm.label}
+                                    </span>
+                                )}
+                                <button
+                                    onClick={() => router.visit("/etablissement/dossier")}
+                                    style={{ padding: "10px 18px", border: "none", borderRadius: 11, background: BLUE, color: "#fff", fontSize: 13, fontWeight: 800, cursor: "pointer", whiteSpace: "nowrap" }}>
+                                    Ouvrir le dossier →
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
 
                 {/* Statut + Tâches */}
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", marginBottom: "1.5rem" }}>
@@ -246,9 +280,7 @@ export default function EtablissementDashboard({
 
             </div>
 
-            {dossierId && (
-                <MessageriePanel dossierId={dossierId} currentRole="etablissement" />
-            )}
+
         </>
     );
 }
