@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\DEE;
 
+use App\Exports\DossierExpertsExport;
 use App\Http\Controllers\Controller;
 
 use App\Models\Dossier;
@@ -358,6 +359,16 @@ class DossierController extends Controller
         return response()->download($path, $criterePreuve->fichier_nom);
     }
 
+    public function voirAnnexe(Dossier $dossier, \App\Models\CriterePreuve $criterePreuve)
+    {
+        abort_if($criterePreuve->etablissement_id !== $dossier->etablissement_id, 403);
+        $path = storage_path('app/public/' . $criterePreuve->fichier_path);
+        abort_if(!file_exists($path), 404);
+        return response()->file($path, [
+            'Content-Disposition' => 'inline; filename="' . $criterePreuve->fichier_nom . '"',
+        ]);
+    }
+
     public function update(Request $request, Dossier $dossier)
     {
         $validated = $request->validate([
@@ -475,54 +486,13 @@ class DossierController extends Controller
             ActivityLogger::log('dossier_supprime', "Dossier {$dossier->reference} supprimé par la DEE", $etablissementModel);
         }
 
-        // Cascade: delete dossier_experts (expert affectations)
-        if (Schema::hasTable('dossier_experts')) {
-            DB::table('dossier_experts')->where('dossier_id', $dossier->id)->delete();
-        }
-
-        // Cascade: delete documents (and their files from disk)
-        foreach (['dossier_documents', 'documents'] as $docTable) {
-            if (Schema::hasTable($docTable)) {
-                $docs = DB::table($docTable)->where('dossier_id', $dossier->id)->get();
-                foreach ($docs as $doc) {
-                    $path = $doc->file_path ?? $doc->path ?? $doc->fichier ?? null;
-                    if ($path) {
-                        if (\Illuminate\Support\Facades\Storage::disk('public')->exists($path)) {
-                            \Illuminate\Support\Facades\Storage::disk('public')->delete($path);
-                        } elseif (\Illuminate\Support\Facades\Storage::disk('local')->exists($path)) {
-                            \Illuminate\Support\Facades\Storage::disk('local')->delete($path);
-                        }
-                    }
-                }
-                DB::table($docTable)->where('dossier_id', $dossier->id)->delete();
-            }
-        }
-
-        // Cascade: delete rapports experts
-        if (Schema::hasTable('rapports_experts')) {
-            $rapports = DB::table('rapports_experts')->where('dossier_id', $dossier->id)->get();
-            foreach ($rapports as $r) {
-                $path = $r->fichier ?? $r->file_path ?? null;
-                if ($path && \Illuminate\Support\Facades\Storage::disk('public')->exists($path)) {
-                    \Illuminate\Support\Facades\Storage::disk('public')->delete($path);
-                }
-            }
-            DB::table('rapports_experts')->where('dossier_id', $dossier->id)->delete();
-        }
-
-        // Cascade: delete messages
-        if (Schema::hasTable('messages_dossier')) {
-            DB::table('messages_dossier')->where('dossier_id', $dossier->id)->delete();
-        }
-
-        // Remove the établissement from the vague so it can be re-added
-        if (!empty($dossier->campagne_etablissement_id)) {
-            DB::table('campagne_etablissements')
-                ->where('id', $dossier->campagne_etablissement_id)
-                ->delete();
-        }
-
+        // Model's deleting event handles cascade: files on disk, campagne_etablissement, and DB rows cascade via FK
         $dossier->delete();
+    }
+
+    public function exportExperts(Dossier $dossier)
+    {
+        (new DossierExpertsExport())->download($dossier);
 
         return redirect()
             ->route('dee.dossiers.index')
@@ -811,6 +781,7 @@ class DossierController extends Controller
                 $requiresDeeConfirmation = DossierDocumentService::requiresDeeConfirmationForExperts($document);
                 $availableToExperts = DossierDocumentService::isAvailableToExperts($document);
                 $pendingDeeConfirmation = DossierDocumentService::isPendingDeeConfirmation($document);
+                $acceptedByDee = DossierDocumentService::isAcceptedByDee($document);
                 $rejectedByDee = DossierDocumentService::isRejectedByDee($document);
 
                 return [
@@ -841,6 +812,7 @@ class DossierController extends Controller
                     'requires_dee_confirmation' => $requiresDeeConfirmation,
                     'available_to_experts' => $availableToExperts,
                     'pending_dee_confirmation' => $pendingDeeConfirmation,
+                    'accepted_by_dee' => $acceptedByDee,
                     'rejected_by_dee' => $rejectedByDee,
 
                     'created_at' => $this->formatDateDisplay($this->objectValue($document, ['created_at'])),

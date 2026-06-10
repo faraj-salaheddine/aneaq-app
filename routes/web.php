@@ -48,6 +48,7 @@ use App\Http\Controllers\Etablissement\AnnexeController;
 use App\Http\Controllers\Etablissement\EtablissementNotificationController;
 use App\Http\Controllers\Etablissement\EtablissementHistoriqueController;
 use App\Http\Controllers\DEE\SuiviRecommandationController;
+use App\Http\Controllers\DEE\ParametresController;
 use App\Http\Controllers\DEE\RapportExpertValidationController;
 use App\Http\Controllers\Etablissement\RecommandationSuiviController;
 use App\Http\Controllers\Etablissement\VisiteConfirmationController as EtabVisiteController;
@@ -217,6 +218,7 @@ Route::middleware(['auth', 'dee.admin'])
             Route::get('/{campagneEvaluation}', [CampagneEvaluationController::class, 'show'])->name('show');
             Route::patch('/{campagneEvaluation}', [CampagneEvaluationController::class, 'update'])->name('update');
             Route::delete('/{campagneEvaluation}', [CampagneEvaluationController::class, 'destroy'])->name('destroy');
+            Route::get('/{campagneEvaluation}/export', [CampagneEvaluationController::class, 'export'])->name('export');
 
             Route::get('/{campagneEvaluation}/etablissements', function (CampagneEvaluation $campagneEvaluation) {
                 return redirect()->route('dee.campagnes.show', $campagneEvaluation);
@@ -237,9 +239,12 @@ Route::middleware(['auth', 'dee.admin'])
             Route::patch('/{dossier}', [DossierController::class, 'update'])->name('update');
             Route::delete('/{dossier}', [DossierController::class, 'destroy'])->name('destroy');
             Route::get('/{dossier}/annexes/{criterePreuve}/download', [DossierController::class, 'downloadAnnexe'])->name('annexes.download');
+            Route::get('/{dossier}/annexes/{criterePreuve}/voir', [DossierController::class, 'voirAnnexe'])->name('annexes.voir');
 
             Route::post('/{dossier}/documents', [DossierDocumentController::class, 'store'])
                 ->name('documents.store');
+            Route::post('/{dossier}/documents/rapport-autoevaluation/accepter', [DossierDocumentController::class, 'accepterRapportAutoevaluation'])
+                ->name('documents.rapport_autoevaluation.accept');
             Route::post('/{dossier}/documents/rapport-autoevaluation/confirmer', [DossierDocumentController::class, 'confirmRapportAutoevaluation'])
                 ->name('documents.rapport_autoevaluation.confirm');
             Route::post('/{dossier}/documents/rapport-autoevaluation/refuser', [DossierDocumentController::class, 'rejectRapportAutoevaluation'])
@@ -293,9 +298,10 @@ Route::middleware(['auth', 'dee.admin'])
         Route::get('/suivi-avancement', [SuiviAvancementController::class, 'index'])->name('suivi-avancement.index');
 
         // Export PDF
-        Route::get('/dossiers/{dossier}/export/matrice', [ExportPdfController::class, 'matrice'])->name('dossiers.export.matrice');
-        Route::get('/dossiers/{dossier}/export/rapport', [ExportPdfController::class, 'rapport'])->name('dossiers.export.rapport');
         Route::get('/dossiers/{dossier}/export/evaluation-annexes', [ExportPdfController::class, 'evaluationAnnexes'])->name('dossiers.export.evaluation-annexes');
+
+        // Export Excel experts
+        Route::get('/dossiers/{dossier}/export/experts', [DossierController::class, 'exportExperts'])->name('dossiers.export.experts');
 
         // Calendrier des visites
         Route::get('/calendrier-visites', [CalendrierVisitesController::class, 'index'])->name('calendrier-visites.index');
@@ -319,6 +325,12 @@ Route::middleware(['auth', 'dee.admin'])
             Route::post('/{recommandation}/envoyer-etablissement-one', [SuiviRecommandationController::class, 'envoyerEtablissementOne'])->name('envoyer-etablissement-one');
             Route::post('/envoyer-rappel', [SuiviRecommandationController::class, 'envoyerRappel'])->name('envoyer-rappel');
             Route::post('/{recommandation}/cloturer', [SuiviRecommandationController::class, 'cloturer'])->name('cloturer');
+        });
+
+        // Paramètres plateforme
+        Route::prefix('parametres')->name('parametres.')->group(function () {
+            Route::get('/', [ParametresController::class, 'index'])->name('index');
+            Route::patch('/', [ParametresController::class, 'update'])->name('update');
         });
     });
 
@@ -487,6 +499,9 @@ Route::middleware(['auth', 'role:expert'])
                 ->name('soumettre');
         });
 
+        // Sidebar redirect: trouve le premier dossier actif et redirige vers ses recommandations
+        Route::get('/recommandations', [RecommandationDomaineController::class, 'redirect'])->name('recommandations.redirect');
+
         // Recommandations par domaine
         Route::prefix('recommandations-domaine')->name('recommandations-domaine.')->group(function () {
             Route::get('/{dossier}', [RecommandationDomaineController::class, 'index'])->name('index');
@@ -559,6 +574,7 @@ Route::middleware(['auth', 'role:etablissement'])
         Route::get('/annexes', [AnnexeController::class, 'index'])->name('annexes');
         Route::post('/annexes', [AnnexeController::class, 'store'])->name('annexes.store');
         Route::get('/annexes/{criterePreuve}/download', [AnnexeController::class, 'download'])->name('annexes.download');
+        Route::get('/annexes/{criterePreuve}/voir', [AnnexeController::class, 'voir'])->name('annexes.voir');
         Route::post('/annexes/note', [AnnexeController::class, 'saveNote'])->name('annexes.note');
         Route::post('/annexes/notes/batch', [AnnexeController::class, 'saveNotesBatch'])->name('annexes.notes.batch');
         Route::post('/annexes/publier', [AnnexeController::class, 'publier'])->name('annexes.publier');

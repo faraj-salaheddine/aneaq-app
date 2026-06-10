@@ -109,7 +109,7 @@ function DossierRow({ dossier }) {
                     {chef && (
                         <ExpertLine
                             name={chef.name}
-                            role="Chef de comité"
+                            role="Coordonnateur expert"
                             status={chef.status}
                             isChef
                         />

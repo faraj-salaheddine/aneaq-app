@@ -355,7 +355,7 @@ function iconLetter(type) {
 function formatRole(role) {
     const labels = {
         expert: 'Expert',
-        chef_comite: 'Chef de comité',
+        chef_comite: 'Coordonnateur expert',
     };
 
     return labels[role] || role || '—';

@@ -181,8 +181,8 @@ export default function DossiersIndex({ dossiers = [] }) {
 function DossierCard({ d }) {
     const sm = STATUT_META[d.statut] || { label: d.statut || '—', color: '#64748b', bg: '#f1f5f9', dot: '#94a3b8' };
     const initials = d.acronyme ? d.acronyme.slice(0, 3).toUpperCase() : (d.nom || '?').slice(0, 2).toUpperCase();
-    const roleColor = d.role_comite === 'Chef de comité' ? ORANGE : BLUE;
-    const roleBg    = d.role_comite === 'Chef de comité' ? '#fef3c7' : '#dbeafe';
+    const roleColor = d.role_comite === 'Coordonnateur expert' ? ORANGE : BLUE;
+    const roleBg    = d.role_comite === 'Coordonnateur expert' ? '#fef3c7' : '#dbeafe';
 
     return (
         <div className="doss-card" onClick={() => router.visit(route('expert.dossiers.show', d.id))}

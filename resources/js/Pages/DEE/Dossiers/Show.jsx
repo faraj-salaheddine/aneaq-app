@@ -3,6 +3,7 @@ import SuiviRecommandationsTab from '@/Components/DEE/SuiviRecommandationsTab';
 import DashboardShell from '@/Layouts/DashboardShell';
 import ConfirmModal from '@/Components/ConfirmModal';
 import AnnexesConformityDashboard from '@/Components/DEE/AnnexesConformityDashboard';
+import PreviewModal from '@/Components/PreviewModal';
 import {
     AlertTriangle,
     ArrowLeft,
@@ -46,8 +47,10 @@ const NOTE_OPTS_DEE = [
 /* ── Preuve row (read-only) ── */
 function PreuveDEE({ preuve, dossierId }) {
     const opt = NOTE_OPTS_DEE.find(o => o.val === preuve.note);
+    const [preview, setPreview] = useState(null);
     return (
         <tr className="border-t border-slate-100 hover:bg-slate-50/50">
+            {preview && <PreviewModal url={preview.url} fileName={preview.fileName} onClose={() => setPreview(null)} />}
             <td className="px-4 py-2.5 text-center">
                 <span className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-slate-200 bg-slate-100 text-xs font-bold text-slate-600">
                     {preuve.preuve_index + 1}
@@ -56,11 +59,18 @@ function PreuveDEE({ preuve, dossierId }) {
             <td className="max-w-sm px-4 py-2.5 text-xs text-slate-700">{preuve.preuve_label}</td>
             <td className="px-4 py-2.5">
                 {preuve.fichier_nom ? (
-                    <a href={route('dee.dossiers.annexes.download', { dossier: dossierId, criterePreuve: preuve.fichier_id })}
-                        target="_blank" rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 rounded-lg bg-blue-50 px-2.5 py-1 text-xs font-bold text-blue-700 hover:bg-blue-100 transition">
-                        📄 {preuve.fichier_nom.length > 20 ? preuve.fichier_nom.slice(0,20)+'…' : preuve.fichier_nom}
-                    </a>
+                    <div className="inline-flex items-center gap-2">
+                        <span className="inline-flex items-center gap-1 rounded-lg bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-600 border border-slate-200">
+                            📄 {preuve.fichier_nom.length > 22 ? preuve.fichier_nom.slice(0,22)+'…' : preuve.fichier_nom}
+                        </span>
+                        <button
+                            title="Visualiser le fichier"
+                            onClick={() => setPreview({ url: route('dee.dossiers.annexes.voir', { dossier: dossierId, criterePreuve: preuve.fichier_id }), fileName: preuve.fichier_nom })}
+                            className="inline-flex items-center justify-center rounded-md border border-slate-200 bg-slate-50 text-slate-500 hover:bg-blue-50 hover:border-blue-200 hover:text-blue-600 transition"
+                            style={{ width: 26, height: 26, cursor: 'pointer', flexShrink: 0 }}>
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                        </button>
+                    </div>
                 ) : <span className="text-xs italic text-slate-400">Aucun fichier</span>}
             </td>
             <td className="px-4 py-2.5 text-center">
@@ -545,11 +555,30 @@ function Show({ dossier, experts = [], allExperts = [], dossierExperts = [], doc
         openSecureDeleteModal('document', item);
     };
 
+    const accepterRapportAutoevaluation = () => {
+        setDialog({
+            title: "Accepter le rapport d'autoévaluation",
+            message: "Accepter ce rapport le marquera comme validé par la DEE. Vous pourrez ensuite l'envoyer aux experts quand vous le souhaitez.",
+            confirmLabel: 'Accepter',
+            danger: false,
+            onConfirm: () => {
+                router.post(
+                    `/dee/dossiers/${dossier.id}/documents/rapport-autoevaluation/accepter`,
+                    {},
+                    {
+                        preserveScroll: true,
+                        onSuccess: () => setDialog(null),
+                    }
+                );
+            },
+        });
+    };
+
     const confirmRapportAutoevaluation = () => {
         setDialog({
-            title: "Confirmer le rapport d'autoévaluation",
-            message: "Confirmer ce rapport le rendra immédiatement visible à tous les experts confirmés du dossier.",
-            confirmLabel: 'Confirmer et envoyer aux experts',
+            title: "Envoyer le rapport aux experts",
+            message: "Ce rapport sera immédiatement visible à tous les experts confirmés du dossier.",
+            confirmLabel: 'Envoyer aux experts',
             danger: false,
             onConfirm: () => {
                 router.post(
@@ -722,6 +751,9 @@ function Show({ dossier, experts = [], allExperts = [], dossierExperts = [], doc
     const etablissement = dossier.etablissement || {};
     const pendingAutoevaluationDocument = documents.find(
         (document) => document.requires_dee_confirmation && document.pending_dee_confirmation
+    );
+    const acceptedAutoevaluationDocument = documents.find(
+        (document) => document.requires_dee_confirmation && document.accepted_by_dee
     );
     const rejectedAutoevaluationDocument = documents.find(
         (document) => document.requires_dee_confirmation && document.rejected_by_dee
@@ -948,21 +980,11 @@ function Show({ dossier, experts = [], allExperts = [], dossierExperts = [], doc
                         )}
 
                         <a
-                            href={`/dee/dossiers/${dossier.id}/export/matrice`}
-                            target="_blank"
-                            className="inline-flex items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-3 text-sm font-black text-emerald-700 shadow-sm transition hover:bg-emerald-100"
+                            href={`/dee/dossiers/${dossier.id}/export/experts`}
+                            className="inline-flex items-center gap-2 rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-black text-white shadow-sm transition hover:bg-emerald-700"
                         >
-                            <FileText size={17} />
-                            Export matrice PDF
-                        </a>
-
-                        <a
-                            href={`/dee/dossiers/${dossier.id}/export/rapport`}
-                            target="_blank"
-                            className="inline-flex items-center gap-2 rounded-2xl border border-purple-200 bg-purple-50 px-5 py-3 text-sm font-black text-purple-700 shadow-sm transition hover:bg-purple-100"
-                        >
-                            <FileText size={17} />
-                            Export rapport PDF
+                            <Download size={17} />
+                            Exporter les experts
                         </a>
 
                         {evaluationsAnnexes.length > 0 && (
@@ -1050,7 +1072,7 @@ function Show({ dossier, experts = [], allExperts = [], dossierExperts = [], doc
                                     <div className="flex items-start gap-2 pt-2 border-t border-blue-400/30">
                                         <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="mt-0.5 shrink-0"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
                                         <span>
-                                            <span className="text-blue-200 font-semibold">Chef de comité : </span>
+                                            <span className="text-blue-200 font-semibold">Coordonnateur expert : </span>
                                             <span className="font-bold">{etablissement.responsable_nom}</span>
                                             {etablissement.responsable_fonction && (
                                                 <span className="text-blue-200"> — {etablissement.responsable_fonction}</span>
@@ -1742,7 +1764,7 @@ function Show({ dossier, experts = [], allExperts = [], dossierExperts = [], doc
                                                     className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 outline-none focus:border-blue-500"
                                                 >
                                                     <option value="expert">Expert</option>
-                                                    <option value="chef_comite">Chef de comité</option>
+                                                    <option value="chef_comite">Coordonnateur expert</option>
                                                 </select>
 
                                                 {expertForm.errors.role_expert && (
@@ -1840,9 +1862,51 @@ function Show({ dossier, experts = [], allExperts = [], dossierExperts = [], doc
                                             <BadgeCheck size={18} color="#fff" />
                                         </div>
                                         <div>
-                                            <p style={{ margin: 0, fontSize: 14, fontWeight: 800, color: '#1e1b4b' }}>Rapport d'autoévaluation à confirmer</p>
+                                            <p style={{ margin: 0, fontSize: 14, fontWeight: 800, color: '#1e1b4b' }}>Rapport d'autoévaluation en attente de décision</p>
                                             <p style={{ margin: '3px 0 0', fontSize: 12, fontWeight: 500, color: '#64748b', lineHeight: 1.5 }}>
-                                                Les fichiers restent invisibles aux experts jusqu'à votre confirmation.
+                                                Les fichiers restent invisibles aux experts jusqu'à l'envoi.
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div style={{ padding: '14px 20px', display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                                        <button
+                                            type="button"
+                                            onClick={accepterRapportAutoevaluation}
+                                            style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '9px 18px', borderRadius: 10, border: 'none', background: '#16a34a', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+                                        >
+                                            <BadgeCheck size={15} />
+                                            Accepter
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={confirmRapportAutoevaluation}
+                                            style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '9px 18px', borderRadius: 10, border: 'none', background: '#7c3aed', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+                                        >
+                                            <Send size={15} />
+                                            Envoyer aux experts
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={openRejectRapportAutoevaluation}
+                                            style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '9px 18px', borderRadius: 10, border: 'none', background: '#dc2626', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+                                        >
+                                            <XCircle size={15} />
+                                            Refuser
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {acceptedAutoevaluationDocument && (
+                                <div style={{ marginTop: 24, borderRadius: 16, border: '1.5px solid #bbf7d0', background: 'linear-gradient(135deg, #f0fdf4, #eff6ff)', overflow: 'hidden' }}>
+                                    <div style={{ padding: '16px 20px', borderBottom: '1px solid #bbf7d0', display: 'flex', alignItems: 'center', gap: 12 }}>
+                                        <div style={{ width: 38, height: 38, borderRadius: 11, background: '#16a34a', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                            <BadgeCheck size={18} color="#fff" />
+                                        </div>
+                                        <div>
+                                            <p style={{ margin: 0, fontSize: 14, fontWeight: 800, color: '#14532d' }}>Rapport accepté — en attente d'envoi aux experts</p>
+                                            <p style={{ margin: '3px 0 0', fontSize: 12, fontWeight: 500, color: '#64748b', lineHeight: 1.5 }}>
+                                                Le rapport est validé. Cliquez sur "Envoyer aux experts" pour le rendre visible.
                                             </p>
                                         </div>
                                     </div>
@@ -1852,8 +1916,8 @@ function Show({ dossier, experts = [], allExperts = [], dossierExperts = [], doc
                                             onClick={confirmRapportAutoevaluation}
                                             style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '9px 18px', borderRadius: 10, border: 'none', background: '#7c3aed', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
                                         >
-                                            <BadgeCheck size={15} />
-                                            Accepter et envoyer aux experts
+                                            <Send size={15} />
+                                            Envoyer aux experts
                                         </button>
                                         <button
                                             type="button"
@@ -1861,7 +1925,7 @@ function Show({ dossier, experts = [], allExperts = [], dossierExperts = [], doc
                                             style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '9px 18px', borderRadius: 10, border: 'none', background: '#dc2626', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
                                         >
                                             <XCircle size={15} />
-                                            Refuser et demander correction
+                                            Refuser
                                         </button>
                                     </div>
                                 </div>
@@ -2101,7 +2165,7 @@ function Show({ dossier, experts = [], allExperts = [], dossierExperts = [], doc
                             </div>
                         </div>
 
-                        {/* ── Chef de comité ── */}
+                        {/* ── Coordonnateur expert ── */}
                         <div className="rounded-[2rem] border border-slate-200 bg-white p-7 shadow-sm">
                             <div className="flex items-start gap-4">
                                 <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-purple-50 text-purple-600">
@@ -2111,7 +2175,7 @@ function Show({ dossier, experts = [], allExperts = [], dossierExperts = [], doc
                                     </svg>
                                 </div>
                                 <div>
-                                    <h3 className="text-2xl font-black text-slate-900">Chef de comité</h3>
+                                    <h3 className="text-2xl font-black text-slate-900">Coordonnateur expert</h3>
                                     <p className="mt-1 text-sm font-medium text-slate-500">
                                         Expert désigné comme chef du comité d'évaluation.
                                     </p>
@@ -2175,7 +2239,7 @@ function Show({ dossier, experts = [], allExperts = [], dossierExperts = [], doc
                                 ) : (
                                     <div className="rounded-2xl border-2 border-dashed border-slate-200 p-6 text-center">
                                         <svg className="mx-auto mb-3 text-slate-300" width={32} height={32} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="12" cy="8" r="4"/><path d="M6 20v-2a4 4 0 014-4h4a4 4 0 014 4v2"/></svg>
-                                        <p className="text-sm font-semibold text-slate-400">Aucun chef de comité désigné</p>
+                                        <p className="text-sm font-semibold text-slate-400">Aucun coordonnateur expert désigné</p>
                                         <p className="mt-1 text-xs text-slate-400">Modifiez le rôle d'un expert pour le désigner.</p>
                                     </div>
                                 )}
@@ -2759,7 +2823,7 @@ function expertFullName(expert) {
 function formatExpertRole(role) {
     const labels = {
         expert: 'Expert',
-        chef_comite: 'Chef de comité',
+        chef_comite: 'Coordonnateur expert',
     };
 
     return labels[role] || 'Expert';

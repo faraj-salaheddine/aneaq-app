@@ -739,8 +739,8 @@ function MemberRow({ member }) {
         refuse_par_expert:   { label: 'Refusé',   color: RED,       bg: '#fee2e2' },
     }[member.status] || { label: member.status_label || '—', color: '#64748b', bg: '#f1f5f9' };
 
-    const roleColor = role === 'Coordinateur' || role === 'chef_comite' ? ORANGE : BLUE;
-    const roleBg    = role === 'Coordinateur' || role === 'chef_comite' ? '#fef3c7' : '#dbeafe';
+    const roleColor = role === 'Coordonnateur expert' || role === 'chef_comite' ? ORANGE : BLUE;
+    const roleBg    = role === 'Coordonnateur expert' || role === 'chef_comite' ? '#fef3c7' : '#dbeafe';
 
     return (
         <div className="member-card" style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '1rem 1.1rem', background: '#f8fafc', border: '1.5px solid #f1f5f9', borderRadius: 14 }}>
@@ -821,7 +821,7 @@ function initials(name) {
 }
 
 function formatRole(role) {
-    return { chef_comite: 'Coordinateur', expert: 'Expert' }[role] || role || 'Expert';
+    return { chef_comite: 'Coordonnateur expert', expert: 'Expert' }[role] || role || 'Expert';
 }
 
 function formatDate(value) {

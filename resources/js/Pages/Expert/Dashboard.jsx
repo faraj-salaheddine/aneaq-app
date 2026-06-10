@@ -564,7 +564,7 @@ function getInitials(name) {
         .map(part => part[0]?.toUpperCase())
         .join('') || 'EX';
 }
-function formatRole(r) { return { chef_comite: 'Chef de comité', expert: 'Expert' }[r] || r || 'Expert'; }
+function formatRole(r) { return { chef_comite: 'Coordonnateur expert', expert: 'Expert' }[r] || r || 'Expert'; }
 function fmtDate(v) {
     if (!v) return 'Non planifiée';
     try { return new Date(v).toLocaleDateString('fr-FR'); } catch { return v; }

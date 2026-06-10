@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\DEE;
 
+use App\Exports\CampagneEtablissementsExport;
 use App\Http\Controllers\Controller;
 use App\Models\CampagneEtablissement;
 use App\Models\CampagneEvaluation;
@@ -261,7 +262,6 @@ class CampagneEvaluationController extends Controller
         $attachedIds = $etablissementIds->all();
 
         $availableEtablissements = Etablissement::query()
-            ->whereNotIn('id', $attachedIds)
             ->orderBy($this->orderColumnForEtablissements())
             ->get()
             ->map(function (Etablissement $etablissement) {
@@ -357,6 +357,11 @@ class CampagneEvaluationController extends Controller
         return back()->with('success', 'Vague mise à jour avec succès.');
     }
 
+    public function export(CampagneEvaluation $campagneEvaluation)
+    {
+        (new CampagneEtablissementsExport())->download($campagneEvaluation);
+    }
+
     public function destroy(Request $request, CampagneEvaluation $campagneEvaluation)
     {
         $currentUser = $request->user();
@@ -371,23 +376,6 @@ class CampagneEvaluationController extends Controller
         }
 
         DB::transaction(function () use ($campagneEvaluation) {
-            $campagneEtablissementIds = CampagneEtablissement::query()
-                ->where('campagne_evaluation_id', $campagneEvaluation->id)
-                ->pluck('id')
-                ->all();
-
-            if (!empty($campagneEtablissementIds) && $this->hasColumn('dossiers', 'campagne_etablissement_id')) {
-                Dossier::query()
-                    ->whereIn('campagne_etablissement_id', $campagneEtablissementIds)
-                    ->delete();
-            }
-
-            if ($this->hasColumn('dossiers', 'campagne_evaluation_id')) {
-                Dossier::query()
-                    ->where('campagne_evaluation_id', $campagneEvaluation->id)
-                    ->delete();
-            }
-
             CampagneEtablissement::query()
                 ->where('campagne_evaluation_id', $campagneEvaluation->id)
                 ->delete();

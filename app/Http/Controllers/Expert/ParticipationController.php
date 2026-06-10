@@ -421,7 +421,7 @@ class ParticipationController extends Controller
     private function roleLabel(?string $role): string
     {
         return match ($role) {
-            'chef_comite' => 'Chef de comité',
+            'chef_comite' => 'Coordonnateur expert',
             'expert' => 'Expert',
             default => $role ?: 'Expert',
         };

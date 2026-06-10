@@ -1,5 +1,6 @@
 import { useState, useCallback, useMemo } from "react";
 import ExpertLayout from "@/Layouts/Expert/ExpertLayout";
+import PreviewModal from "@/Components/PreviewModal";
 import {
     Bar,
     BarChart,
@@ -309,6 +310,7 @@ function SwotPanel({ domaine, swotState, onSwotChange, locked }) {
 /* ── Proof row ── */
 function ProofRow({ preuve, critereId, evalState, onUpdate, onConfirm, locked }) {
     const [open, setOpen] = useState(false);
+    const [preview, setPreview] = useState(null);
     const key = `${critereId}_${preuve.index}`;
     const ev  = evalState[key] ?? { note: null, observation: "", confirmed: false };
     const opt = noteOpt(ev.note);
@@ -339,14 +341,18 @@ function ProofRow({ preuve, critereId, evalState, onUpdate, onConfirm, locked })
                 {open && (
                     <div style={{ marginLeft:27, paddingBottom:10 }}>
                         {/* File */}
+                        {preview && <PreviewModal url={preview.url} fileName={preview.fileName} onClose={() => setPreview(null)} />}
                         {preuve.soumis && preuve.fichier_nom ? (
-                            <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                            <div style={{ display:"flex", alignItems:"center", gap:6 }}>
                                 <span className="ea-chip">📄 {preuve.fichier_nom}</span>
-                                <a href={route("etablissement.annexes.download", { criterePreuve: preuve.fichier_id })}
-                                    style={{ fontSize:11, color:"var(--accent)", textDecoration:"underline" }}
-                                    target="_blank" rel="noopener noreferrer">
-                                    Télécharger
-                                </a>
+                                <button
+                                    title="Visualiser le fichier"
+                                    onClick={() => setPreview({ url: route("etablissement.annexes.voir", { criterePreuve: preuve.fichier_id }), fileName: preuve.fichier_nom })}
+                                    style={{ width:26, height:26, borderRadius:6, border:"1px solid var(--border)", background:"var(--surface2)", cursor:"pointer", display:"inline-flex", alignItems:"center", justifyContent:"center", color:"var(--accent)", flexShrink:0, transition:"background .12s,border-color .12s" }}
+                                    onMouseEnter={e=>{e.currentTarget.style.background="var(--accent-s)";e.currentTarget.style.borderColor="var(--accent-t)";}}
+                                    onMouseLeave={e=>{e.currentTarget.style.background="var(--surface2)";e.currentTarget.style.borderColor="var(--border)";}}>
+                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                                </button>
                             </div>
                         ) : (
                             <span className="ea-no-file">Aucun fichier soumis par l'établissement</span>
@@ -896,7 +902,7 @@ export default function EvaluationAnnexeIndex({ dossier, grouped, totalPreuves, 
                         <div className="ea-bar">
                             <span className="ea-bar-info">
                                 {confirmedCount > 0
-                                    ? <><b>{confirmedCount} preuve{confirmedCount>1?"s":""} confirmée{confirmedCount>1?"s":""}</b> sur {totalPreuves}{!allDone && ` — encore ${remaining} à confirmer pour publier`}</>
+                                    ? <><b>{confirmedCount} preuve{confirmedCount>1?"s":""} confirmée{confirmedCount>1?"s":""}</b> sur {totalPreuves}{!allDone && ` — encore ${remaining} à confirmer pour soumettre`}</>
                                     : "Cliquez sur une preuve, choisissez une note, puis cliquez « Confirmer »."}
                             </span>
 
@@ -912,8 +918,8 @@ export default function EvaluationAnnexeIndex({ dossier, grouped, totalPreuves, 
                             {/* Publier — actif seulement quand TOUT est confirmé */}
                             <button className="ea-btn save-publish" onClick={() => setPublish("confirm")}
                                 disabled={isSaving || !allDone}
-                                title={!allDone ? `Confirmez encore ${remaining} preuves pour pouvoir publier` : "Soumettre au DEE"}>
-                                Publier
+                                title={!allDone ? `Confirmez encore ${remaining} preuves pour pouvoir soumettre` : "Submit"}>
+                                Submit
                             </button>
                         </div>
                     )}

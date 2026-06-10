@@ -145,7 +145,7 @@ class EtablissementHistoriqueController extends Controller
                 foreach ($assignments as $de) {
                     $expert = DB::table('experts')->where('id', $de->expert_id)->first();
                     $expertName = $expert ? trim(($expert->prenom ?? '') . ' ' . ($expert->nom ?? '')) : 'Expert';
-                    $role = $de->role_expert === 'chef_comite' ? 'Chef de comité' : 'Expert';
+                    $role = $de->role_expert === 'chef_comite' ? 'Coordonnateur expert' : 'Expert';
 
                     $events->push([
                         'id'           => 'expert_assigned_' . $de->id,

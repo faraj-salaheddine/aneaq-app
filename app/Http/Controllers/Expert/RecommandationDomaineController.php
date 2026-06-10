@@ -51,6 +51,28 @@ class RecommandationDomaineController extends Controller
         ]);
     }
 
+    public function redirect()
+    {
+        $user   = Auth::user();
+        $expert = $this->findExpertForUser($user);
+
+        if (!$expert || !Schema::hasTable('dossier_experts')) {
+            return redirect('/expert/dossiers');
+        }
+
+        $dossier = DB::table('dossier_experts')
+            ->where('expert_id', $expert->id)
+            ->whereIn('status', ['accepte_par_expert', 'confirme_par_expert', 'comite_confirme'])
+            ->orderByDesc('created_at')
+            ->first();
+
+        if (!$dossier) {
+            return redirect('/expert/dossiers')->with('info', 'Aucun dossier actif trouvé.');
+        }
+
+        return redirect("/expert/recommandations-domaine/{$dossier->dossier_id}");
+    }
+
     public function store(Request $request, Dossier $dossier)
     {
         $user   = Auth::user();
@@ -65,18 +87,6 @@ class RecommandationDomaineController extends Controller
         ]);
 
         $this->ensureTable();
-
-        $dejaUtilise = DB::table('recommandations_domaines')
-            ->where('dossier_id', $dossier->id)
-            ->where('expert_id', $expert->id)
-            ->where('domaine_code', $validated['domaine_code'])
-            ->exists();
-
-        if ($dejaUtilise) {
-            return back()->withErrors([
-                'domaine_code' => 'Une recommandation existe déjà pour ce domaine.',
-            ]);
-        }
 
         DB::table('recommandations_domaines')->insert([
             'dossier_id'     => $dossier->id,
@@ -117,19 +127,6 @@ class RecommandationDomaineController extends Controller
 
         abort_unless($rec, 404);
         abort_unless(in_array($rec->statut ?? 'brouillon', ['brouillon', 'renvoyee_expert']), 403, 'Cette recommandation ne peut plus être modifiée.');
-
-        $dejaUtilise = DB::table('recommandations_domaines')
-            ->where('dossier_id', $dossier->id)
-            ->where('expert_id', $expert->id)
-            ->where('domaine_code', $validated['domaine_code'])
-            ->where('id', '!=', $recommandation)
-            ->exists();
-
-        if ($dejaUtilise) {
-            return back()->withErrors([
-                'domaine_code' => 'Une recommandation existe déjà pour ce domaine.',
-            ]);
-        }
 
         DB::table('recommandations_domaines')
             ->where('id', $recommandation)

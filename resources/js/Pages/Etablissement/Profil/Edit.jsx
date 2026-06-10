@@ -81,7 +81,7 @@ export default function EtablissementProfilEdit({ etablissement, onboarding }) {
                         {/* Responsable */}
                         <div className="fade-up" style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 16, overflow: "hidden", boxShadow: "0 2px 10px rgba(0,0,0,0.04)", animationDelay: "0.1s" }}>
                             <div style={{ padding: "1.25rem 1.5rem", borderBottom: "1px solid #f1f5f9", background: "#fafbfc", fontSize: 14, fontWeight: 700, color: "#0f172a" }}>
-                                👤 Responsable / Chef de comité
+                                👤 Responsable / Coordonnateur expert
                             </div>
                             <div style={{ padding: "1.5rem" }}>
                                 <Field label="Nom et prénom" name="responsable_nom"       value={data.responsable_nom}       onChange={setData} error={errors.responsable_nom} />

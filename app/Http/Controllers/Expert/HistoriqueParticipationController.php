@@ -371,7 +371,7 @@ class HistoriqueParticipationController extends Controller
     private function roleLabel(?string $role): string
     {
         return match ($role) {
-            'chef_comite' => 'Coordinateur',
+            'chef_comite' => 'Coordonnateur expert',
             'expert' => 'Expert',
             default => $role ?: 'Expert',
         };

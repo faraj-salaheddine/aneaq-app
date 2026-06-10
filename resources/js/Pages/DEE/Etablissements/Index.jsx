@@ -37,12 +37,16 @@ function EtablissementsIndex({ etablissements = [] }) {
     };
 
     const filteredEtablissements = useMemo(() => {
-        const q = search.trim().toLowerCase();
+        const norm = s => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+        const q = norm(search.trim());
         if (!q) return etablissements;
-        return etablissements.filter((item) =>
-            [item.display_name, item.etablissement, item.etablissement_2, item.ville, item.universite, item.email]
-                .filter(Boolean).join(' ').toLowerCase().includes(q)
-        );
+        return etablissements.filter((item) => {
+            const words = norm(
+                [item.display_name, item.etablissement, item.etablissement_2, item.acronyme, item.ville, item.universite, item.email]
+                    .filter(Boolean).join(' ')
+            ).split(/\s+/);
+            return words.some(w => w.startsWith(q));
+        });
     }, [search, etablissements]);
 
     const totalCampagnes = useMemo(() => etablissements.reduce((s, i) => s + Number(i.campagnes_count || 0), 0), [etablissements]);
@@ -157,7 +161,7 @@ function EtablissementsIndex({ etablissements = [] }) {
                                 <input
                                     value={search}
                                     onChange={e => setSearch(e.target.value)}
-                                    placeholder="Nom, ville, université ou email…"
+                                    placeholder="Nom, acronyme, ville, université ou email…"
                                     style={{ height: 36, borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', paddingLeft: 32, paddingRight: 12, fontSize: 13, color: '#374151', outline: 'none', width: 280 }}
                                 />
                             </div>
@@ -198,7 +202,14 @@ function EtablissementsIndex({ etablissements = [] }) {
                                                 >
                                                     {item.display_name || '—'}
                                                 </Link>
-                                                <p style={{ fontSize: 11, color: '#94a3b8', margin: '2px 0 0' }}>{item.etablissement || '—'}</p>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3 }}>
+                                                    {item.acronyme && (
+                                                        <span style={{ fontSize: 10, fontWeight: 700, color: '#0C447C', background: '#e8f0f8', borderRadius: 6, padding: '2px 7px', letterSpacing: '0.04em' }}>
+                                                            {item.acronyme}
+                                                        </span>
+                                                    )}
+                                                    <p style={{ fontSize: 11, color: '#94a3b8', margin: 0 }}>{item.etablissement || '—'}</p>
+                                                </div>
                                             </td>
                                             <td style={{ padding: '14px 16px', fontSize: 13, color: '#374151' }}>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>

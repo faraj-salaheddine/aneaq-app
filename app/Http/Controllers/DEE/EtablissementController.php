@@ -62,6 +62,7 @@ class EtablissementController extends Controller
                     'etablissement' => $this->modelValue($etablissement, ['etablissement'], '—'),
                     'etablissement_2' => $this->modelValue($etablissement, ['etablissement_2'], $displayName),
                     'display_name' => $displayName,
+                    'acronyme' => $this->modelValue($etablissement, ['acronyme'], null),
                     'ville' => $this->modelValue($etablissement, ['ville'], '—'),
                     'universite' => $this->modelValue($etablissement, ['universite', 'universite_nom'], '—'),
                     'email' => $this->modelValue($etablissement, ['email', 'mail'], '—'),

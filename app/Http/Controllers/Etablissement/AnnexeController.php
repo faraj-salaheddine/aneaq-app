@@ -106,14 +106,13 @@ class AnnexeController extends Controller
             'preuve_index' => 'required|integer|min:0',
             'existe'       => 'required|boolean',
             'fichier'      => $request->boolean('existe')
-                ? 'required|file|mimes:pdf,doc,docx,xls,xlsx,ppt,pptx,jpg,jpeg,png|max:10240'
+                ? 'required|file|max:51200'
                 : 'nullable',
             'commentaire'  => 'nullable|string|max:1000',
             'note'         => 'nullable|string|max:2000',
         ], [
             'fichier.required' => 'Un fichier justificatif est obligatoire pour cette preuve.',
-            'fichier.mimes'    => 'Format non autorisé. Formats acceptés : PDF, Word, Excel, PowerPoint, JPG, PNG.',
-            'fichier.max'      => 'Le fichier ne doit pas dépasser 10 Mo.',
+            'fichier.max'      => 'Le fichier ne doit pas dépasser 50 Mo.',
         ]);
 
         $data = [
@@ -233,26 +232,22 @@ class AnnexeController extends Controller
         $etablissement = $this->activeEtablissement();
 
         $total   = \App\Models\Critere::all()->sum(fn ($c) => count($c->preuves));
+
+        // Count all filled preuves (both submitted files and declared non-available)
+        $remplies = \App\Models\CriterePreuve::where('etablissement_id', $etablissement->id)->count();
         $soumises = \App\Models\CriterePreuve::where('etablissement_id', $etablissement->id)
             ->where('existe', true)->count();
 
-        if ($soumises < $total) {
-            return response()->json([
-                'success' => false,
-                'message' => "Impossible de publier : {$soumises}/{$total} preuves soumises.",
-            ], 422);
-        }
-
         ActivityLogger::log(
             'annexes_publiees',
-            "Annexes publiées : {$soumises}/{$total} preuves soumises.",
+            "Annexes publiées : {$remplies}/{$total} preuves remplies ({$soumises} avec fichier).",
             $etablissement
         );
 
         NotificationAneaq::envoyer(
             Auth::id(), 'annexe',
             'Annexes publiées',
-            "L'établissement a publié ses {$soumises} annexes.",
+            "L'établissement a publié ses annexes ({$remplies}/{$total} remplies).",
             'Etablissement', $etablissement->id
         );
 
@@ -262,13 +257,13 @@ class AnnexeController extends Controller
                 $dossier,
                 'annexe',
                 "Annexes publiées — {$dossier->reference}",
-                "L'établissement a publié officiellement {$soumises}/{$total} preuves annexes pour le dossier {$dossier->reference}."
+                "L'établissement a publié officiellement {$remplies}/{$total} preuves annexes pour le dossier {$dossier->reference}."
             );
         }
 
         return response()->json([
             'success'  => true,
-            'soumises' => $soumises,
+            'soumises' => $remplies,
             'total'    => $total,
         ]);
     }
@@ -315,5 +310,20 @@ class AnnexeController extends Controller
         abort_if(!file_exists($cheminComplet), 404);
 
         return response()->download($cheminComplet, $criterePreuve->fichier_nom);
+    }
+
+    public function voir(CriterePreuve $criterePreuve)
+    {
+        $etablissement = $this->activeEtablissement();
+
+        abort_if($criterePreuve->etablissement_id !== $etablissement->id, 403);
+
+        $cheminComplet = storage_path('app/public/' . $criterePreuve->fichier_path);
+
+        abort_if(!file_exists($cheminComplet), 404);
+
+        return response()->file($cheminComplet, [
+            'Content-Disposition' => 'inline; filename="' . $criterePreuve->fichier_nom . '"',
+        ]);
     }
 }

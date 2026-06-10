@@ -5,6 +5,7 @@ import {
     Building2,
     CheckCircle2,
     ClipboardList,
+    Download,
     Edit3,
     FileUp,
     FolderKanban,
@@ -76,15 +77,15 @@ function CampagneShow({
         (str || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
     const filteredAvailableEtablissements = useMemo(() => {
-        const value = normalize(search.trim());
-        if (!value) return availableEtablissements;
-        return availableEtablissements.filter((item) =>
-            normalize([
-                item.nom, item.etablissement, item.etablissement_2,
-                item.type, item.vocation, item.domaine_connaissances,
-                item.ville, item.universite, item.email, item.acronyme,
-            ].filter(Boolean).join(' ')).includes(value)
-        );
+        const q = normalize(search.trim());
+        if (!q) return availableEtablissements;
+        return availableEtablissements.filter((item) => {
+            const words = normalize(
+                [item.nom, item.etablissement, item.etablissement_2, item.acronyme, item.ville, item.universite, item.email]
+                    .filter(Boolean).join(' ')
+            ).split(/\s+/);
+            return words.some(w => w.startsWith(q));
+        });
     }, [search, availableEtablissements]);
 
     const submitInfo = (e) => {
@@ -245,6 +246,14 @@ function CampagneShow({
                             <ArrowLeft size={17} />
                             Retour aux vagues
                         </Link>
+
+                        <a
+                            href={`/dee/campagnes/${campagne.id}/export`}
+                            className="inline-flex items-center gap-2 rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-black text-white shadow-sm transition hover:bg-emerald-700"
+                        >
+                            <Download size={17} />
+                            Exporter les établissements
+                        </a>
 
                         <button
                             type="button"
@@ -605,7 +614,7 @@ function CampagneShow({
                             <input
                                 value={search}
                                 onChange={(e) => setSearch(e.target.value)}
-                                placeholder="Rechercher par nom, ville, université..."
+                                placeholder="Rechercher par nom, acronyme, ville, université..."
                                 className="h-14 w-full rounded-2xl border border-slate-200 bg-slate-50 pl-12 pr-4 text-sm font-bold text-slate-700 outline-none transition focus:border-blue-500"
                             />
                         </div>
@@ -633,6 +642,9 @@ function CampagneShow({
                                                         <MapPin size={12} />
                                                         {item.ville || '—'}
                                                     </Badge>
+                                                    {item.acronyme && item.acronyme !== '—' && (
+                                                        <Badge>{item.acronyme}</Badge>
+                                                    )}
                                                 </div>
 
                                                 <p className="mt-2 text-sm font-semibold text-slate-500">

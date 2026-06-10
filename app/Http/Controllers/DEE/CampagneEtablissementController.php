@@ -121,9 +121,10 @@ class CampagneEtablissementController extends Controller
             }
         }
 
-        $isNewUser = false;
+        $isNewUser   = false;
+        $mailPayload = null; // filled inside transaction, used outside
 
-        DB::transaction(function () use ($request, $validated, $campagneEvaluation, $campagneEtablissement, $etablissement, &$isNewUser) {
+        DB::transaction(function () use ($request, $validated, $campagneEvaluation, $campagneEtablissement, $etablissement, &$isNewUser, &$mailPayload) {
             $password = Str::random(10);
 
             $user = User::query()
@@ -196,27 +197,42 @@ class CampagneEtablissementController extends Controller
                 $messageLettre = null;
             }
 
-            // Always send the email with fresh credentials
-            Mail::to($validated['email'])->send(
-                new EtablissementAccountCreatedMail(
-                    $this->etablissementName($etablissement),
-                    $validated['email'],
-                    $password,
-                    $this->read($dossier, ['reference'], null),
-                    $this->read($campagneEvaluation, ['reference'], null),
-                    $messageLettre
-                )
-            );
-
-            Log::info('EMAIL ETABLISSEMENT ENVOYE AVEC SUCCES', [
-                'email'          => $validated['email'],
-                'is_new_user'    => $isNewUser,
-                'etablissement'  => $this->etablissementName($etablissement),
-                'dossier'        => $this->read($dossier, ['reference'], null),
-                'campagne'       => $this->read($campagneEvaluation, ['reference'], null),
+            // Store mail data to send AFTER the transaction commits (so DB rollback doesn't happen on SMTP failure)
+            $mailPayload = [
+                'to'             => $validated['email'],
+                'etab_nom'       => $this->etablissementName($etablissement),
+                'password'       => $password,
+                'dossier_ref'    => $this->read($dossier, ['reference'], null),
+                'campagne_ref'   => $this->read($campagneEvaluation, ['reference'], null),
                 'message_lettre' => $messageLettre,
-            ]);
+            ];
         });
+
+        // Send email outside the transaction so SMTP errors don't rollback DB changes
+        $mailError = null;
+        if ($mailPayload) {
+            try {
+                Mail::to($mailPayload['to'])->send(
+                    new EtablissementAccountCreatedMail(
+                        $mailPayload['etab_nom'],
+                        $mailPayload['to'],
+                        $mailPayload['password'],
+                        $mailPayload['dossier_ref'],
+                        $mailPayload['campagne_ref'],
+                        $mailPayload['message_lettre']
+                    )
+                );
+                Log::info('EMAIL ETABLISSEMENT ENVOYE AVEC SUCCES', $mailPayload);
+            } catch (\Throwable $e) {
+                $mailError = $e->getMessage();
+                Log::error('ECHEC ENVOI EMAIL ETABLISSEMENT', ['error' => $mailError, 'to' => $mailPayload['to']]);
+            }
+        }
+
+        if ($mailError) {
+            $msg = 'Compte établissement ' . ($isNewUser ? 'créé' : 'mis à jour') . ' et dossier assigné avec succès. ⚠️ L\'email n\'a pas pu être envoyé (erreur SMTP). Vérifiez les paramètres email dans Paramètres.';
+            return back()->with('success', $msg);
+        }
 
         $msg = 'Compte établissement ' . ($isNewUser ? 'créé' : 'mis à jour') . ', dossier assigné et email envoyé avec succès.';
 

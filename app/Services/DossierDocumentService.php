@@ -11,6 +11,8 @@ class DossierDocumentService
 {
     public const STATUS_PENDING_DEE = 'en_attente_confirmation_dee';
 
+    public const STATUS_ACCEPTED_DEE = 'accepte_par_dee';
+
     public const STATUS_CONFIRMED_DEE = 'confirme_par_dee';
 
     public const STATUS_REJECTED_DEE = 'rejete_par_dee';
@@ -125,6 +127,18 @@ class DossierDocumentService
             'enattenteconfirmationdee',
             'depose',
         ], true);
+    }
+
+    public static function isAcceptedByDee(array|object $document): bool
+    {
+        if (!self::requiresDeeConfirmationForExperts($document)) {
+            return false;
+        }
+
+        $values = is_array($document) ? $document : (array) $document;
+        $status = self::normalize(self::firstValue($values, self::STATUS_COLUMNS));
+
+        return $status === 'acceptepardee';
     }
 
     public static function isRejectedByDee(array|object $document): bool

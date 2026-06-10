@@ -14,6 +14,7 @@ import {
     ChevronRight,
     CalendarDays,
     ClipboardCheck,
+    Lightbulb,
 } from 'lucide-react';
 
 const GREEN = "#1D9E75";
@@ -25,6 +26,7 @@ const navItems = [
     { label: 'Mes invitations',      href: '/expert/participations',         icon: Mail,            color: "#7e22ce" },
     { label: 'Dossiers affectés',    href: '/expert/dossiers',               icon: FolderOpen,      color: "#EF9F27" },
     { label: 'Éval. annexes',        href: '/expert/evaluations-annexes',    icon: ClipboardCheck,  color: "#0e7c5b" },
+    { label: 'Recommandations',      href: '/expert/recommandations',        icon: Lightbulb,       color: "#f59e0b" },
     { label: 'Mes rapports',         href: '/expert/rapports',               icon: FileText,        color: GREEN     },
     { label: 'Notifications',        href: '/expert/notifications',          icon: Bell,            color: "#e11d48" },
     { label: 'Mon calendrier',       href: '/expert/calendrier',             icon: CalendarDays,    color: "#ec4899" },

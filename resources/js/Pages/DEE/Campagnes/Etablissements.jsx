@@ -39,31 +39,21 @@ function CampagneEtablissements({
             .map((item) => normalizeSelectedItem(item));
     }, [selectedEtablissements]);
 
-    const selectedIds = useMemo(() => {
-        return selected.map((item) => Number(item.etablissement_id));
-    }, [selected]);
-
     const catalog = useMemo(() => {
         return (etablissements || [])
-            .map((item) => normalizeEtablissement(item))
-            .filter((item) => !selectedIds.includes(Number(item.id)));
-    }, [etablissements, selectedIds]);
+            .map((item) => normalizeEtablissement(item));
+    }, [etablissements]);
 
     const filteredCatalog = useMemo(() => {
-        const term = search.trim().toLowerCase();
-
+        const norm = s => (s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+        const q = norm(search.trim());
+        if (!q) return catalog;
         return catalog.filter((item) => {
-            if (!term) return true;
-
-            return [
-                item.nom,
-                item.type,
-                item.ville,
-                item.universite,
-                item.email,
-            ]
-                .filter(Boolean)
-                .some((value) => String(value).toLowerCase().includes(term));
+            const words = norm(
+                [item.nom, item.type, item.ville, item.universite, item.email, item.acronyme]
+                    .filter(Boolean).join(' ')
+            ).split(/\s+/);
+            return words.some(w => w.startsWith(q));
         });
     }, [catalog, search]);
 
@@ -376,7 +366,7 @@ function CampagneEtablissements({
                             type="text"
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
-                            placeholder="Rechercher par nom, ville, université..."
+                            placeholder="Rechercher par nom, acronyme, ville, université..."
                             className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 pl-11 pr-4 text-sm font-medium text-slate-700 outline-none transition focus:border-blue-500 focus:bg-white"
                         />
                     </div>
@@ -602,6 +592,7 @@ function normalizeEtablissement(item) {
             item.university ??
             '—',
         email: item.email ?? '',
+        acronyme: item.acronyme ?? '',
     };
 }
 

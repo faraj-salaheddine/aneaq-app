@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, createContext, useContext, useCallback } from "react";
 import { router } from "@inertiajs/react";
 import EtablissementLayout from "@/Layouts/Etablissement/EtablissementLayout";
+import PreviewModal from "@/Components/PreviewModal";
 
 /* ── localStorage helpers ── */
 const DK = "aneaq_ax";
@@ -288,6 +289,7 @@ function ProofRow({ preuve, critereId, onSaved }) {
     const [draftName, setDN]      = useState(init?.fileName ?? null);
     const [hasDraft, setHD]       = useState(!!init);
     const [showNote, setShowNote] = useState(!!(preuve.note));
+    const [preview, setPreview]   = useState(null);
 
     /* When global save fires, clear local draft state */
     useEffect(() => {
@@ -369,13 +371,18 @@ function ProofRow({ preuve, critereId, onSaved }) {
 
                 {open && (
                     <div style={{marginLeft:27}}>
+                        {preview && <PreviewModal url={preview.url} fileName={preview.fileName} onClose={() => setPreview(null)} />}
                         {preuve.fichier_nom && !hasDraft && (
-                            <div style={{display:"flex",alignItems:"center",gap:8,marginTop:4}}>
+                            <div style={{display:"flex",alignItems:"center",gap:6,marginTop:4}}>
                                 <span className="ax-chip">📄 {preuve.fichier_nom}</span>
-                                <a href={route("etablissement.annexes.download",{criterePreuve:preuve.id})}
-                                    style={{fontSize:11,color:"var(--accent)",textDecoration:"underline"}} target="_blank">
-                                    Télécharger
-                                </a>
+                                <button
+                                    title="Visualiser le fichier"
+                                    onClick={() => setPreview({ url: route("etablissement.annexes.voir", {criterePreuve: preuve.id}), fileName: preuve.fichier_nom })}
+                                    style={{width:26,height:26,borderRadius:6,border:"1px solid var(--border)",background:"var(--surface2)",cursor:"pointer",display:"inline-flex",alignItems:"center",justifyContent:"center",color:"var(--accent)",flexShrink:0,transition:"background .12s,border-color .12s"}}
+                                    onMouseEnter={e=>{e.currentTarget.style.background="var(--accent-s)";e.currentTarget.style.borderColor="var(--accent-t)";}}
+                                    onMouseLeave={e=>{e.currentTarget.style.background="var(--surface2)";e.currentTarget.style.borderColor="var(--border)";}}>
+                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                                </button>
                             </div>
                         )}
 
@@ -389,7 +396,7 @@ function ProofRow({ preuve, critereId, onSaved }) {
                                 <div style={{display:"flex",gap:5,flexShrink:0}}>
                                     {draftFile && (
                                         <button className="ax-btn confirm" onClick={()=>submitFile(draftFile)} disabled={loading}>
-                                            {loading ? <span className="ax-spin"/> : "↑ Soumettre"}
+                                            {loading ? <span className="ax-spin"/> : "↑ Submit"}
                                         </button>
                                     )}
                                     <button className="ax-btn ghost" onClick={clr}>Supprimer</button>
@@ -402,7 +409,7 @@ function ProofRow({ preuve, critereId, onSaved }) {
                             <label className="ax-btn primary" style={{cursor:"pointer"}}>
                                 {preuve.fichier_nom ? "↻ Remplacer" : "Joindre un fichier"}
                                 <input type="file" style={{display:"none"}}
-                                    accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.jpg,.jpeg,.png"
+                                    accept="*"
                                     onChange={onDraft}/>
                             </label>
 
@@ -672,7 +679,7 @@ export default function Annexe({ grouped, totalPreuves, preuvesRemplies, annexes
         if (dirtyNoteCount > 0)
             return <><b>{dirtyNoteCount} note{dirtyNoteCount>1?"s":""} non sauvegardée{dirtyNoteCount>1?"s":""}</b></>;
         if (allSubmitted)
-            return <b style={{color:"var(--emerald)"}}>✓ Toutes les preuves sont soumises — vous pouvez publier.</b>;
+            return <b style={{color:"var(--emerald)"}}>✓ Toutes les preuves sont soumises — vous pouvez soumettre.</b>;
         return "Toutes les notes sont sauvegardées.";
     }
 
@@ -686,9 +693,9 @@ export default function Annexe({ grouped, totalPreuves, preuvesRemplies, annexes
                     <div className="ax-modal-backdrop" onClick={() => !isPublishing && setPublishModal(null)}>
                         <div className="ax-modal" onClick={e => e.stopPropagation()}>
                             <div className="ax-modal-icon warn">📋</div>
-                            <h2>Publier les annexes ?</h2>
+                            <h2>Soumettre les annexes ?</h2>
                             <p>
-                                Vous êtes sur le point de publier officiellement vos <b>{preuvesRemplies} annexes</b>.
+                                Vous êtes sur le point de soumettre officiellement vos <b>{preuvesRemplies} annexes</b>.
                                 <br/>Cette action notifiera l'équipe ANEAQ.
                             </p>
                             <div className="ax-modal-actions">
@@ -760,11 +767,9 @@ export default function Annexe({ grouped, totalPreuves, preuvesRemplies, annexes
                                 <button
                                     className="ax-btn save-publish"
                                     onClick={() => setPublishModal("confirm")}
-                                    disabled={isSaving || isPublishing || !allSubmitted}
-                                    title={!allSubmitted
-                                        ? `Il reste ${totalPreuves - preuvesRemplies} preuves à soumettre avant de pouvoir publier.`
-                                        : "Publier toutes les annexes"}>
-                                    Publier
+                                    disabled={isSaving || isPublishing}
+                                    title="Submit">
+                                    Submit
                                 </button>
                             )}
                         </div>

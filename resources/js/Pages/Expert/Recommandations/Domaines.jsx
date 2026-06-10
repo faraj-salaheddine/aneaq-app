@@ -67,20 +67,9 @@ export default function RecommandationsDomaines({
         return true;
     }), [recommandations, filterU, filterD, filterS]);
 
-    const domainesUtilises = useMemo(() => new Set(
-        recommandations
-            .map(r => String(r.domaine_code ?? r.domaine_id ?? ''))
-            .filter(Boolean)
-    ), [recommandations]);
+    const domainesDisponibles = domaines;
 
-    const domainesDisponibles = useMemo(() => domaines.filter(
-        d => !domainesUtilises.has(String(d.code ?? d.id))
-    ), [domaines, domainesUtilises]);
-
-    const domainesDisponiblesPourEdition = useMemo(() => domaines.filter(
-        d => String(d.code ?? d.id) === String(editForm.domaine_code ?? '')
-            || !domainesUtilises.has(String(d.code ?? d.id))
-    ), [domaines, domainesUtilises, editForm.domaine_code]);
+    const domainesDisponiblesPourEdition = domaines;
 
     const counts = {
         rouge:    recommandations.filter(r => r.urgence === 'rouge').length,
@@ -348,14 +337,12 @@ export default function RecommandationsDomaines({
                             )}
 
                             <div style={{ marginLeft: 'auto' }}>
-                                <button className="add-btn" disabled={domainesDisponibles.length === 0}
+                                <button className="add-btn"
                                     onClick={() => { setShowAddPanel(p => !p); setEditId(null); }}
-                                    style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '10px 20px', borderRadius: 11, background: domainesDisponibles.length === 0 || showAddPanel ? '#e2e8f0' : BLUE, color: domainesDisponibles.length === 0 || showAddPanel ? '#64748b' : '#fff', fontSize: 13, fontWeight: 800, border: 'none', cursor: domainesDisponibles.length === 0 ? 'not-allowed' : 'pointer', boxShadow: domainesDisponibles.length === 0 || showAddPanel ? 'none' : `0 4px 14px ${BLUE}33` }}>
-                                    {domainesDisponibles.length === 0
-                                        ? 'Tous les domaines sont renseignés'
-                                        : showAddPanel
-                                            ? <><IcoX size={13}/> Fermer</>
-                                            : <><IcoPlus size={13}/> Nouvelle recommandation</>}
+                                    style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '10px 20px', borderRadius: 11, background: showAddPanel ? '#e2e8f0' : BLUE, color: showAddPanel ? '#64748b' : '#fff', fontSize: 13, fontWeight: 800, border: 'none', cursor: 'pointer', boxShadow: showAddPanel ? 'none' : `0 4px 14px ${BLUE}33` }}>
+                                    {showAddPanel
+                                        ? <><IcoX size={13}/> Fermer</>
+                                        : <><IcoPlus size={13}/> Nouvelle recommandation</>}
                                 </button>
                             </div>
                         </div>

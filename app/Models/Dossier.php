@@ -6,6 +6,9 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
 
 class Dossier extends Model
 {
@@ -27,6 +30,56 @@ class Dossier extends Model
     protected $casts = [
         'date_visite' => 'date',
     ];
+
+    protected static function boot(): void
+    {
+        parent::boot();
+
+        static::deleting(function (Dossier $dossier) {
+            // Clean up document files from disk (DB rows cascade automatically)
+            foreach (['dossier_documents', 'documents'] as $docTable) {
+                if (Schema::hasTable($docTable)) {
+                    DB::table($docTable)->where('dossier_id', $dossier->id)->get()
+                        ->each(function ($doc) {
+                            $path = $doc->file_path ?? $doc->path ?? $doc->fichier ?? null;
+                            if ($path) {
+                                Storage::disk('public')->exists($path) && Storage::disk('public')->delete($path);
+                                Storage::disk('local')->exists($path) && Storage::disk('local')->delete($path);
+                            }
+                        });
+                }
+            }
+
+            // Clean up rapport expert files from disk
+            if (Schema::hasTable('rapports_experts')) {
+                DB::table('rapports_experts')->where('dossier_id', $dossier->id)->get()
+                    ->each(function ($r) {
+                        $path = $r->fichier ?? $r->file_path ?? null;
+                        if ($path && Storage::disk('public')->exists($path)) {
+                            Storage::disk('public')->delete($path);
+                        }
+                    });
+            }
+
+            // Clean up photo files from disk
+            if (Schema::hasTable('dossier_photos')) {
+                DB::table('dossier_photos')->where('dossier_id', $dossier->id)->get()
+                    ->each(function ($photo) {
+                        $path = $photo->file_path ?? null;
+                        if ($path && Storage::disk('public')->exists($path)) {
+                            Storage::disk('public')->delete($path);
+                        }
+                    });
+            }
+
+            // Remove the CampagneEtablissement record linked to this dossier
+            if (!empty($dossier->campagne_etablissement_id) && Schema::hasTable('campagne_etablissements')) {
+                DB::table('campagne_etablissements')
+                    ->where('id', $dossier->campagne_etablissement_id)
+                    ->delete();
+            }
+        });
+    }
 
     public function campagneEvaluation(): BelongsTo
     {

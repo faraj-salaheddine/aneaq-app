@@ -202,7 +202,7 @@ class ExpertDashboardController extends Controller
         $ref        = $dossier?->reference ?? '—';
         $dossierUrl = config('app.url') . '/dee/dossiers/' . ($dossier?->id ?? '');
         $expertRole = match ($dossierExpert->role_expert) {
-            'chef_comite' => 'Chef de comité',
+            'chef_comite' => 'Coordonnateur expert',
             default       => 'Expert',
         };
 
@@ -576,7 +576,7 @@ class ExpertDashboardController extends Controller
     private function roleLabel(?string $role): string
     {
         return match ($role) {
-            'chef_comite' => 'Chef de comité',
+            'chef_comite' => 'Coordonnateur expert',
             'expert' => 'Expert',
             default => $role ?: 'Expert',
         };

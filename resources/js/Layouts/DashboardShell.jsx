@@ -14,6 +14,7 @@ import {
     LayoutDashboard,
     Layers3,
     LogOut,
+    Settings2,
     Users,
 } from 'lucide-react';
 
@@ -44,6 +45,7 @@ const NAV_GROUPS = [
             { label: 'Suivi avancement',  href: '/dee/suivi-avancement',      icon: Activity,      color: '#10b981' },
             { label: 'Calendrier',       href: '/dee/calendrier-visites',    icon: CalendarCheck, color: '#ec4899' },
             { label: 'Q&R',              href: '/dee/questions-reponses',    icon: FileText,      color: '#f97316' },
+            { label: 'Paramètres',       href: '/dee/parametres',             icon: Settings2,     color: '#64748b' },
         ],
     },
 ];

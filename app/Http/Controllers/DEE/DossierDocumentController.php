@@ -80,7 +80,7 @@ class DossierDocumentController extends Controller
         return back()->with('success', 'Document ajouté avec succès.');
     }
 
-    public function confirmRapportAutoevaluation(Dossier $dossier)
+    public function accepterRapportAutoevaluation(Dossier $dossier)
     {
         $table = $this->documentsTable();
 
@@ -99,6 +99,58 @@ class DossierDocumentController extends Controller
 
         $pendingIds = $documents
             ->filter(fn (object $document) => DossierDocumentService::isPendingDeeConfirmation($document))
+            ->pluck('id')
+            ->values();
+
+        if ($pendingIds->isEmpty()) {
+            return back()->with('error', "Aucun rapport d'autoévaluation en attente de décision DEE.");
+        }
+
+        if (!Schema::hasColumn($table, 'status') && !Schema::hasColumn($table, 'statut')) {
+            return back()->with('error', 'Le statut des documents ne peut pas être mis à jour.');
+        }
+
+        $payload = [];
+        $this->setColumn($table, $payload, 'status', DossierDocumentService::STATUS_ACCEPTED_DEE);
+        $this->setColumn($table, $payload, 'statut', DossierDocumentService::STATUS_ACCEPTED_DEE);
+        $this->setColumn($table, $payload, 'updated_at', now());
+
+        DB::table($table)
+            ->where('dossier_id', $dossier->id)
+            ->whereIn('id', $pendingIds)
+            ->update($payload);
+
+        ActivityLogger::log(
+            'rapport_autoevaluation_accepte',
+            "Rapport d'autoévaluation accepté par la DEE pour le dossier {$dossier->reference}",
+            $dossier
+        );
+
+        return back()->with('success', "Rapport d'autoévaluation accepté. Vous pouvez maintenant l'envoyer aux experts.");
+    }
+
+    public function confirmRapportAutoevaluation(Dossier $dossier)
+    {
+        $table = $this->documentsTable();
+
+        if (!$table) {
+            return back()->with('error', 'Table des documents introuvable.');
+        }
+
+        $documents = DB::table($table)
+            ->where('dossier_id', $dossier->id)
+            ->get()
+            ->filter(fn (object $document) => DossierDocumentService::requiresDeeConfirmationForExperts($document));
+
+        if ($documents->isEmpty()) {
+            return back()->with('error', "Aucun rapport d'autoévaluation déposé par l'établissement.");
+        }
+
+        $pendingIds = $documents
+            ->filter(fn (object $document) =>
+                DossierDocumentService::isPendingDeeConfirmation($document) ||
+                DossierDocumentService::isAcceptedByDee($document)
+            )
             ->pluck('id')
             ->values();
 
