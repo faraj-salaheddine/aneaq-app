@@ -80,12 +80,7 @@ class DossierExpertController extends Controller
         DossierExpert::create($payload);
         ActivityLogger::log('expert_affecte', "Expert {$expert->prenom} {$expert->nom} affecté au dossier {$dossier->reference}", $dossier);
 
-        // Email is sent even if the expert account has not been created yet.
-        $this->notifyExpert($expert, 'affectation_dossier',
-            "Proposition d'affectation — {$dossier->reference}",
-            "Vous avez été proposé comme {$this->roleLabel($validated['role_expert'])} pour le dossier {$dossier->reference}. En attente de confirmation DEE.",
-            $dossier->id
-        );
+        // Aucun email ici — l'expert est notifié uniquement après confirmation DEE (bouton Accepter)
 
         return back()->with('success', 'Expert ajouté en attente de confirmation DEE.');
     }
@@ -298,14 +293,7 @@ class DossierExpertController extends Controller
             abort(404);
         }
 
-        $expert = $dossierExpert->expert;
-
-        $this->notifyExpert($expert, 'general',
-            "Affectation refusée — {$dossier->reference}",
-            "Votre proposition d'affectation pour le dossier {$dossier->reference} a été refusée par la DEE.",
-            $dossier->id
-        );
-
+        // Pas de notification — l'expert n'a jamais été averti de la proposition
         ActivityLogger::log('expert_refuse', "Expert refusé sur le dossier {$dossier->reference}", $dossier);
         $dossierExpert->delete();
 
